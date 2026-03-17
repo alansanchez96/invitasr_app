@@ -565,7 +565,7 @@ onUnmounted(() => {
 }
 
 :global(body.mobile-cta-open) .menu-close-fab {
-    bottom: 400px;
+    bottom: clamp(280px, 38vh, 520px);
 }
 
 :global(body) {
