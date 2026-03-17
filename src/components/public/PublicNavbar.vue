@@ -195,6 +195,7 @@ onUnmounted(() => {
     background: rgba(247, 243, 255, 0.72);
     backdrop-filter: blur(5px);
     overflow-y: auto;
+    z-index: 60;
 }
 
 .nav {
