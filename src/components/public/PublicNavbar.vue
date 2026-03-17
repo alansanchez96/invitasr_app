@@ -1,19 +1,24 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
 const session = useSessionStore()
+const route = useRoute()
+const router = useRouter()
 const isMenuOpen = ref(false)
 const isMobile = ref(false)
 const isAuthenticated = computed(() => session.isAuthenticated)
+const isLoginLoading = computed(() => session.isLoading)
 const isAccountMenuOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
 const isLoginMenuOpen = ref(false)
 const loginMenuRef = ref<HTMLElement | null>(null)
+const loginError = ref<string | null>(null)
+const loginFieldErrors = ref<Record<string, string[]>>({})
 
 const toggleMenu = () => {
     if (!isMobile.value) return
@@ -34,15 +39,25 @@ const closeAccountMenu = () => {
 
 const toggleLoginMenu = () => {
     isLoginMenuOpen.value = !isLoginMenuOpen.value
+    if (isLoginMenuOpen.value) {
+        loginError.value = null
+        loginFieldErrors.value = {}
+    }
 }
 
 const closeLoginMenu = () => {
     isLoginMenuOpen.value = false
+    loginError.value = null
+    loginFieldErrors.value = {}
 }
 
 const handleLogout = () => {
-    session.clearSession()
-    closeAccountMenu()
+    session.logout().finally(() => {
+        closeAccountMenu()
+        if (route.path.startsWith('/backoffice') || route.path.startsWith('/dashboard')) {
+            router.push('/')
+        }
+    })
 }
 
 const handleDocumentClick = (event: MouseEvent) => {
@@ -57,6 +72,18 @@ const handleLoginDocumentClick = (event: MouseEvent) => {
     if (loginMenuRef.value && !loginMenuRef.value.contains(event.target as Node)) {
         closeLoginMenu()
     }
+}
+
+const handleLoginSubmit = async (payload: { email: string; password: string; remember: boolean }) => {
+    loginError.value = null
+    loginFieldErrors.value = {}
+    const result = await session.login(payload.email, payload.password, payload.remember)
+    if (!result.ok) {
+        loginError.value = result.message ?? 'No pudimos iniciar sesion.'
+        loginFieldErrors.value = result.fieldErrors ?? {}
+        return
+    }
+    closeLoginMenu()
 }
 
 const handleLoginKeydown = (event: KeyboardEvent) => {
@@ -119,7 +146,8 @@ onUnmounted(() => {
                                 Iniciar sesion
                             </BaseButton>
                             <div v-if="isLoginMenuOpen" class="login-dropdown" @click.stop>
-                                <AuthForm />
+                                <AuthForm :loading="isLoginLoading" :error-message="loginError"
+                                    :field-errors="loginFieldErrors" @submit="handleLoginSubmit" />
                                 <div class="auth-divider"></div>
                                 <AuthProviders :providers="['google', 'facebook']" />
                             </div>

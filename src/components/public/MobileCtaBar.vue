@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
@@ -8,11 +8,15 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 
 const route = useRoute()
+const router = useRouter()
 const session = useSessionStore()
 const isAuthenticated = computed(() => session.isAuthenticated)
+const isLoginLoading = computed(() => session.isLoading)
 const showBar = computed(() => route.path === '/' || route.path === '/planes')
 const isPopping = ref(false)
 const activeMenu = ref<'dashboard' | 'invitaciones' | 'config' | null>(null)
+const loginError = ref<string | null>(null)
+const loginFieldErrors = ref<Record<string, string[]>>({})
 const isLoginOpen = ref(false)
 const loginStep = ref<'providers' | 'email'>('providers')
 
@@ -40,17 +44,25 @@ const openMenu = (menu: 'dashboard' | 'invitaciones' | 'config') => {
 }
 
 const handleLogout = () => {
-    session.clearSession()
-    activeMenu.value = null
+    session.logout().finally(() => {
+        activeMenu.value = null
+        if (route.path.startsWith('/backoffice') || route.path.startsWith('/dashboard')) {
+            router.push('/')
+        }
+    })
 }
 
 const openLogin = () => {
     isLoginOpen.value = true
     loginStep.value = 'providers'
+    loginError.value = null
+    loginFieldErrors.value = {}
 }
 
 const closeLogin = () => {
     isLoginOpen.value = false
+    loginError.value = null
+    loginFieldErrors.value = {}
 }
 
 const openEmailLogin = () => {
@@ -67,6 +79,18 @@ const handleProviderSelect = (provider: ProviderKey) => {
     if (provider === 'email') {
         openEmailLogin()
     }
+}
+
+const handleLoginSubmit = async (payload: { email: string; password: string; remember: boolean }) => {
+    loginError.value = null
+    loginFieldErrors.value = {}
+    const result = await session.login(payload.email, payload.password, payload.remember)
+    if (!result.ok) {
+        loginError.value = result.message ?? 'No pudimos iniciar sesion.'
+        loginFieldErrors.value = result.fieldErrors ?? {}
+        return
+    }
+    closeLogin()
 }
 
 watch(activeMenu, (value) => {
@@ -194,7 +218,8 @@ onUnmounted(() => {
             </div>
             <AuthProviders v-if="loginStep === 'providers'" variant="stack" :providers="['email', 'google', 'facebook']"
                 @select="handleProviderSelect" />
-            <AuthForm v-else />
+            <AuthForm v-else :loading="isLoginLoading" :error-message="loginError" :field-errors="loginFieldErrors"
+                @submit="handleLoginSubmit" />
             <div v-if="loginStep === 'providers'" class="login-proof">
                 <span>+1,200 organizadores confian en InvitaSR</span>
                 <span>Mas de 1,200 eventos creados este mes</span>
