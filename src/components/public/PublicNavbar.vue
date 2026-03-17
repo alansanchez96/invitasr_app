@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
+import AuthForm from '@/components/auth/AuthForm.vue'
+import AuthProviders from '@/components/auth/AuthProviders.vue'
 
 const session = useSessionStore()
 const isMenuOpen = ref(false)
@@ -116,52 +118,9 @@ onUnmounted(() => {
                                 Iniciar sesion
                             </button>
                             <div v-if="isLoginMenuOpen" class="login-dropdown" @click.stop>
-                                <label class="auth-field">
-                                    <span>Correo</span>
-                                    <input type="email" placeholder="tu@email.com" autocomplete="email" />
-                                </label>
-                                <label class="auth-field">
-                                    <span>Contrasena</span>
-                                    <input type="password" placeholder="Tu clave segura" autocomplete="current-password" />
-                                </label>
-                                <label class="auth-check">
-                                    <input type="checkbox" />
-                                    <span>Recordarme en este dispositivo</span>
-                                </label>
-                                <button class="btn btn-primary auth-cta" type="button">
-                                    <span class="cta-text">Entrar a mi cuenta</span>
-                                    <span class="cta-icon" aria-hidden="true">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M5 12h14" />
-                                            <path d="m13 6 6 6-6 6" />
-                                        </svg>
-                                    </span>
-                                </button>
-                                <div class="auth-links">
-                                    <a href="#">Olvidaste tu password?</a>
-                                    <a href="#">Todavia no tienes tu cuenta?</a>
-                                </div>
+                                <AuthForm />
                                 <div class="auth-divider"></div>
-                                <div class="login-providers">
-                                    <button class="auth-provider" type="button">
-                                        <span class="auth-provider-icon">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                                                <path d="M21 12h-8" />
-                                            </svg>
-                                        </span>
-                                        <span>Google</span>
-                                    </button>
-                                    <button class="auth-provider" type="button">
-                                        <span class="auth-provider-icon">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                                <path
-                                                    d="M15 3h-3a4 4 0 0 0-4 4v3H5v4h3v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
-                                            </svg>
-                                        </span>
-                                        <span>Facebook</span>
-                                    </button>
-                                </div>
+                                <AuthProviders :providers="['google', 'facebook']" />
                             </div>
                         </div>
                         <a class="btn btn-primary" href="/planes">Ver planes</a>
@@ -499,11 +458,6 @@ onUnmounted(() => {
     z-index: 12;
 }
 
-.login-providers {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-}
 
 .nav-links {
     display: flex;

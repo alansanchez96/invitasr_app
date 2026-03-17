@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
+import AuthForm from '@/components/auth/AuthForm.vue'
+import AuthProviders from '@/components/auth/AuthProviders.vue'
 
 const route = useRoute()
 const session = useSessionStore()
@@ -55,6 +57,14 @@ const openEmailLogin = () => {
 
 const goBackToProviders = () => {
     loginStep.value = 'providers'
+}
+
+type ProviderKey = 'email' | 'google' | 'facebook'
+
+const handleProviderSelect = (provider: ProviderKey) => {
+    if (provider === 'email') {
+        openEmailLogin()
+    }
 }
 
 watch(activeMenu, (value) => {
@@ -182,61 +192,9 @@ onUnmounted(() => {
                         <h3 class="login-title">Accede a tu panel</h3>
                         <p class="login-subtitle">Invitaciones, invitados y estadisticas en un solo lugar.</p>
                     </div>
-                    <div v-if="loginStep === 'providers'" class="login-methods">
-                        <button class="auth-provider auth-provider--stack" type="button" @click="openEmailLogin">
-                            <span class="auth-provider-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                    <path d="M4 6h16v12H4z" />
-                                    <path d="m4 7 8 6 8-6" />
-                                </svg>
-                            </span>
-                            <span>Email</span>
-                        </button>
-                        <button class="auth-provider auth-provider--stack" type="button">
-                            <span class="auth-provider-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                                    <path d="M21 12h-8" />
-                                </svg>
-                            </span>
-                            <span>Google</span>
-                        </button>
-                        <button class="auth-provider auth-provider--stack" type="button">
-                            <span class="auth-provider-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                    <path d="M15 3h-3a4 4 0 0 0-4 4v3H5v4h3v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
-                                </svg>
-                            </span>
-                            <span>Facebook</span>
-                        </button>
-                    </div>
-                    <div v-else class="login-form">
-                        <label class="auth-field">
-                            <span>Correo</span>
-                            <input type="email" placeholder="tu@email.com" autocomplete="email" />
-                        </label>
-                        <label class="auth-field">
-                            <span>Contrasena</span>
-                            <input type="password" placeholder="Tu clave segura" autocomplete="current-password" />
-                        </label>
-                        <label class="auth-check">
-                            <input type="checkbox" />
-                            <span>Recordarme en este dispositivo</span>
-                        </label>
-                        <button class="btn btn-primary auth-cta" type="button">
-                            <span class="cta-text">Entrar a mi cuenta</span>
-                            <span class="cta-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M5 12h14" />
-                                    <path d="m13 6 6 6-6 6" />
-                                </svg>
-                            </span>
-                        </button>
-                        <div class="auth-links">
-                            <a href="#">Olvidaste tu password?</a>
-                            <a href="#">Todavia no tienes tu cuenta?</a>
-                        </div>
-                    </div>
+                    <AuthProviders v-if="loginStep === 'providers'" variant="stack"
+                        :providers="['email', 'google', 'facebook']" @select="handleProviderSelect" />
+                    <AuthForm v-else />
                     <div v-if="loginStep === 'providers'" class="login-proof">
                         <span>+1,200 organizadores confian en InvitaSR</span>
                         <span>Mas de 1,200 eventos creados este mes</span>
@@ -535,16 +493,6 @@ onUnmounted(() => {
     color: var(--muted);
 }
 
-.login-methods {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.login-form {
-    display: grid;
-    gap: 12px;
-}
 
 .login-proof {
     display: grid;
