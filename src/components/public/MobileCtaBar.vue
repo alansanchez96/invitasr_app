@@ -156,6 +156,10 @@ onUnmounted(() => {
     display: none;
 }
 
+:global(body.mobile-menu-open) .mobile-cta-bar {
+    z-index: 5;
+}
+
 .mobile-cta-inner {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

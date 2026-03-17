@@ -463,7 +463,7 @@ onUnmounted(() => {
 }
 
 .menu-close-fab {
-    position: fixed;
+    position: absolute;
     right: 34px;
     bottom: 100px;
     width: 54px;
@@ -477,7 +477,7 @@ onUnmounted(() => {
     place-items: center;
     cursor: pointer;
     transition: bottom 0.25s ease;
-    z-index: 80;
+    z-index: 50;
 }
 
 .menu-close-fab svg {
@@ -566,7 +566,7 @@ onUnmounted(() => {
 }
 
 :global(body.mobile-menu-open) .menu-close-fab {
-    bottom: calc(220px + env(safe-area-inset-bottom));
+    bottom: calc(140px + env(safe-area-inset-bottom));
 }
 
 :global(body.mobile-cta-open) .menu-close-fab {
