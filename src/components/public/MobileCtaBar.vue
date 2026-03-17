@@ -183,8 +183,8 @@ onUnmounted(() => {
                         <p class="login-subtitle">Invitaciones, invitados y estadisticas en un solo lugar.</p>
                     </div>
                     <div v-if="loginStep === 'providers'" class="login-methods">
-                        <button class="login-method" type="button" @click="openEmailLogin">
-                            <span class="method-icon">
+                        <button class="auth-provider auth-provider--stack" type="button" @click="openEmailLogin">
+                            <span class="auth-provider-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                     <path d="M4 6h16v12H4z" />
                                     <path d="m4 7 8 6 8-6" />
@@ -192,8 +192,8 @@ onUnmounted(() => {
                             </span>
                             <span>Email</span>
                         </button>
-                        <button class="login-method" type="button">
-                            <span class="method-icon">
+                        <button class="auth-provider auth-provider--stack" type="button">
+                            <span class="auth-provider-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                     <path d="M21 12a9 9 0 1 1-2.64-6.36" />
                                     <path d="M21 12h-8" />
@@ -201,8 +201,8 @@ onUnmounted(() => {
                             </span>
                             <span>Google</span>
                         </button>
-                        <button class="login-method" type="button">
-                            <span class="method-icon">
+                        <button class="auth-provider auth-provider--stack" type="button">
+                            <span class="auth-provider-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                     <path d="M15 3h-3a4 4 0 0 0-4 4v3H5v4h3v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
                                 </svg>
@@ -211,19 +211,19 @@ onUnmounted(() => {
                         </button>
                     </div>
                     <div v-else class="login-form">
-                        <label class="login-field">
+                        <label class="auth-field">
                             <span>Correo</span>
                             <input type="email" placeholder="tu@email.com" autocomplete="email" />
                         </label>
-                        <label class="login-field">
+                        <label class="auth-field">
                             <span>Contrasena</span>
                             <input type="password" placeholder="Tu clave segura" autocomplete="current-password" />
                         </label>
-                        <label class="login-check">
+                        <label class="auth-check">
                             <input type="checkbox" />
                             <span>Recordarme en este dispositivo</span>
                         </label>
-                        <button class="btn btn-primary login-cta" type="button">
+                        <button class="btn btn-primary auth-cta" type="button">
                             <span class="cta-text">Entrar a mi cuenta</span>
                             <span class="cta-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -232,7 +232,7 @@ onUnmounted(() => {
                                 </svg>
                             </span>
                         </button>
-                        <div class="login-links">
+                        <div class="auth-links">
                             <a href="#">Olvidaste tu password?</a>
                             <a href="#">Todavia no tienes tu cuenta?</a>
                         </div>
@@ -541,138 +541,9 @@ onUnmounted(() => {
     gap: 12px;
 }
 
-.login-method {
-    display: grid;
-    justify-items: center;
-    gap: 8px;
-    padding: 12px 8px;
-    border-radius: 18px;
-    border: 1px solid rgba(155, 107, 255, 0.18);
-    background: #fff;
-    font-weight: 600;
-    color: var(--brand-ink);
-    cursor: pointer;
-    box-shadow: var(--shadow-soft);
-    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.login-method:hover,
-.login-method:focus-visible {
-    background: var(--gradient-brand);
-    color: #fff;
-    transform: translateY(-1px);
-}
-
-.method-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    background: rgba(155, 107, 255, 0.12);
-    display: grid;
-    place-items: center;
-    color: #7a4fd9;
-}
-
-.login-method:hover .method-icon,
-.login-method:focus-visible .method-icon {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-}
-
-.method-icon svg {
-    width: 18px;
-    height: 18px;
-}
-
 .login-form {
     display: grid;
     gap: 12px;
-}
-
-.login-field {
-    display: grid;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted);
-}
-
-.login-field input {
-    padding: 12px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(155, 107, 255, 0.22);
-    background: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    color: var(--brand-ink);
-}
-
-.login-check {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-    color: var(--muted);
-}
-
-.login-cta {
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-    position: relative;
-    overflow: hidden;
-}
-
-.login-cta .cta-text {
-    transition: transform 0.45s ease;
-}
-
-.login-cta .cta-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 0;
-    margin-left: 0;
-    overflow: hidden;
-    transition: width 0.45s ease, opacity 0.45s ease, margin-left 0.45s ease,
-        transform 0.45s ease;
-    transform: translateX(-4px);
-    opacity: 0;
-}
-
-.login-cta:hover .cta-text,
-.login-cta:focus-visible .cta-text {
-    transform: translateX(-4px);
-}
-
-.login-cta:hover .cta-icon,
-.login-cta:focus-visible .cta-icon {
-    width: 18px;
-    margin-left: 6px;
-    transform: translateX(0);
-    opacity: 1;
-}
-
-.login-cta svg {
-    width: 18px;
-    height: 18px;
-}
-
-.login-links {
-    display: grid;
-    gap: 6px;
-    text-align: center;
-    font-size: 13px;
-}
-
-.login-links a {
-    color: var(--brand-ink);
-    font-weight: 600;
-}
-
-.login-links a:hover {
-    color: #7a4fd9;
 }
 
 .login-proof {
