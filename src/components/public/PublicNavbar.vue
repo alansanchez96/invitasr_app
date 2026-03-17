@@ -70,7 +70,7 @@ watch(isMenuOpen, (open) => {
 })
 
 const updateViewport = () => {
-    isMobile.value = window.matchMedia('(max-width: 938px)').matches
+    isMobile.value = window.matchMedia('(max-width: 1010px)').matches
     if (!isMobile.value) {
         isMenuOpen.value = false
     }
@@ -772,7 +772,7 @@ onUnmounted(() => {
     opacity: 0;
 }
 
-@media (max-width: 938px) {
+@media (max-width: 1010px) {
     .brand-row {
         grid-template-columns: auto 1fr auto;
         gap: 12px;

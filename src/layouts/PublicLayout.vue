@@ -22,7 +22,7 @@ import MobileCtaBar from '@/components/public/MobileCtaBar.vue'
   background: var(--gradient-soft), var(--bg);
 }
 
-@media (max-width: 938px) {
+@media (max-width: 1010px) {
   main {
     padding-bottom: 120px;
   }

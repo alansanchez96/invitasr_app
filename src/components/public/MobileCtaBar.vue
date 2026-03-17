@@ -698,7 +698,7 @@ onUnmounted(() => {
     color: #7a4fd9;
 }
 
-@media (max-width: 938px) {
+@media (max-width: 1010px) {
     .mobile-cta-bar {
         display: block;
     }
