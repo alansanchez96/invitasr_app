@@ -477,6 +477,7 @@ onUnmounted(() => {
     place-items: center;
     cursor: pointer;
     transition: bottom 0.25s ease;
+    z-index: 80;
 }
 
 .menu-close-fab svg {
@@ -565,7 +566,7 @@ onUnmounted(() => {
 }
 
 :global(body.mobile-menu-open) .menu-close-fab {
-    bottom: calc(140px + env(safe-area-inset-bottom));
+    bottom: calc(220px + env(safe-area-inset-bottom));
 }
 
 :global(body.mobile-cta-open) .menu-close-fab {
