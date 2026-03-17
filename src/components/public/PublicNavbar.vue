@@ -463,7 +463,7 @@ onUnmounted(() => {
 }
 
 .menu-close-fab {
-    position: absolute;
+    position: fixed;
     right: 34px;
     bottom: 100px;
     width: 54px;
