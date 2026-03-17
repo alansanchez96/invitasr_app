@@ -14,7 +14,7 @@
             <li>RSVP limitado</li>
             <li>Cuenta regresiva</li>
           </ul>
-          <button class="btn btn-ghost">Probar demo</button>
+          <BaseButton variant="ghost">Probar demo</BaseButton>
         </article>
         <article class="card plan-card featured">
           <div>
@@ -26,7 +26,7 @@
             <li>Galeria limitada</li>
             <li>Dominio personalizado</li>
           </ul>
-          <button class="btn btn-primary">Comprar Basic</button>
+          <BaseButton variant="primary">Comprar Basic</BaseButton>
         </article>
         <article class="card plan-card">
           <div>
@@ -38,7 +38,7 @@
             <li>RSVP avanzado</li>
             <li>Musica libre</li>
           </ul>
-          <button class="btn btn-ghost">Comprar Pro</button>
+          <BaseButton variant="ghost">Comprar Pro</BaseButton>
         </article>
       </div>
     </div>

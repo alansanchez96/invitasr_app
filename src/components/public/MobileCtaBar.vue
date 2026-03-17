@@ -1,9 +1,11 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 
 const route = useRoute()
 const session = useSessionStore()
@@ -93,8 +95,8 @@ onUnmounted(() => {
     <div v-if="showBar" class="mobile-cta-bar" :class="{ 'is-animated': isPopping, 'has-popover': activeMenu }">
         <div class="container mobile-cta-wrap">
             <div v-if="!isAuthenticated" class="mobile-cta-inner">
-                <button class="btn btn-ghost" type="button" @click="openLogin">Iniciar sesion</button>
-                <RouterLink class="btn btn-primary" to="/planes">Ver planes</RouterLink>
+                <BaseButton variant="ghost" type="button" @click="openLogin">Iniciar sesion</BaseButton>
+                <BaseButton as="RouterLink" variant="primary" to="/planes">Ver planes</BaseButton>
             </div>
             <div v-else class="mobile-cta-inner icon-nav">
                 <button class="icon-link" type="button" @click="openMenu('dashboard')" title="Ir al dashboard"
@@ -178,33 +180,29 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <teleport to="body">
-            <div v-if="isLoginOpen" class="login-overlay" @click="closeLogin">
-                <div class="login-card" @click.stop>
-                    <button v-if="loginStep === 'email'" class="login-back" type="button" @click="goBackToProviders"
-                        aria-label="Volver a opciones de acceso">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M15 18 9 12l6-6" />
-                        </svg>
-                    </button>
-                    <div class="login-head">
-                        <img class="login-brand" src="/brand/logo_icon.png" alt="InvitaSR" />
-                        <h3 class="login-title">Accede a tu panel</h3>
-                        <p class="login-subtitle">Invitaciones, invitados y estadisticas en un solo lugar.</p>
-                    </div>
-                    <AuthProviders v-if="loginStep === 'providers'" variant="stack"
-                        :providers="['email', 'google', 'facebook']" @select="handleProviderSelect" />
-                    <AuthForm v-else />
-                    <div v-if="loginStep === 'providers'" class="login-proof">
-                        <span>+1,200 organizadores confian en InvitaSR</span>
-                        <span>Mas de 1,200 eventos creados este mes</span>
-                    </div>
-                    <div v-if="loginStep === 'providers'" class="login-foot">
-                        <a href="#">Todavia no tienes tu cuenta?</a>
-                    </div>
-                </div>
+        <BaseModal v-model="isLoginOpen" overlay-class="login-overlay" panel-class="login-card" @close="closeLogin">
+            <button v-if="loginStep === 'email'" class="login-back" type="button" @click="goBackToProviders"
+                aria-label="Volver a opciones de acceso">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M15 18 9 12l6-6" />
+                </svg>
+            </button>
+            <div class="login-head">
+                <img class="login-brand" src="/brand/logo_icon.png" alt="InvitaSR" />
+                <h3 class="login-title">Accede a tu panel</h3>
+                <p class="login-subtitle">Invitaciones, invitados y estadisticas en un solo lugar.</p>
             </div>
-        </teleport>
+            <AuthProviders v-if="loginStep === 'providers'" variant="stack" :providers="['email', 'google', 'facebook']"
+                @select="handleProviderSelect" />
+            <AuthForm v-else />
+            <div v-if="loginStep === 'providers'" class="login-proof">
+                <span>+1,200 organizadores confian en InvitaSR</span>
+                <span>Mas de 1,200 eventos creados este mes</span>
+            </div>
+            <div v-if="loginStep === 'providers'" class="login-foot">
+                <a href="#">Todavia no tienes tu cuenta?</a>
+            </div>
+        </BaseModal>
     </div>
 </template>
 
@@ -419,7 +417,7 @@ onUnmounted(() => {
     display: none;
 }
 
-.login-overlay {
+:global(.login-overlay) {
     position: fixed;
     inset: 0;
     z-index: 90;
@@ -431,7 +429,7 @@ onUnmounted(() => {
     backdrop-filter: blur(8px);
 }
 
-.login-card {
+:global(.login-card) {
     width: min(420px, 92vw);
     background: rgba(255, 255, 255, 0.96);
     border: 1px solid rgba(233, 220, 255, 0.7);
@@ -443,7 +441,7 @@ onUnmounted(() => {
     position: relative;
 }
 
-.login-back {
+:global(.login-back) {
     position: absolute;
     top: 14px;
     left: 14px;
@@ -458,43 +456,43 @@ onUnmounted(() => {
     cursor: pointer;
 }
 
-.login-back svg {
+:global(.login-back svg) {
     width: 18px;
     height: 18px;
 }
 
-.login-back:hover,
-.login-back:focus-visible {
+:global(.login-back:hover),
+:global(.login-back:focus-visible) {
     background: var(--gradient-brand);
     color: #fff;
 }
 
-.login-head {
+:global(.login-head) {
     display: grid;
     justify-items: center;
     gap: 6px;
     text-align: center;
 }
 
-.login-brand {
+:global(.login-brand) {
     width: 52px;
     height: 52px;
     object-fit: contain;
 }
 
-.login-title {
+:global(.login-title) {
     font-size: 20px;
     font-weight: 700;
     color: var(--brand-ink);
 }
 
-.login-subtitle {
+:global(.login-subtitle) {
     font-size: 13px;
     color: var(--muted);
 }
 
 
-.login-proof {
+:global(.login-proof) {
     display: grid;
     gap: 8px;
     text-align: center;
@@ -503,17 +501,17 @@ onUnmounted(() => {
     font-weight: 600;
 }
 
-.login-foot {
+:global(.login-foot) {
     text-align: center;
     font-size: 13px;
 }
 
-.login-foot a {
+:global(.login-foot a) {
     color: var(--brand-ink);
     font-weight: 600;
 }
 
-.login-foot a:hover {
+:global(.login-foot a:hover) {
     color: #7a4fd9;
 }
 

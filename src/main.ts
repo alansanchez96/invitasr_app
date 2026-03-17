@@ -6,10 +6,12 @@ import router from './router'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/auth.css'
+import BaseButton from './components/ui/BaseButton.vue'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+app.component('BaseButton', BaseButton)
 
 app.mount('#app')

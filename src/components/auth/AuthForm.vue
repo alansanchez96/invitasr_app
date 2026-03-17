@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseButton from '@/components/ui/BaseButton.vue'
 const props = withDefaults(
     defineProps<{
         submitLabel?: string
@@ -29,7 +30,7 @@ const props = withDefaults(
             <input type="checkbox" />
             <span>Recordarme en este dispositivo</span>
         </label>
-        <button class="btn btn-primary auth-cta" type="button">
+        <BaseButton class="auth-cta" variant="primary" type="button">
             <span class="cta-text">{{ props.submitLabel }}</span>
             <span class="cta-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -37,7 +38,7 @@ const props = withDefaults(
                     <path d="m13 6 6 6-6 6" />
                 </svg>
             </span>
-        </button>
+        </BaseButton>
         <div v-if="props.showLinks" class="auth-links">
             <a :href="props.forgotHref">Olvidaste tu password?</a>
             <a :href="props.signupHref">Todavia no tienes tu cuenta?</a>

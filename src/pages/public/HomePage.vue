@@ -9,8 +9,8 @@
           complicaciones. Prueba una demo antes de pagar.
         </p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="#demo">Ver demo gratis</a>
-          <a class="btn btn-ghost" href="#planes">Ver planes</a>
+          <BaseButton as="a" variant="primary" href="#demo">Ver demo gratis</BaseButton>
+          <BaseButton as="a" variant="ghost" href="#planes">Ver planes</BaseButton>
         </div>
         <div class="hero-note">Pago unico y acceso inmediato despues del checkout.</div>
       </div>
@@ -33,7 +33,7 @@
             <strong>Sin apps extra</strong>
           </div>
         </div>
-        <a class="btn btn-primary" href="#planes">Elegir plan</a>
+        <BaseButton as="a" variant="primary" href="#planes">Elegir plan</BaseButton>
       </div>
     </div>
   </section>
@@ -74,7 +74,7 @@
           <h3>Invitacion digital lista para compartir</h3>
           <p>Incluye Google Maps, galeria simple y confirmacion rapida.</p>
         </div>
-        <a class="btn btn-primary" href="#">Abrir demo</a>
+        <BaseButton as="a" variant="primary" href="#">Abrir demo</BaseButton>
       </div>
     </div>
   </section>
@@ -136,7 +136,7 @@
             <li>RSVP limitado</li>
             <li>Cuenta regresiva</li>
           </ul>
-          <button class="btn btn-ghost">Probar demo</button>
+          <BaseButton variant="ghost">Probar demo</BaseButton>
         </article>
         <article class="card plan-card featured">
           <div>
@@ -148,7 +148,7 @@
             <li>Galeria limitada</li>
             <li>Dominio personalizado</li>
           </ul>
-          <button class="btn btn-primary">Comprar Basic</button>
+          <BaseButton variant="primary">Comprar Basic</BaseButton>
         </article>
         <article class="card plan-card">
           <div>
@@ -160,7 +160,7 @@
             <li>RSVP avanzado</li>
             <li>Musica libre</li>
           </ul>
-          <button class="btn btn-ghost">Comprar Pro</button>
+          <BaseButton variant="ghost">Comprar Pro</BaseButton>
         </article>
       </div>
     </div>

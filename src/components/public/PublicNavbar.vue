@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 
 const session = useSessionStore()
 const isMenuOpen = ref(false)
@@ -113,17 +114,17 @@ onUnmounted(() => {
                 <nav class="nav-actions">
                     <template v-if="!isAuthenticated">
                         <div class="login-menu" ref="loginMenuRef">
-                            <button class="btn btn-ghost" type="button" @click.stop="toggleLoginMenu"
+                            <BaseButton variant="ghost" type="button" @click.stop="toggleLoginMenu"
                                 :aria-expanded="isLoginMenuOpen">
                                 Iniciar sesion
-                            </button>
+                            </BaseButton>
                             <div v-if="isLoginMenuOpen" class="login-dropdown" @click.stop>
                                 <AuthForm />
                                 <div class="auth-divider"></div>
                                 <AuthProviders :providers="['google', 'facebook']" />
                             </div>
                         </div>
-                        <a class="btn btn-primary" href="/planes">Ver planes</a>
+                        <BaseButton as="a" href="/planes" variant="primary">Ver planes</BaseButton>
                     </template>
                     <div v-else class="account-menu" ref="accountMenuRef">
                         <button class="account-trigger" type="button" @click.stop="toggleAccountMenu"
