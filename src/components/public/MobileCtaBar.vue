@@ -9,6 +9,8 @@ const isAuthenticated = computed(() => session.isAuthenticated)
 const showBar = computed(() => route.path === '/' || route.path === '/planes')
 const isPopping = ref(false)
 const activeMenu = ref<'dashboard' | 'invitaciones' | 'config' | null>(null)
+const isLoginOpen = ref(false)
+const loginStep = ref<'providers' | 'email'>('providers')
 
 const invitations = ref<string[]>([])
 
@@ -38,8 +40,29 @@ const handleLogout = () => {
     activeMenu.value = null
 }
 
+const openLogin = () => {
+    isLoginOpen.value = true
+    loginStep.value = 'providers'
+}
+
+const closeLogin = () => {
+    isLoginOpen.value = false
+}
+
+const openEmailLogin = () => {
+    loginStep.value = 'email'
+}
+
+const goBackToProviders = () => {
+    loginStep.value = 'providers'
+}
+
 watch(activeMenu, (value) => {
     document.body.classList.toggle('mobile-cta-open', Boolean(value))
+})
+
+watch(isLoginOpen, (value) => {
+    document.body.style.overflow = value ? 'hidden' : ''
 })
 
 onMounted(() => {
@@ -52,6 +75,7 @@ onUnmounted(() => {
         window.clearTimeout(popTimer)
     }
     document.body.classList.remove('mobile-cta-open')
+    document.body.style.overflow = ''
 })
 </script>
 
@@ -59,8 +83,8 @@ onUnmounted(() => {
     <div v-if="showBar" class="mobile-cta-bar" :class="{ 'is-animated': isPopping, 'has-popover': activeMenu }">
         <div class="container mobile-cta-wrap">
             <div v-if="!isAuthenticated" class="mobile-cta-inner">
-                <RouterLink class="btn btn-ghost" to="/backoffice">Iniciar sesion</RouterLink>
-                <RouterLink class="btn btn-primary" to="/planes">Elegir plan</RouterLink>
+                <button class="btn btn-ghost" type="button" @click="openLogin">Iniciar sesion</button>
+                <RouterLink class="btn btn-primary" to="/planes">Ver planes</RouterLink>
             </div>
             <div v-else class="mobile-cta-inner icon-nav">
                 <button class="icon-link" type="button" @click="openMenu('dashboard')" title="Ir al dashboard"
@@ -143,6 +167,86 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+
+        <teleport to="body">
+            <div v-if="isLoginOpen" class="login-overlay" @click="closeLogin">
+                <div class="login-card" @click.stop>
+                    <button v-if="loginStep === 'email'" class="login-back" type="button" @click="goBackToProviders"
+                        aria-label="Volver a opciones de acceso">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M15 18 9 12l6-6" />
+                        </svg>
+                    </button>
+                    <div class="login-head">
+                        <img class="login-brand" src="/brand/logo_icon.png" alt="InvitaSR" />
+                        <h3 class="login-title">Accede a tu panel</h3>
+                        <p class="login-subtitle">Invitaciones, invitados y estadisticas en un solo lugar.</p>
+                    </div>
+                    <div v-if="loginStep === 'providers'" class="login-methods">
+                        <button class="login-method" type="button" @click="openEmailLogin">
+                            <span class="method-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M4 6h16v12H4z" />
+                                    <path d="m4 7 8 6 8-6" />
+                                </svg>
+                            </span>
+                            <span>Email</span>
+                        </button>
+                        <button class="login-method" type="button">
+                            <span class="method-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                                    <path d="M21 12h-8" />
+                                </svg>
+                            </span>
+                            <span>Google</span>
+                        </button>
+                        <button class="login-method" type="button">
+                            <span class="method-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M15 3h-3a4 4 0 0 0-4 4v3H5v4h3v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
+                                </svg>
+                            </span>
+                            <span>Facebook</span>
+                        </button>
+                    </div>
+                    <div v-else class="login-form">
+                        <label class="login-field">
+                            <span>Correo</span>
+                            <input type="email" placeholder="tu@email.com" autocomplete="email" />
+                        </label>
+                        <label class="login-field">
+                            <span>Contrasena</span>
+                            <input type="password" placeholder="Tu clave segura" autocomplete="current-password" />
+                        </label>
+                        <label class="login-check">
+                            <input type="checkbox" />
+                            <span>Recordarme en este dispositivo</span>
+                        </label>
+                        <button class="btn btn-primary login-cta" type="button">
+                            <span class="cta-text">Entrar a mi cuenta</span>
+                            <span class="cta-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14" />
+                                    <path d="m13 6 6 6-6 6" />
+                                </svg>
+                            </span>
+                        </button>
+                        <div class="login-links">
+                            <a href="#">Olvidaste tu password?</a>
+                            <a href="#">Todavia no tienes tu cuenta?</a>
+                        </div>
+                    </div>
+                    <div v-if="loginStep === 'providers'" class="login-proof">
+                        <span>+1,200 organizadores confian en InvitaSR</span>
+                        <span>Mas de 1,200 eventos creados este mes</span>
+                    </div>
+                    <div v-if="loginStep === 'providers'" class="login-foot">
+                        <a href="#">Todavia no tienes tu cuenta?</a>
+                    </div>
+                </div>
+            </div>
+        </teleport>
     </div>
 </template>
 
@@ -355,6 +459,243 @@ onUnmounted(() => {
 
 .has-popover .tooltip {
     display: none;
+}
+
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(245, 240, 255, 0.7);
+    backdrop-filter: blur(8px);
+}
+
+.login-card {
+    width: min(420px, 92vw);
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(233, 220, 255, 0.7);
+    border-radius: 28px;
+    padding: 26px 22px;
+    box-shadow: 0 24px 50px rgba(90, 48, 140, 0.2);
+    display: grid;
+    gap: 16px;
+    position: relative;
+}
+
+.login-back {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid rgba(155, 107, 255, 0.25);
+    background: #fff;
+    color: #7a4fd9;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+.login-back svg {
+    width: 18px;
+    height: 18px;
+}
+
+.login-back:hover,
+.login-back:focus-visible {
+    background: var(--gradient-brand);
+    color: #fff;
+}
+
+.login-head {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    text-align: center;
+}
+
+.login-brand {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+}
+
+.login-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--brand-ink);
+}
+
+.login-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.login-methods {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.login-method {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 12px 8px;
+    border-radius: 18px;
+    border: 1px solid rgba(155, 107, 255, 0.18);
+    background: #fff;
+    font-weight: 600;
+    color: var(--brand-ink);
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.login-method:hover,
+.login-method:focus-visible {
+    background: var(--gradient-brand);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.method-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: rgba(155, 107, 255, 0.12);
+    display: grid;
+    place-items: center;
+    color: #7a4fd9;
+}
+
+.login-method:hover .method-icon,
+.login-method:focus-visible .method-icon {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+.method-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.login-form {
+    display: grid;
+    gap: 12px;
+}
+
+.login-field {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.login-field input {
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(155, 107, 255, 0.22);
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    color: var(--brand-ink);
+}
+
+.login-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.login-cta {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-cta .cta-text {
+    transition: transform 0.45s ease;
+}
+
+.login-cta .cta-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    margin-left: 0;
+    overflow: hidden;
+    transition: width 0.45s ease, opacity 0.45s ease, margin-left 0.45s ease,
+        transform 0.45s ease;
+    transform: translateX(-4px);
+    opacity: 0;
+}
+
+.login-cta:hover .cta-text,
+.login-cta:focus-visible .cta-text {
+    transform: translateX(-4px);
+}
+
+.login-cta:hover .cta-icon,
+.login-cta:focus-visible .cta-icon {
+    width: 18px;
+    margin-left: 6px;
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.login-cta svg {
+    width: 18px;
+    height: 18px;
+}
+
+.login-links {
+    display: grid;
+    gap: 6px;
+    text-align: center;
+    font-size: 13px;
+}
+
+.login-links a {
+    color: var(--brand-ink);
+    font-weight: 600;
+}
+
+.login-links a:hover {
+    color: #7a4fd9;
+}
+
+.login-proof {
+    display: grid;
+    gap: 8px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.login-foot {
+    text-align: center;
+    font-size: 13px;
+}
+
+.login-foot a {
+    color: var(--brand-ink);
+    font-weight: 600;
+}
+
+.login-foot a:hover {
+    color: #7a4fd9;
 }
 
 @media (max-width: 938px) {
