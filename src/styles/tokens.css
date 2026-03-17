@@ -1,0 +1,29 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+
+:root {
+  --font-display: 'Fraunces', 'Times New Roman', serif;
+  --font-body: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, sans-serif;
+
+  --brand-purple: #7a4fd9;
+  --brand-violet: #9b6bff;
+  --brand-pink: #f06aa6;
+  --brand-rose: #ff8fbf;
+  --brand-ink: #1d0f2f;
+
+  --bg: #f7f3ff;
+  --bg-soft: #fdf7ff;
+  --card: #ffffff;
+  --text: #1e1431;
+  --muted: #6e5a88;
+  --border: #e9dcff;
+
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+
+  --shadow-soft: 0 20px 50px rgba(90, 48, 140, 0.15);
+  --shadow-card: 0 12px 30px rgba(90, 48, 140, 0.12);
+
+  --gradient-brand: linear-gradient(120deg, #7a4fd9 0%, #9b6bff 40%, #f06aa6 100%);
+  --gradient-soft: radial-gradient(circle at top, rgba(155, 107, 255, 0.18), transparent 55%);
+}
