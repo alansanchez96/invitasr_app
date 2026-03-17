@@ -564,6 +564,10 @@ onUnmounted(() => {
     }
 }
 
+:global(body.mobile-menu-open) .menu-close-fab {
+    bottom: calc(140px + env(safe-area-inset-bottom));
+}
+
 :global(body.mobile-cta-open) .menu-close-fab {
     bottom: clamp(280px, 38vh, 520px);
 }
