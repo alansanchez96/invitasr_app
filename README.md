@@ -29,6 +29,20 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 npm install
 ```
 
+## Variables de entorno
+
+Este proyecto usa Vite, por lo que las variables deben iniciar con `VITE_`.
+
+- Local: crea/edita `.env.local` (no se versiona).
+- Producción (Netlify): define las variables en el panel de Netlify (no se guardan en el repo).
+
+Variables requeridas:
+
+- `VITE_APP_NAME`
+- `VITE_API_BASE_URL`
+- `VITE_BO_ROUTE_PREFIX`
+- `VITE_AUTH_MODE`
+
 ### Compile and Hot-Reload for Development
 
 ```sh
