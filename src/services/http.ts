@@ -4,11 +4,16 @@ interface RequestOptions {
     method?: HttpMethod
     body?: unknown
     token?: string | null
+    credentials?: RequestCredentials
 }
 
 const getBaseUrl = () => {
     const raw = import.meta.env.VITE_API_BASE_URL as string
     return raw?.replace(/\/$/, '') ?? ''
+}
+
+const getAuthMode = () => {
+    return (import.meta.env.VITE_AUTH_MODE as 'token' | 'cookie' | undefined) ?? 'token'
 }
 
 export const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
@@ -26,6 +31,7 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
         method: options.method ?? 'GET',
         headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
+        credentials: options.credentials ?? (getAuthMode() === 'cookie' ? 'include' : 'omit'),
     })
 
     const text = await response.text()

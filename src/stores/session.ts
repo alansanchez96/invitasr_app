@@ -23,22 +23,33 @@ type LoginResponse = {
 }
 
 export const useSessionStore = defineStore('session', () => {
-  const token = ref<string | null>(localStorage.getItem('token') || sessionStorage.getItem('token'))
-  const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user')
+  const authMode = (import.meta.env.VITE_AUTH_MODE as 'token' | 'cookie' | undefined) ?? 'token'
+  const token = ref<string | null>(
+    authMode === 'token' ? localStorage.getItem('token') || sessionStorage.getItem('token') : null,
+  )
+  const storedUser =
+    authMode === 'token'
+      ? localStorage.getItem('user') || sessionStorage.getItem('user')
+      : sessionStorage.getItem('user')
   const user = ref<AuthUser | null>(storedUser ? (JSON.parse(storedUser) as AuthUser) : null)
   const isLoading = ref(false)
   const isLoggingOut = ref(false)
 
-  const isAuthenticated = computed(() => Boolean(token.value))
+  const isAuthenticated = computed(() =>
+    authMode === 'cookie' ? Boolean(user.value) : Boolean(token.value),
+  )
   const isMaster = computed(() => Boolean(user.value?.contextEncrypt))
 
-  const setSession = (newToken: string, userData?: AuthUser, remember = false) => {
-    token.value = newToken
+  const setSession = (newToken: string | null, userData?: AuthUser, remember = false) => {
+    token.value = authMode === 'token' ? newToken : null
     user.value = userData ?? null
 
-    const targetStorage = remember ? localStorage : sessionStorage
-    const otherStorage = remember ? sessionStorage : localStorage
-    targetStorage.setItem('token', newToken)
+    const targetStorage = authMode === 'cookie' ? sessionStorage : remember ? localStorage : sessionStorage
+    const otherStorage = authMode === 'cookie' ? localStorage : remember ? sessionStorage : localStorage
+
+    if (authMode === 'token' && newToken) {
+      targetStorage.setItem('token', newToken)
+    }
     if (userData) {
       targetStorage.setItem('user', JSON.stringify(userData))
     }
@@ -63,8 +74,16 @@ export const useSessionStore = defineStore('session', () => {
         body: { email, password },
       })
 
-      if (payload.status && payload.session?.token && payload.user) {
-        setSession(payload.session.token, payload.user, remember)
+      if (payload.status && payload.user) {
+        const nextToken = authMode === 'token' ? payload.session?.token ?? null : null
+        if (authMode === 'token' && !nextToken) {
+          return {
+            ok: false,
+            message: 'No se recibio el token de sesion.',
+            fieldErrors: payload.errors ?? {},
+          }
+        }
+        setSession(nextToken, payload.user, remember)
         return { ok: true }
       }
 
