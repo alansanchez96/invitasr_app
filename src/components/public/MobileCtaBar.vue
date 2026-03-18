@@ -6,15 +6,17 @@ import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import { backofficeModuleGroups } from '@/config/backofficeModules'
 
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 const isAuthenticated = computed(() => session.isAuthenticated)
+const isMaster = computed(() => session.isMaster)
 const isLoginLoading = computed(() => session.isLoading)
 const showBar = computed(() => route.path === '/' || route.path === '/planes')
 const isPopping = ref(false)
-const activeMenu = ref<'dashboard' | 'invitaciones' | 'config' | null>(null)
+const activeMenu = ref<'dashboard' | 'invitaciones' | 'config' | 'backoffice' | null>(null)
 const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
 const isLoginOpen = ref(false)
@@ -39,7 +41,7 @@ const handleScroll = () => {
     })
 }
 
-const openMenu = (menu: 'dashboard' | 'invitaciones' | 'config') => {
+const openMenu = (menu: 'dashboard' | 'invitaciones' | 'config' | 'backoffice') => {
     activeMenu.value = activeMenu.value === menu ? null : menu
 }
 
@@ -122,67 +124,117 @@ onUnmounted(() => {
                 <BaseButton variant="ghost" type="button" @click="openLogin">Iniciar sesion</BaseButton>
                 <BaseButton as="RouterLink" variant="primary" to="/planes">Ver planes</BaseButton>
             </div>
-            <div v-else class="mobile-cta-inner icon-nav">
-                <button class="icon-link" type="button" @click="openMenu('dashboard')" title="Ir al dashboard"
-                    aria-label="Ir al Dashboard">
-                    <span class="icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
-                            <defs>
-                                <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#7a4fd9" />
-                                    <stop offset="50%" stop-color="#9b6bff" />
-                                    <stop offset="100%" stop-color="#f06aa6" />
-                                </linearGradient>
-                            </defs>
-                            <rect x="3" y="3" width="7" height="7" rx="2" />
-                            <rect x="14" y="3" width="7" height="7" rx="2" />
-                            <rect x="3" y="14" width="7" height="7" rx="2" />
-                            <rect x="14" y="14" width="7" height="7" rx="2" />
-                        </svg>
-                    </span>
-                    <span class="tooltip">Ir al dashboard</span>
-                </button>
-                <button class="icon-link" type="button" @click="openMenu('invitaciones')" title="Ver mis invitaciones"
-                    aria-label="Ver mis invitaciones">
-                    <span class="icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
-                            <defs>
-                                <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#7a4fd9" />
-                                    <stop offset="50%" stop-color="#9b6bff" />
-                                    <stop offset="100%" stop-color="#f06aa6" />
-                                </linearGradient>
-                            </defs>
-                            <path d="M4 6h16v12H4z" />
-                            <path d="m4 7 8 6 8-6" />
-                        </svg>
-                    </span>
-                    <span class="tooltip">Ver mis invitaciones</span>
-                </button>
-                <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
-                    aria-label="Configuracion">
-                    <span class="icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
-                            <defs>
-                                <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#7a4fd9" />
-                                    <stop offset="50%" stop-color="#9b6bff" />
-                                    <stop offset="100%" stop-color="#f06aa6" />
-                                </linearGradient>
-                            </defs>
-                            <circle cx="12" cy="12" r="3" />
-                            <path
-                                d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
-                        </svg>
-                    </span>
-                    <span class="tooltip">Configuracion</span>
-                </button>
+            <div v-else class="mobile-cta-inner icon-nav" :class="{ 'is-master': isMaster }">
+                <template v-if="isMaster">
+                    <button class="icon-link" type="button" @click="openMenu('backoffice')" title="Backoffice"
+                        aria-label="Backoffice">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
+                                <defs>
+                                    <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#7a4fd9" />
+                                        <stop offset="50%" stop-color="#9b6bff" />
+                                        <stop offset="100%" stop-color="#f06aa6" />
+                                    </linearGradient>
+                                </defs>
+                                <rect x="3" y="3" width="7" height="7" rx="2" />
+                                <rect x="14" y="3" width="7" height="7" rx="2" />
+                                <rect x="3" y="14" width="7" height="7" rx="2" />
+                                <rect x="14" y="14" width="7" height="7" rx="2" />
+                            </svg>
+                        </span>
+                        <span class="tooltip">Backoffice</span>
+                    </button>
+                    <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
+                        aria-label="Configuracion">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
+                                <defs>
+                                    <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#7a4fd9" />
+                                        <stop offset="50%" stop-color="#9b6bff" />
+                                        <stop offset="100%" stop-color="#f06aa6" />
+                                    </linearGradient>
+                                </defs>
+                                <circle cx="12" cy="12" r="3" />
+                                <path
+                                    d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
+                            </svg>
+                        </span>
+                        <span class="tooltip">Configuracion</span>
+                    </button>
+                </template>
+                <template v-else>
+                    <button class="icon-link" type="button" @click="openMenu('dashboard')" title="Ir al dashboard"
+                        aria-label="Ir al Dashboard">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
+                                <defs>
+                                    <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#7a4fd9" />
+                                        <stop offset="50%" stop-color="#9b6bff" />
+                                        <stop offset="100%" stop-color="#f06aa6" />
+                                    </linearGradient>
+                                </defs>
+                                <rect x="3" y="3" width="7" height="7" rx="2" />
+                                <rect x="14" y="3" width="7" height="7" rx="2" />
+                                <rect x="3" y="14" width="7" height="7" rx="2" />
+                                <rect x="14" y="14" width="7" height="7" rx="2" />
+                            </svg>
+                        </span>
+                        <span class="tooltip">Ir al dashboard</span>
+                    </button>
+                    <button class="icon-link" type="button" @click="openMenu('invitaciones')"
+                        title="Ver mis invitaciones" aria-label="Ver mis invitaciones">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
+                                <defs>
+                                    <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#7a4fd9" />
+                                        <stop offset="50%" stop-color="#9b6bff" />
+                                        <stop offset="100%" stop-color="#f06aa6" />
+                                    </linearGradient>
+                                </defs>
+                                <path d="M4 6h16v12H4z" />
+                                <path d="m4 7 8 6 8-6" />
+                            </svg>
+                        </span>
+                        <span class="tooltip">Ver mis invitaciones</span>
+                    </button>
+                    <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
+                        aria-label="Configuracion">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
+                                <defs>
+                                    <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#7a4fd9" />
+                                        <stop offset="50%" stop-color="#9b6bff" />
+                                        <stop offset="100%" stop-color="#f06aa6" />
+                                    </linearGradient>
+                                </defs>
+                                <circle cx="12" cy="12" r="3" />
+                                <path
+                                    d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
+                            </svg>
+                        </span>
+                        <span class="tooltip">Configuracion</span>
+                    </button>
+                </template>
             </div>
 
             <div v-if="activeMenu" class="cta-popover-backdrop" @click="activeMenu = null"></div>
             <div v-if="activeMenu" class="cta-popover" :class="`is-${activeMenu}`">
                 <div class="cta-popover-inner">
-                    <div v-if="activeMenu === 'dashboard'" class="cta-options">
+                    <div v-if="activeMenu === 'backoffice'" class="cta-options scrollable">
+                        <div v-for="group in backofficeModuleGroups" :key="group.title" class="cta-group">
+                            <span class="cta-group-title">{{ group.title }}</span>
+                            <button v-for="module in group.items" :key="module.label" type="button"
+                                class="cta-group-link">
+                                <span>{{ module.label }}</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div v-else-if="activeMenu === 'dashboard'" class="cta-options">
                         <button type="button">Resumen general</button>
                         <button type="button">Estadisticas del evento</button>
                         <button type="button">Actividad reciente</button>
@@ -269,6 +321,10 @@ onUnmounted(() => {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     text-align: center;
     padding: 6px 10px;
+}
+
+.icon-nav.is-master {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .icon-link {
@@ -362,6 +418,10 @@ onUnmounted(() => {
     left: 0;
 }
 
+.cta-popover.is-backoffice {
+    left: 0;
+}
+
 .cta-popover.is-invitaciones {
     left: 50%;
     transform: translateX(-50%);
@@ -375,6 +435,40 @@ onUnmounted(() => {
     display: grid;
     gap: 4px;
 }
+
+.cta-options.scrollable {
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.cta-group {
+    display: grid;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(155, 107, 255, 0.2);
+}
+
+.cta-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.cta-group-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(90, 48, 140, 0.65);
+    font-weight: 700;
+    text-align: center;
+}
+
+.cta-group-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
 
 .cta-options button {
     width: 100%;

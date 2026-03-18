@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import { backofficeModuleGroups } from '@/config/backofficeModules'
 
 const session = useSessionStore()
 const route = useRoute()
@@ -12,6 +13,7 @@ const router = useRouter()
 const isMenuOpen = ref(false)
 const isMobile = ref(false)
 const isAuthenticated = computed(() => session.isAuthenticated)
+const isMaster = computed(() => session.isMaster)
 const isLoginLoading = computed(() => session.isLoading)
 const isAccountMenuOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
@@ -160,55 +162,102 @@ onUnmounted(() => {
                             <img class="account-logo" src="/brand/logo_icon.png" alt="Cuenta" />
                         </button>
                         <div v-if="isAccountMenuOpen" class="account-dropdown" @click.stop>
-                            <div class="account-item">
-                                <a class="account-link" href="#">
-                                    <span class="account-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                            <rect x="3" y="3" width="7" height="7" rx="2" />
-                                            <rect x="14" y="3" width="7" height="7" rx="2" />
-                                            <rect x="3" y="14" width="7" height="7" rx="2" />
-                                            <rect x="14" y="14" width="7" height="7" rx="2" />
-                                        </svg>
-                                    </span>
-                                    <span>Dashboard</span>
-                                </a>
-                                <div class="account-submenu">
-                                    <a href="#">Resumen general</a>
-                                    <a href="#">Estadisticas del evento</a>
-                                    <a href="#">Actividad reciente</a>
+                            <template v-if="isMaster">
+                                <div class="account-item">
+                                    <RouterLink class="account-link" to="/backoffice">
+                                        <span class="account-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                                <rect x="3" y="3" width="7" height="7" rx="2" />
+                                                <rect x="14" y="3" width="7" height="7" rx="2" />
+                                                <rect x="3" y="14" width="7" height="7" rx="2" />
+                                                <rect x="14" y="14" width="7" height="7" rx="2" />
+                                            </svg>
+                                        </span>
+                                        <span>Backoffice</span>
+                                    </RouterLink>
+                                    <div class="account-submenu">
+                                        <div v-for="group in backofficeModuleGroups" :key="group.title"
+                                            class="submenu-group">
+                                            <span class="submenu-title">{{ group.title }}</span>
+                                            <a v-for="module in group.items" :key="module.label" :href="module.href"
+                                                class="submenu-link">
+                                                <span>{{ module.label }}</span>
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="account-item">
-                                <a class="account-link" href="#">
-                                    <span class="account-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                            <path d="M4 6h16v12H4z" />
-                                            <path d="m4 7 8 6 8-6" />
-                                        </svg>
-                                    </span>
-                                    <span>Mis invitaciones</span>
-                                </a>
-                                <div class="account-submenu">
-                                    <a href="#">Crear invitacion</a>
+                                <div class="account-item">
+                                    <a class="account-link" href="#">
+                                        <span class="account-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                                <circle cx="12" cy="12" r="3" />
+                                                <path
+                                                    d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
+                                            </svg>
+                                        </span>
+                                        <span>Configuracion</span>
+                                    </a>
+                                    <div class="account-submenu">
+                                        <a href="#">Perfil</a>
+                                        <a href="#">Seguridad</a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="account-item">
-                                <a class="account-link" href="#">
-                                    <span class="account-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                            <circle cx="12" cy="12" r="3" />
-                                            <path
-                                                d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
-                                        </svg>
-                                    </span>
-                                    <span>Configuracion</span>
-                                </a>
-                                <div class="account-submenu">
-                                    <a href="#">Perfil</a>
-                                    <a href="#">Seguridad</a>
+                                <button type="button" class="account-logout-main" @click="handleLogout">Cerrar sesion</button>
+                            </template>
+                            <template v-else>
+                                <div class="account-item">
+                                    <a class="account-link" href="#">
+                                        <span class="account-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="1.8">
+                                                <rect x="3" y="3" width="7" height="7" rx="2" />
+                                                <rect x="14" y="3" width="7" height="7" rx="2" />
+                                                <rect x="3" y="14" width="7" height="7" rx="2" />
+                                                <rect x="14" y="14" width="7" height="7" rx="2" />
+                                            </svg>
+                                        </span>
+                                        <span>Dashboard</span>
+                                    </a>
+                                    <div class="account-submenu">
+                                        <a href="#">Resumen general</a>
+                                        <a href="#">Estadisticas del evento</a>
+                                        <a href="#">Actividad reciente</a>
+                                    </div>
                                 </div>
-                            </div>
-                            <button type="button" class="account-logout-main" @click="handleLogout">Cerrar sesion</button>
+                                <div class="account-item">
+                                    <a class="account-link" href="#">
+                                        <span class="account-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="1.8">
+                                                <path d="M4 6h16v12H4z" />
+                                                <path d="m4 7 8 6 8-6" />
+                                            </svg>
+                                        </span>
+                                        <span>Mis invitaciones</span>
+                                    </a>
+                                    <div class="account-submenu">
+                                        <a href="#">Crear invitacion</a>
+                                    </div>
+                                </div>
+                                <div class="account-item">
+                                    <a class="account-link" href="#">
+                                        <span class="account-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="1.8">
+                                                <circle cx="12" cy="12" r="3" />
+                                                <path
+                                                    d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
+                                            </svg>
+                                        </span>
+                                        <span>Configuracion</span>
+                                    </a>
+                                    <div class="account-submenu">
+                                        <a href="#">Perfil</a>
+                                        <a href="#">Seguridad</a>
+                                    </div>
+                                </div>
+                                <button type="button" class="account-logout-main" @click="handleLogout">Cerrar sesion</button>
+                            </template>
                         </div>
                     </div>
                 </nav>
@@ -354,7 +403,7 @@ onUnmounted(() => {
 
 .account-item {
     position: relative;
-    padding-right: 8px;
+    padding-right: 12px;
 }
 
 .account-link {
@@ -392,8 +441,11 @@ onUnmounted(() => {
     position: absolute;
     top: 0;
     right: 100%;
-    margin-right: 8px;
-    min-width: 220px;
+    margin-right: 0;
+    transform: translateX(-12px);
+    min-width: 280px;
+    max-width: 320px;
+    max-height: 320px;
     background: #fff;
     border-radius: 14px;
     border: 1px solid rgba(233, 220, 255, 0.7);
@@ -401,9 +453,9 @@ onUnmounted(() => {
     padding: 8px;
     display: grid;
     gap: 6px;
+    overflow-y: auto;
     opacity: 0;
     visibility: hidden;
-    transform: translateX(-6px);
     transition: opacity 0.2s ease, transform 0.2s ease;
     z-index: 10;
 }
@@ -411,13 +463,15 @@ onUnmounted(() => {
 .account-submenu::before {
     content: '';
     position: absolute;
-    right: -8px;
+    right: -12px;
     top: 0;
-    width: 8px;
+    width: 12px;
     height: 100%;
 }
 
-.account-item:hover .account-submenu {
+.account-item:hover .account-submenu,
+.account-item:focus-within .account-submenu,
+.account-submenu:hover {
     opacity: 1;
     visibility: visible;
     transform: translateX(0);
@@ -435,6 +489,35 @@ onUnmounted(() => {
     text-align: left;
     cursor: pointer;
 }
+
+.submenu-group {
+    display: grid;
+    gap: 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed rgba(155, 107, 255, 0.2);
+}
+
+.submenu-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.submenu-title {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(90, 48, 140, 0.65);
+    font-weight: 700;
+    padding: 6px 8px 2px;
+}
+
+.submenu-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 
 .account-submenu a:hover,
 .account-submenu a:focus-visible,
