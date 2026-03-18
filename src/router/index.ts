@@ -18,31 +18,37 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: HomePage,
+          meta: { title: 'Inicio' },
         },
         {
           path: 'planes',
           name: 'planes',
           component: PlansPage,
+          meta: { title: 'Planes' },
         },
         {
           path: 'noticias',
           name: 'noticias',
           component: NewsPage,
+          meta: { title: 'Noticias' },
         },
         {
           path: 'dashboard',
           name: 'dashboard',
           component: ClientPlaceholder,
+          meta: { title: 'Dashboard' },
         },
         {
           path: 'invitaciones',
           name: 'invitaciones',
           component: ClientPlaceholder,
+          meta: { title: 'Mis invitaciones' },
         },
         {
           path: 'configuracion',
           name: 'configuracion',
           component: ClientPlaceholder,
+          meta: { title: 'Configuración' },
         },
       ],
     },
@@ -54,6 +60,7 @@ const router = createRouter({
           path: '',
           name: 'backoffice-home',
           component: BackofficeHome,
+          meta: { title: 'Backoffice' },
         },
       ],
     },
@@ -68,6 +75,12 @@ const router = createRouter({
     }
     return { top: 0 }
   },
+})
+
+router.afterEach((to) => {
+  const appName = import.meta.env.VITE_APP_NAME ?? 'InvitaSR'
+  const section = typeof to.meta.title === 'string' ? to.meta.title : ''
+  document.title = section ? `${appName} - ${section}` : appName
 })
 
 export default router
