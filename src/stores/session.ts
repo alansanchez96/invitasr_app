@@ -22,48 +22,86 @@ type LoginResponse = {
   errors?: Record<string, string[]>
 }
 
+type MeResponse = {
+  status?: boolean
+  user?: AuthUser
+  data?: AuthUser
+}
+
+const TOKEN_KEY = 'token'
+const USER_KEY = 'user'
+const REMEMBER_KEY = 'session_remember'
+
+const parseUser = (value: string | null): AuthUser | null => {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as AuthUser
+  } catch {
+    return null
+  }
+}
+
+const extractUser = (payload: MeResponse): AuthUser | null => {
+  if (payload.user) return payload.user
+  if (payload.data) return payload.data
+  return null
+}
+
 export const useSessionStore = defineStore('session', () => {
   const authMode = (import.meta.env.VITE_AUTH_MODE as 'token' | 'cookie' | undefined) ?? 'token'
+  const localUser = parseUser(localStorage.getItem(USER_KEY))
+  const sessionUser = parseUser(sessionStorage.getItem(USER_KEY))
+  const user = ref<AuthUser | null>(localUser ?? sessionUser)
   const token = ref<string | null>(
-    authMode === 'token' ? localStorage.getItem('token') || sessionStorage.getItem('token') : null,
+    authMode === 'token' ? localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) : null,
   )
-  const storedUser =
-    authMode === 'token'
-      ? localStorage.getItem('user') || sessionStorage.getItem('user')
-      : sessionStorage.getItem('user')
-  const user = ref<AuthUser | null>(storedUser ? (JSON.parse(storedUser) as AuthUser) : null)
   const isLoading = ref(false)
   const isLoggingOut = ref(false)
+  const isHydrating = ref(false)
+  const hasHydrated = ref(false)
 
   const isAuthenticated = computed(() =>
     authMode === 'cookie' ? Boolean(user.value) : Boolean(token.value),
   )
   const isMaster = computed(() => Boolean(user.value?.contextEncrypt))
 
-  const setSession = (newToken: string | null, userData?: AuthUser, remember = false) => {
+  const persistSession = (newToken: string | null, userData?: AuthUser, remember = false) => {
     token.value = authMode === 'token' ? newToken : null
     user.value = userData ?? null
 
-    const targetStorage = authMode === 'cookie' ? sessionStorage : remember ? localStorage : sessionStorage
-    const otherStorage = authMode === 'cookie' ? localStorage : remember ? sessionStorage : localStorage
+    const targetStorage = remember ? localStorage : sessionStorage
+    const otherStorage = remember ? sessionStorage : localStorage
 
     if (authMode === 'token' && newToken) {
-      targetStorage.setItem('token', newToken)
+      targetStorage.setItem(TOKEN_KEY, newToken)
+    } else {
+      targetStorage.removeItem(TOKEN_KEY)
     }
+
     if (userData) {
-      targetStorage.setItem('user', JSON.stringify(userData))
+      targetStorage.setItem(USER_KEY, JSON.stringify(userData))
+    } else {
+      targetStorage.removeItem(USER_KEY)
     }
-    otherStorage.removeItem('token')
-    otherStorage.removeItem('user')
+
+    otherStorage.removeItem(TOKEN_KEY)
+    otherStorage.removeItem(USER_KEY)
+
+    if (remember) {
+      localStorage.setItem(REMEMBER_KEY, '1')
+    } else {
+      localStorage.removeItem(REMEMBER_KEY)
+    }
   }
 
   const clearSession = () => {
     token.value = null
     user.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    sessionStorage.removeItem('token')
-    sessionStorage.removeItem('user')
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(REMEMBER_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(USER_KEY)
   }
 
   const login = async (email: string, password: string, remember = false) => {
@@ -71,7 +109,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const payload = await request<LoginResponse>('/auth/login', {
         method: 'POST',
-        body: { email, password },
+        body: { email, password, remember },
       })
 
       if (payload.status && payload.user) {
@@ -83,7 +121,7 @@ export const useSessionStore = defineStore('session', () => {
             fieldErrors: payload.errors ?? {},
           }
         }
-        setSession(nextToken, payload.user, remember)
+        persistSession(nextToken, payload.user, remember)
         return { ok: true }
       }
 
@@ -104,17 +142,35 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  const hydrateSession = async () => {
+    if (hasHydrated.value || authMode !== 'cookie') return
+    hasHydrated.value = true
+    isHydrating.value = true
+    try {
+      const payload = await request<MeResponse>('/auth/me')
+      const meUser = extractUser(payload)
+      if (!meUser || payload.status === false) {
+        clearSession()
+        return
+      }
+      const remember = localStorage.getItem(REMEMBER_KEY) === '1'
+      persistSession(null, meUser, remember)
+    } catch {
+      clearSession()
+    } finally {
+      isHydrating.value = false
+    }
+  }
+
   const logout = async () => {
     isLoggingOut.value = true
     const currentToken = token.value
     clearSession()
     try {
-      if (currentToken) {
-        await request('/auth/logout', {
-          method: 'POST',
-          token: currentToken,
-        })
-      }
+      await request('/auth/logout', {
+        method: 'POST',
+        token: authMode === 'token' ? currentToken : null,
+      })
     } catch {
       // No bloqueamos el logout del frontend si el backend falla.
     } finally {
@@ -127,11 +183,12 @@ export const useSessionStore = defineStore('session', () => {
     user,
     isLoading,
     isLoggingOut,
+    isHydrating,
     isAuthenticated,
     isMaster,
-    setSession,
     clearSession,
     login,
     logout,
+    hydrateSession,
   }
 })

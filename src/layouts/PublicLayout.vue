@@ -7,7 +7,7 @@ import MobileCtaBar from '@/components/public/MobileCtaBar.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
-const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut)
+const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut || session.isHydrating)
 </script>
 
 <template>
