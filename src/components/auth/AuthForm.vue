@@ -31,6 +31,9 @@ const emit = defineEmits<{
 
 const email = ref('')
 const password = ref('')
+const uid = Math.random().toString(36).slice(2, 8)
+const emailErrorId = `auth-email-error-${uid}`
+const passwordErrorId = `auth-password-error-${uid}`
 const remember = ref(false)
 
 const handleSubmit = () => {
@@ -46,13 +49,29 @@ const handleSubmit = () => {
     <form class="auth-form" @submit.prevent="handleSubmit">
         <label class="auth-field">
             <span>Correo</span>
-            <input v-model="email" type="email" placeholder="tu@email.com" autocomplete="email" />
-            <span v-if="props.fieldErrors?.email?.length" class="auth-error">{{ props.fieldErrors.email[0] }}</span>
+            <input
+                v-model="email"
+                type="email"
+                placeholder="tu@email.com"
+                autocomplete="email"
+                :aria-invalid="Boolean(props.fieldErrors?.email?.length)"
+                :aria-describedby="props.fieldErrors?.email?.length ? emailErrorId : undefined" />
+            <span v-if="props.fieldErrors?.email?.length" :id="emailErrorId" class="auth-error" role="alert">
+                {{ props.fieldErrors.email[0] }}
+            </span>
         </label>
         <label class="auth-field">
             <span>Contrasena</span>
-            <input v-model="password" type="password" placeholder="Tu clave segura" autocomplete="current-password" />
-            <span v-if="props.fieldErrors?.password?.length" class="auth-error">{{ props.fieldErrors.password[0] }}</span>
+            <input
+                v-model="password"
+                type="password"
+                placeholder="Tu clave segura"
+                autocomplete="current-password"
+                :aria-invalid="Boolean(props.fieldErrors?.password?.length)"
+                :aria-describedby="props.fieldErrors?.password?.length ? passwordErrorId : undefined" />
+            <span v-if="props.fieldErrors?.password?.length" :id="passwordErrorId" class="auth-error" role="alert">
+                {{ props.fieldErrors.password[0] }}
+            </span>
         </label>
         <label class="auth-check">
             <input v-model="remember" type="checkbox" />
@@ -69,7 +88,7 @@ const handleSubmit = () => {
                 </svg>
             </span>
         </BaseButton>
-        <p v-if="props.errorMessage" class="auth-error auth-error--general">{{ props.errorMessage }}</p>
+        <p v-if="props.errorMessage" class="auth-error auth-error--general" role="alert">{{ props.errorMessage }}</p>
         <div v-if="props.showLinks" class="auth-links">
             <a :href="props.forgotHref">Olvidaste tu password?</a>
             <a :href="props.signupHref">Todavia no tienes tu cuenta?</a>

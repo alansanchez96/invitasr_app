@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const props = withDefaults(
     defineProps<{
@@ -23,6 +23,8 @@ const emit = defineEmits<{
     (event: 'update:modelValue', value: boolean): void
     (event: 'close'): void
 }>()
+
+const panelRef = ref<HTMLElement | null>(null)
 
 const close = () => {
     emit('update:modelValue', false)
@@ -49,12 +51,29 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('keydown', handleKeydown)
 })
+
+watch(
+    () => props.modelValue,
+    (isOpen) => {
+        if (!isOpen) return
+        nextTick(() => {
+            panelRef.value?.focus()
+        })
+    },
+)
 </script>
 
 <template>
     <teleport to="body">
         <div v-if="props.modelValue" class="base-modal-overlay" :class="props.overlayClass" @click="handleBackdrop">
-            <div class="base-modal-panel" :class="props.panelClass" role="dialog" :aria-label="props.ariaLabel"
+            <div
+                ref="panelRef"
+                class="base-modal-panel"
+                :class="props.panelClass"
+                role="dialog"
+                aria-modal="true"
+                :aria-label="props.ariaLabel"
+                tabindex="-1"
                 @click.stop>
                 <slot />
             </div>

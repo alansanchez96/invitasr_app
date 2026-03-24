@@ -117,6 +117,11 @@ const formatDate = (value?: string) => {
 
 const isSortActive = (key: SortKey) => sortKey.value === key
 
+const getAriaSort = (key: SortKey) => {
+  if (sortKey.value !== key) return 'none'
+  return sortDir.value === 'asc' ? 'ascending' : 'descending'
+}
+
 const setSort = (key: SortKey) => {
   if (sortKey.value === key) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
@@ -290,34 +295,39 @@ watch(
     <section class="bo-card bo-filters-card">
       <div class="filters-head">
         <strong>Filtros</strong>
-        <button class="filters-toggle" type="button" :aria-expanded="isFiltersOpen" @click="isFiltersOpen = !isFiltersOpen">
+        <button
+          class="filters-toggle"
+          type="button"
+          :aria-expanded="isFiltersOpen"
+          aria-controls="filters-panel"
+          @click="isFiltersOpen = !isFiltersOpen">
           <span>{{ isFiltersOpen ? 'Ocultar' : 'Ver' }}</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
       </div>
-      <div class="filters-panel" :class="{ open: isFiltersOpen }">
+      <div id="filters-panel" class="filters-panel" :class="{ open: isFiltersOpen }" role="region" aria-label="Filtros de clientes">
         <div class="bo-filters">
           <div class="field field--status">
-            <label>Estado</label>
-            <select v-model="filters.status">
+            <label for="filter-status">Estado</label>
+            <select id="filter-status" v-model="filters.status">
               <option value="">Todos</option>
               <option value="active">Activos</option>
               <option value="inactive">Inactivos</option>
             </select>
           </div>
           <div class="field field--country">
-            <label>Pais</label>
-            <input v-model="filters.country_code" type="text" placeholder="AR, MX, CO" />
+            <label for="filter-country">Pais</label>
+            <input id="filter-country" v-model="filters.country_code" type="text" placeholder="AR, MX, CO" />
           </div>
           <div class="field field--client">
-            <label>Nombre cliente</label>
-            <input v-model="filters.client_name" type="text" placeholder="Ej: Alan" />
+            <label for="filter-client">Nombre cliente</label>
+            <input id="filter-client" v-model="filters.client_name" type="text" placeholder="Ej: Alan" />
           </div>
           <div class="field field--db">
-            <label>Base de datos</label>
-            <input v-model="filters.db_name" type="text" placeholder="invita_alan" />
+            <label for="filter-db">Base de datos</label>
+            <input id="filter-db" v-model="filters.db_name" type="text" placeholder="invita_alan" />
           </div>
           <button class="filters-clear" type="button" aria-label="Limpiar filtros" title="Limpiar filtros" @click="resetFilters">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
@@ -343,14 +353,15 @@ watch(
           <span class="bo-muted">Total: {{ total }}</span>
         </div>
 
-        <div v-if="error" class="bo-error">{{ error }}</div>
-        <div v-else-if="statusMessage" class="bo-error">{{ statusMessage }}</div>
-        <div v-else-if="isLoading" class="bo-loading">Cargando clientes...</div>
+        <div v-if="error" class="bo-error" role="alert">{{ error }}</div>
+        <div v-else-if="statusMessage" class="bo-error" role="alert">{{ statusMessage }}</div>
+        <div v-else-if="isLoading" class="bo-loading" role="status" aria-live="polite">Cargando clientes...</div>
 
         <table v-else>
+          <caption class="sr-only">Listado de clientes</caption>
           <thead>
             <tr>
-              <th>
+              <th scope="col" :aria-sort="getAriaSort('id')">
                 <button class="sort-button" type="button" @click="setSort('id')">
                   <span>ID</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('id'), desc: isSortActive('id') && sortDir === 'desc' }">
@@ -360,7 +371,7 @@ watch(
                   </span>
                 </button>
               </th>
-              <th>
+              <th scope="col" :aria-sort="getAriaSort('client')">
                 <button class="sort-button" type="button" @click="setSort('client')">
                   <span>Cliente</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('client'), desc: isSortActive('client') && sortDir === 'desc' }">
@@ -370,7 +381,7 @@ watch(
                   </span>
                 </button>
               </th>
-              <th>
+              <th scope="col" :aria-sort="getAriaSort('email')">
                 <button class="sort-button" type="button" @click="setSort('email')">
                   <span>Correo</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('email'), desc: isSortActive('email') && sortDir === 'desc' }">
@@ -380,7 +391,7 @@ watch(
                   </span>
                 </button>
               </th>
-              <th>
+              <th scope="col" :aria-sort="getAriaSort('status')">
                 <button class="sort-button" type="button" @click="setSort('status')">
                   <span>Estado</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('status'), desc: isSortActive('status') && sortDir === 'desc' }">
@@ -390,7 +401,7 @@ watch(
                   </span>
                 </button>
               </th>
-              <th>
+              <th scope="col" :aria-sort="getAriaSort('db')">
                 <button class="sort-button" type="button" @click="setSort('db')">
                   <span>DB</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('db'), desc: isSortActive('db') && sortDir === 'desc' }">
@@ -400,7 +411,7 @@ watch(
                   </span>
                 </button>
               </th>
-              <th>
+              <th scope="col" :aria-sort="getAriaSort('country')">
                 <button class="sort-button" type="button" @click="setSort('country')">
                   <span>Pais</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('country'), desc: isSortActive('country') && sortDir === 'desc' }">
@@ -410,7 +421,7 @@ watch(
                   </span>
                 </button>
               </th>
-              <th v-if="showCreatedAt">
+              <th v-if="showCreatedAt" scope="col" :aria-sort="getAriaSort('created_at')">
                 <button class="sort-button" type="button" @click="setSort('created_at')">
                   <span>Fecha de creacion</span>
                   <span class="sort-indicator" :class="{ active: isSortActive('created_at'), desc: isSortActive('created_at') && sortDir === 'desc' }">
@@ -428,7 +439,12 @@ watch(
               :key="String(item.id ?? item.client_id)"
               class="table-row"
               :class="{ 'is-selected': (item.id ?? item.client_id) === selectedId }"
-              @click="openClient(item)">
+              tabindex="0"
+              :aria-label="`Ver detalle de ${getClientLabel(item) || 'cliente'}`"
+              :aria-selected="(item.id ?? item.client_id) === selectedId"
+              @click="openClient(item)"
+              @keydown.enter.prevent="openClient(item)"
+              @keydown.space.prevent="openClient(item)">
               <td>{{ item.id ?? item.client_id ?? '-' }}</td>
               <td>{{ item.client_name ?? item.name ?? '-' }}</td>
               <td>{{ item.email ?? '-' }}</td>
@@ -439,6 +455,9 @@ watch(
                     class="status-pill"
                     :class="item.status ?? 'active'"
                     type="button"
+                    aria-haspopup="listbox"
+                    :aria-expanded="editingStatusId === (item.id ?? item.client_id)"
+                    :aria-controls="`status-select-${item.id ?? item.client_id}`"
                     @click.stop="openStatusEditor(item.id ?? item.client_id ?? null)">
                     <span>{{ formatStatus(item.status) }}</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -447,8 +466,10 @@ watch(
                   </button>
                   <select
                     v-else
+                    :id="`status-select-${item.id ?? item.client_id}`"
                     :disabled="updatingStatusId === (item.id ?? item.client_id)"
                     :value="(item.status ?? 'active') as string"
+                    aria-label="Cambiar estado"
                     @click.stop
                     @change="applyStatusChange(item.id ?? item.client_id ?? '', ($event.target as HTMLSelectElement).value as 'active' | 'inactive')"
                     @blur="closeStatusEditor">
@@ -481,8 +502,8 @@ watch(
         </header>
 
         <div v-if="!hasSelection" class="bo-muted">Selecciona un cliente para ver el detalle.</div>
-        <div v-else-if="detailLoading" class="bo-loading">Cargando detalle...</div>
-        <div v-else-if="detailError" class="bo-error">{{ detailError }}</div>
+        <div v-else-if="detailLoading" class="bo-loading" role="status" aria-live="polite">Cargando detalle...</div>
+        <div v-else-if="detailError" class="bo-error" role="alert">{{ detailError }}</div>
         <div v-else-if="selected" class="bo-detail-body">
           <div class="detail-row">
             <span>Nombre</span>
@@ -508,6 +529,9 @@ watch(
                 class="status-pill"
                 :class="selected.status ?? 'active'"
                 type="button"
+                aria-haspopup="listbox"
+                :aria-expanded="editingDetailStatus"
+                aria-controls="detail-status-select"
                 @click="openDetailStatusEditor">
                 <span>{{ formatStatus(selected.status) }}</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -516,8 +540,10 @@ watch(
               </button>
               <select
                 v-else
+                id="detail-status-select"
                 :disabled="updatingStatusId === (selected.id ?? selected.client_id)"
                 :value="(selected.status ?? 'active') as string"
+                aria-label="Cambiar estado"
                 @change="applyStatusChange((selected.id ?? selected.client_id) as string | number, ($event.target as HTMLSelectElement).value as 'active' | 'inactive')"
                 @blur="closeDetailStatusEditor">
                 <option value="active">Activo</option>
@@ -717,6 +743,11 @@ watch(
 
 .bo-table tbody .table-row.is-selected {
   background: #efe7ff;
+}
+
+.bo-table tbody .table-row:focus-visible {
+  outline: 2px solid rgba(122, 79, 217, 0.6);
+  outline-offset: -2px;
 }
 
 .bo-table th {

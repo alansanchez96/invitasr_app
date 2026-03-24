@@ -68,6 +68,10 @@ const isGroupExpanded = (title: BackofficeModuleGroup['title']) => {
   return sectionOpenState.value[title] ?? defaultSectionsOpen.value
 }
 
+const getGroupId = (title: BackofficeModuleGroup['title']) => {
+  return `sidebar-group-${title.toLowerCase().replace(/\s+/g, '-')}`
+}
+
 const toggleGroup = (title: BackofficeModuleGroup['title']) => {
   sectionOpenState.value = {
     ...sectionOpenState.value,
@@ -156,9 +160,12 @@ onUnmounted(() => {
 
 <template>
   <div class="panel-layout" :class="{ 'is-collapsed': isCollapsedVisual }">
+    <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <aside
       class="panel-sidebar"
+      id="panel-sidebar"
       :class="{ open: isMobileSidebarOpen }"
+      aria-label="Menu lateral"
       @mouseenter="handleSidebarMouseEnter"
       @mouseleave="handleSidebarMouseLeave">
       <div class="sidebar-head">
@@ -170,6 +177,7 @@ onUnmounted(() => {
           v-if="!isMobile && !isCollapsedVisual"
           class="sidebar-pin"
           type="button"
+          :aria-label="isDesktopSidebarPinned ? 'Desfijar sidebar' : 'Fijar sidebar'"
           :class="{ active: isDesktopSidebarPinned }"
           :aria-pressed="isDesktopSidebarPinned"
           :title="isDesktopSidebarPinned ? 'Desfijar sidebar' : 'Fijar sidebar'"
@@ -183,7 +191,7 @@ onUnmounted(() => {
       </div>
 
       <transition name="sidebar-content" mode="out-in">
-        <nav v-if="isCollapsedVisual" key="compact" class="sidebar-nav-compact">
+        <nav v-if="isCollapsedVisual" key="compact" class="sidebar-nav-compact" aria-label="Navegacion lateral">
           <RouterLink
             class="sidebar-icon-link"
             :class="{ active: isDesktopHomeActive }"
@@ -241,12 +249,14 @@ onUnmounted(() => {
             <span class="sidebar-link-label">Escritorio</span>
           </RouterLink>
 
-          <nav class="sidebar-nav">
+          <nav class="sidebar-nav" aria-label="Secciones del panel">
             <div v-for="group in moduleGroups" :key="group.title" class="sidebar-group">
               <button
                 class="sidebar-group-toggle"
                 type="button"
                 :class="{ active: isGroupActive(group) }"
+                :aria-expanded="isGroupExpanded(group.title)"
+                :aria-controls="getGroupId(group.title)"
                 @click="toggleGroup(group.title)">
                 <span class="group-toggle-left">
                   <span class="group-icon" aria-hidden="true">
@@ -275,7 +285,7 @@ onUnmounted(() => {
               </button>
 
               <transition name="group-collapse">
-                <div v-show="isGroupExpanded(group.title)" class="sidebar-group-items">
+                <div v-show="isGroupExpanded(group.title)" class="sidebar-group-items" :id="getGroupId(group.title)">
                   <RouterLink
                     v-for="item in group.items"
                     :key="item.label"
@@ -304,6 +314,7 @@ onUnmounted(() => {
             :class="{ open: isMobileSidebarOpen }"
             type="button"
             :aria-expanded="isMobileSidebarOpen"
+            aria-controls="panel-sidebar"
             aria-label="Abrir menu lateral"
             @click="toggleMobileSidebar">
             <span></span>
@@ -314,10 +325,17 @@ onUnmounted(() => {
 
         <div class="topbar-right">
           <div v-if="isAuthenticated" class="account-menu" ref="accountMenuRef">
-            <button class="account-trigger" type="button" @click.stop="toggleAccountMenu" :aria-expanded="isAccountMenuOpen">
+            <button
+              class="account-trigger"
+              type="button"
+              aria-label="Abrir menu de cuenta"
+              aria-haspopup="menu"
+              aria-controls="account-menu"
+              @click.stop="toggleAccountMenu"
+              :aria-expanded="isAccountMenuOpen">
               <img class="account-logo" src="/brand/logo_icon.png" alt="Cuenta" />
             </button>
-            <div v-if="isAccountMenuOpen" class="account-dropdown" @click.stop>
+            <div v-if="isAccountMenuOpen" id="account-menu" class="account-dropdown" @click.stop>
               <div class="account-user-header">
                 <span class="account-user-label">Sesion activa</span>
                 <p class="account-user-name">{{ accountDisplayName }}</p>
@@ -373,7 +391,7 @@ onUnmounted(() => {
         </div>
       </header>
 
-      <main class="panel-content">
+      <main id="main-content" class="panel-content" tabindex="-1">
         <RouterView />
       </main>
     </div>

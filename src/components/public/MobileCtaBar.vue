@@ -138,7 +138,7 @@ onUnmounted(() => {
                 <BaseButton variant="ghost" type="button" @click="openLogin">Iniciar sesion</BaseButton>
                 <BaseButton as="RouterLink" variant="primary" to="/planes">Ver planes</BaseButton>
             </div>
-            <div v-else class="mobile-cta-inner icon-nav" :class="{ 'is-master': isMaster }">
+            <nav v-else class="mobile-cta-inner icon-nav" :class="{ 'is-master': isMaster }" aria-label="Accesos rapidos">
                 <div class="mobile-identity" :class="{ 'is-master': isMaster }">
                     <img class="mobile-identity-logo" src="/brand/logo_icon.png" alt="Cuenta de usuario" />
                     <div class="mobile-identity-copy">
@@ -148,7 +148,10 @@ onUnmounted(() => {
                 </div>
                 <template v-if="isMaster">
                     <button class="icon-link" type="button" @click="openMenu('backoffice')" title="Dashboard"
-                        aria-label="Dashboard">
+                        aria-label="Dashboard"
+                        aria-haspopup="dialog"
+                        aria-controls="cta-popover"
+                        :aria-expanded="activeMenu === 'backoffice'">
                         <span class="icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
                                 <defs>
@@ -167,7 +170,10 @@ onUnmounted(() => {
                         <span class="icon-label">Dashboard</span>
                     </button>
                     <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
-                        aria-label="Configuracion">
+                        aria-label="Configuracion"
+                        aria-haspopup="dialog"
+                        aria-controls="cta-popover"
+                        :aria-expanded="activeMenu === 'config'">
                         <span class="icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
                                 <defs>
@@ -187,7 +193,10 @@ onUnmounted(() => {
                 </template>
                 <template v-else>
                     <button class="icon-link" type="button" @click="openMenu('dashboard')" title="Ir al dashboard"
-                        aria-label="Ir al Dashboard">
+                        aria-label="Ir al Dashboard"
+                        aria-haspopup="dialog"
+                        aria-controls="cta-popover"
+                        :aria-expanded="activeMenu === 'dashboard'">
                         <span class="icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
                                 <defs>
@@ -206,7 +215,11 @@ onUnmounted(() => {
                         <span class="icon-label">Dashboard</span>
                     </button>
                     <button class="icon-link" type="button" @click="openMenu('invitaciones')"
-                        title="Ver mis invitaciones" aria-label="Ver mis invitaciones">
+                        title="Ver mis invitaciones"
+                        aria-label="Ver mis invitaciones"
+                        aria-haspopup="dialog"
+                        aria-controls="cta-popover"
+                        :aria-expanded="activeMenu === 'invitaciones'">
                         <span class="icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
                                 <defs>
@@ -223,7 +236,10 @@ onUnmounted(() => {
                         <span class="icon-label">Invitaciones</span>
                     </button>
                     <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
-                        aria-label="Configuracion">
+                        aria-label="Configuracion"
+                        aria-haspopup="dialog"
+                        aria-controls="cta-popover"
+                        :aria-expanded="activeMenu === 'config'">
                         <span class="icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
                                 <defs>
@@ -241,10 +257,11 @@ onUnmounted(() => {
                         <span class="icon-label">Configuracion</span>
                     </button>
                 </template>
-            </div>
+            </nav>
 
-            <div v-if="activeMenu" class="cta-popover-backdrop" @click="activeMenu = null"></div>
-            <div v-if="activeMenu" class="cta-popover" :class="`is-${activeMenu}`">
+            <div v-if="activeMenu" class="cta-popover-backdrop" aria-hidden="true" @click="activeMenu = null"></div>
+            <div v-if="activeMenu" id="cta-popover" class="cta-popover" :class="`is-${activeMenu}`" role="region"
+                aria-label="Opciones de panel">
                 <div class="cta-popover-inner">
                     <div class="cta-popover-head">
                         <span class="cta-popover-section">{{ activeMenuLabel }}</span>
@@ -281,7 +298,12 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <BaseModal v-model="isLoginOpen" overlay-class="login-overlay" panel-class="login-card" @close="closeLogin">
+        <BaseModal
+            v-model="isLoginOpen"
+            overlay-class="login-overlay"
+            panel-class="login-card"
+            aria-label="Acceso a cuenta"
+            @close="closeLogin">
             <button v-if="loginStep === 'email'" class="login-back" type="button" @click="goBackToProviders"
                 aria-label="Volver a opciones de acceso">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

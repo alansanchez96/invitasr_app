@@ -140,21 +140,29 @@ onUnmounted(() => {
                 <RouterLink v-show="!(isMenuOpen && isMobile)" class="brand" to="/">
                     <img class="brand-logo" src="/brand/logo-transparent.png" alt="InvitaSR" />
                 </RouterLink>
-                <nav class="nav-links">
+                <nav class="nav-links" aria-label="Navegacion principal">
                     <RouterLink to="/noticias">Noticias</RouterLink>
                     <a href="/#como-funciona">Como funciona</a>
                     <a href="/#inspiracion">Inspiracion</a>
                     <RouterLink to="/planes">Planes</RouterLink>
                     <a href="/#demo">Demo</a>
                 </nav>
-                <nav class="nav-actions">
+                <nav class="nav-actions" aria-label="Acciones de cuenta">
                     <template v-if="!isAuthenticated">
                         <div class="login-menu" ref="loginMenuRef">
                             <BaseButton variant="ghost" type="button" @click.stop="toggleLoginMenu"
-                                :aria-expanded="isLoginMenuOpen">
+                                :aria-expanded="isLoginMenuOpen"
+                                aria-haspopup="dialog"
+                                aria-controls="login-dropdown">
                                 Iniciar sesion
                             </BaseButton>
-                            <div v-if="isLoginMenuOpen" class="login-dropdown" @click.stop>
+                            <div
+                                v-if="isLoginMenuOpen"
+                                id="login-dropdown"
+                                class="login-dropdown"
+                                role="dialog"
+                                aria-label="Acceso a cuenta"
+                                @click.stop>
                                 <AuthForm :loading="isLoginLoading" :error-message="loginError"
                                     :field-errors="loginFieldErrors" @submit="handleLoginSubmit" />
                                 <div class="auth-divider"></div>
@@ -165,10 +173,14 @@ onUnmounted(() => {
                     </template>
                     <div v-else class="account-menu" ref="accountMenuRef">
                         <button class="account-trigger" type="button" @click.stop="toggleAccountMenu"
-                            :aria-expanded="isAccountMenuOpen">
+                            :aria-expanded="isAccountMenuOpen"
+                            aria-haspopup="menu"
+                            aria-controls="account-dropdown"
+                            aria-label="Abrir menu de cuenta">
                             <img class="account-logo" src="/brand/logo_icon.png" alt="Cuenta" />
                         </button>
-                        <div v-if="isAccountMenuOpen" class="account-dropdown" @click.stop>
+                        <div v-if="isAccountMenuOpen" id="account-dropdown" class="account-dropdown" role="region"
+                            aria-label="Opciones de cuenta" @click.stop>
                             <div class="account-user-header">
                                 <span class="account-user-label">Sesion activa</span>
                                 <p class="account-user-name">{{ accountDisplayName }}</p>
@@ -273,7 +285,7 @@ onUnmounted(() => {
                     </div>
                 </nav>
                 <button v-show="!(isMenuOpen && isMobile)" class="menu-toggle mobile-only" type="button"
-                    :aria-expanded="isMenuOpen" aria-controls="mobile-menu"
+                    :aria-expanded="isMenuOpen" aria-controls="mobile-menu" aria-haspopup="menu"
                     :aria-label="isMenuOpen ? 'Cerrar menu' : 'Abrir menu'" @click="toggleMenu">
                     <span class="menu-icon">
                         <span></span>
@@ -284,12 +296,13 @@ onUnmounted(() => {
         </div>
 
         <transition name="menu-slide">
-            <div v-if="isMenuOpen && isMobile" id="mobile-menu" class="mobile-menu">
+            <div v-if="isMenuOpen && isMobile" id="mobile-menu" class="mobile-menu" role="dialog" aria-modal="true"
+                aria-label="Menu principal">
                 <div class="mobile-menu-inner">
                     <div class="mobile-brand">
                         <img class="brand-logo-mobile" src="/brand/logo_icon.png" alt="InvitaSR" />
                     </div>
-                    <nav class="mobile-links">
+                    <nav class="mobile-links" aria-label="Navegacion principal">
                         <RouterLink to="/noticias" @click="closeMenu">Noticias</RouterLink>
                         <RouterLink to="/planes" @click="closeMenu">Planes</RouterLink>
                         <a href="/#como-funciona" @click="closeMenu">Como funciona</a>

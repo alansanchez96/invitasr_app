@@ -5,11 +5,11 @@
                 <strong>InvitaSR</strong>
                 <p>Invitaciones digitales con RSVP y pagos integrados.</p>
             </div>
-            <div class="footer-links">
+            <nav class="footer-links" aria-label="Enlaces del pie">
                 <a href="#planes">Planes</a>
                 <a href="#faq">FAQ</a>
                 <a href="#demo">Demo</a>
-            </div>
+            </nav>
         </div>
     </footer>
 </template>

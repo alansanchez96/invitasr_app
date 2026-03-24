@@ -12,14 +12,16 @@ const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut 
 
 <template>
   <div class="public-layout">
+    <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <PublicNavbar />
-    <main>
+    <main id="main-content" tabindex="-1">
       <RouterView />
     </main>
     <MobileCtaBar />
     <PublicFooter />
-    <div v-if="showAuthLoader" class="auth-loading-overlay">
+    <div v-if="showAuthLoader" class="auth-loading-overlay" role="status" aria-live="polite">
       <span class="spinner auth-loading-spinner" aria-hidden="true"></span>
+      <span class="sr-only">Cargando...</span>
     </div>
   </div>
 </template>

@@ -31,7 +31,7 @@ const handleSelect = (provider: ProviderKey) => {
         <button v-for="provider in props.providers" :key="provider"
             class="auth-provider" :class="{ 'auth-provider--stack': props.variant === 'stack' }" type="button"
             @click="handleSelect(provider)">
-            <span class="auth-provider-icon">
+            <span class="auth-provider-icon" aria-hidden="true">
                 <svg v-if="provider === 'email'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="1.8">
                     <path d="M4 6h16v12H4z" />
