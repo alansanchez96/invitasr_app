@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { listClients, getClient, updateClientStatus, type ClientDetail, type ClientListItem } from '@/services/clients'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
@@ -8,7 +8,6 @@ type Filters = {
   country_code: string
   client_name: string
   db_name: string
-  client_id: string
   page: number
   perPage: number
 }
@@ -18,9 +17,8 @@ const filters = reactive<Filters>({
   country_code: '',
   client_name: '',
   db_name: '',
-  client_id: '',
   page: 1,
-  perPage: 10,
+  perPage: 15,
 })
 
 const list = ref<ClientListItem[]>([])
@@ -32,11 +30,153 @@ const error = ref<string | null>(null)
 const selectedId = ref<string | number | null>(null)
 const selected = ref<ClientDetail | null>(null)
 const detailLoading = ref(false)
-const updateLoading = ref(false)
-const statusDraft = ref<'active' | 'inactive'>('active')
 const detailError = ref<string | null>(null)
+const isResettingFilters = ref(false)
+const isFiltersOpen = ref(true)
+const showCreatedAt = ref(false)
+const editingStatusId = ref<string | number | null>(null)
+const editingDetailStatus = ref(false)
+const updatingStatusId = ref<string | number | null>(null)
+const statusMessage = ref<string | null>(null)
 
 const hasSelection = computed(() => selectedId.value !== null)
+let filtersTimer: number | undefined
+
+type SortKey = 'id' | 'client' | 'email' | 'status' | 'db' | 'country' | 'created_at'
+
+const sortKey = ref<SortKey>('id')
+const sortDir = ref<'asc' | 'desc'>('asc')
+
+const normalizeText = (value: unknown) => String(value ?? '').toLowerCase()
+
+const getClientLabel = (item: ClientListItem) => {
+  return (item.client_name ?? item.name ?? '').toString()
+}
+
+const getIdValue = (item: ClientListItem) => {
+  const raw = item.id ?? item.client_id
+  const numeric = Number(raw)
+  if (Number.isFinite(numeric)) return numeric
+  return raw ? raw.toString() : ''
+}
+
+const getCreatedAtValue = (item: ClientListItem) => {
+  if (!item.created_at) return 0
+  const time = new Date(item.created_at).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
+const compareValues = (a: unknown, b: unknown) => {
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return normalizeText(a).localeCompare(normalizeText(b), 'es', { sensitivity: 'base' })
+}
+
+const sortedList = computed(() => {
+  const items = [...list.value]
+  items.sort((first, second) => {
+    let result = 0
+    switch (sortKey.value) {
+      case 'id':
+        result = compareValues(getIdValue(first), getIdValue(second))
+        break
+      case 'client':
+        result = compareValues(getClientLabel(first), getClientLabel(second))
+        break
+      case 'email':
+        result = compareValues(first.email ?? '', second.email ?? '')
+        break
+      case 'status':
+        result = compareValues(first.status ?? '', second.status ?? '')
+        break
+      case 'db':
+        result = compareValues(first.db_name ?? '', second.db_name ?? '')
+        break
+      case 'country':
+        result = compareValues(first.country_code ?? '', second.country_code ?? '')
+        break
+      case 'created_at':
+        result = compareValues(getCreatedAtValue(first), getCreatedAtValue(second))
+        break
+      default:
+        result = 0
+    }
+    return sortDir.value === 'asc' ? result : -result
+  })
+  return items
+})
+
+const formatDate = (value?: string) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+const isSortActive = (key: SortKey) => sortKey.value === key
+
+const setSort = (key: SortKey) => {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+    return
+  }
+  sortKey.value = key
+  sortDir.value = 'asc'
+}
+
+const formatStatus = (value?: string) => {
+  if (!value) return 'Activo'
+  return value === 'inactive' ? 'Inactivo' : 'Activo'
+}
+
+const openStatusEditor = (id: string | number | null) => {
+  if (!id) return
+  editingStatusId.value = id
+}
+
+const closeStatusEditor = () => {
+  editingStatusId.value = null
+}
+
+const openDetailStatusEditor = () => {
+  editingDetailStatus.value = true
+}
+
+const closeDetailStatusEditor = () => {
+  editingDetailStatus.value = false
+}
+
+const applyStatusChange = async (id: string | number, nextStatus: 'active' | 'inactive') => {
+  updatingStatusId.value = id
+  statusMessage.value = null
+  try {
+    const data = await updateClientStatus(id, nextStatus)
+    const matchIndex = list.value.findIndex(
+      (item) => (item.id ?? item.client_id) === id,
+    )
+    if (matchIndex >= 0) {
+      list.value[matchIndex] = {
+        ...list.value[matchIndex],
+        status: nextStatus,
+      }
+    }
+    if (selected.value && (selected.value.id ?? selected.value.client_id) === id) {
+      selected.value = {
+        ...selected.value,
+        status: nextStatus,
+        ...(data as ClientDetail),
+      }
+    }
+  } catch {
+    statusMessage.value = 'No pudimos actualizar el estado.'
+  } finally {
+    updatingStatusId.value = null
+    closeStatusEditor()
+    closeDetailStatusEditor()
+  }
+}
 
 const fetchList = async () => {
   isLoading.value = true
@@ -46,6 +186,8 @@ const fetchList = async () => {
     list.value = result.list
     total.value = result.total
     lastPage.value = result.lastPage
+    filters.page = result.page
+    filters.perPage = result.perPage
   } catch {
     error.value = 'No pudimos cargar los clientes.'
   } finally {
@@ -62,8 +204,6 @@ const openClient = async (item: ClientListItem) => {
   try {
     const data = await getClient(id)
     selected.value = data as ClientDetail
-    const nextStatus = (data?.status as 'active' | 'inactive' | undefined) ?? 'active'
-    statusDraft.value = nextStatus
   } catch {
     detailError.value = 'No pudimos cargar el detalle.'
   } finally {
@@ -77,20 +217,34 @@ const clearSelection = () => {
   detailError.value = null
 }
 
-const applyFilters = () => {
-  filters.page = 1
-  fetchList()
+const scheduleFiltersFetch = (immediate = false) => {
+  if (filtersTimer) {
+    window.clearTimeout(filtersTimer)
+  }
+
+  const run = () => {
+    filters.page = 1
+    fetchList()
+  }
+
+  if (immediate) {
+    run()
+    return
+  }
+
+  filtersTimer = window.setTimeout(run, 280)
 }
 
 const resetFilters = () => {
+  isResettingFilters.value = true
   filters.status = ''
   filters.country_code = ''
   filters.client_name = ''
   filters.db_name = ''
-  filters.client_id = ''
   filters.page = 1
-  filters.perPage = 10
-  fetchList()
+  filters.perPage = 15
+  isResettingFilters.value = false
+  scheduleFiltersFetch(true)
 }
 
 const goToPage = (direction: 'prev' | 'next') => {
@@ -104,31 +258,24 @@ const goToPage = (direction: 'prev' | 'next') => {
   }
 }
 
-const updateStatus = async () => {
-  if (!selectedId.value) return
-  updateLoading.value = true
-  try {
-    const data = await updateClientStatus(selectedId.value, statusDraft.value)
-    selected.value = data as ClientDetail
-    const matchIndex = list.value.findIndex(
-      (item) => (item.id ?? item.client_id) === selectedId.value,
-    )
-    if (matchIndex >= 0) {
-      list.value[matchIndex] = {
-        ...list.value[matchIndex],
-        status: statusDraft.value,
-      }
-    }
-  } catch {
-    detailError.value = 'No pudimos actualizar el estado.'
-  } finally {
-    updateLoading.value = false
-  }
-}
-
 onMounted(() => {
   fetchList()
+  isFiltersOpen.value = !window.matchMedia('(max-width: 900px)').matches
 })
+
+onUnmounted(() => {
+  if (filtersTimer) {
+    window.clearTimeout(filtersTimer)
+  }
+})
+
+watch(
+  () => [filters.status, filters.country_code, filters.client_name, filters.db_name],
+  () => {
+    if (isResettingFilters.value) return
+    scheduleFiltersFetch()
+  },
+)
 </script>
 
 <template>
@@ -136,38 +283,56 @@ onMounted(() => {
     <header class="bo-page-header">
       <div>
         <h1>Clientes</h1>
-        <p>Gestiona los clientes activos, suscripciones y estado general.</p>
+        <div class="bo-divider"></div>
       </div>
     </header>
 
-    <section class="bo-card bo-filters">
-      <div class="field">
-        <label>Estado</label>
-        <select v-model="filters.status">
-          <option value="">Todos</option>
-          <option value="active">Activos</option>
-          <option value="inactive">Inactivos</option>
-        </select>
+    <section class="bo-card bo-filters-card">
+      <div class="filters-head">
+        <strong>Filtros</strong>
+        <button class="filters-toggle" type="button" :aria-expanded="isFiltersOpen" @click="isFiltersOpen = !isFiltersOpen">
+          <span>{{ isFiltersOpen ? 'Ocultar' : 'Ver' }}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
       </div>
-      <div class="field">
-        <label>Pais</label>
-        <input v-model="filters.country_code" type="text" placeholder="AR, MX, CO" />
-      </div>
-      <div class="field">
-        <label>Nombre cliente</label>
-        <input v-model="filters.client_name" type="text" placeholder="Ej: Alan" />
-      </div>
-      <div class="field">
-        <label>Base de datos</label>
-        <input v-model="filters.db_name" type="text" placeholder="invita_alan" />
-      </div>
-      <div class="field">
-        <label>ID cliente</label>
-        <input v-model="filters.client_id" type="text" placeholder="ID interno" />
-      </div>
-      <div class="filters-actions">
-        <BaseButton variant="primary" type="button" @click="applyFilters">Buscar</BaseButton>
-        <BaseButton variant="ghost" type="button" @click="resetFilters">Limpiar</BaseButton>
+      <div class="filters-panel" :class="{ open: isFiltersOpen }">
+        <div class="bo-filters">
+          <div class="field field--status">
+            <label>Estado</label>
+            <select v-model="filters.status">
+              <option value="">Todos</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+          </div>
+          <div class="field field--country">
+            <label>Pais</label>
+            <input v-model="filters.country_code" type="text" placeholder="AR, MX, CO" />
+          </div>
+          <div class="field field--client">
+            <label>Nombre cliente</label>
+            <input v-model="filters.client_name" type="text" placeholder="Ej: Alan" />
+          </div>
+          <div class="field field--db">
+            <label>Base de datos</label>
+            <input v-model="filters.db_name" type="text" placeholder="invita_alan" />
+          </div>
+          <button class="filters-clear" type="button" aria-label="Limpiar filtros" title="Limpiar filtros" @click="resetFilters">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M7 6l1 14h8l1-14" />
+              <path d="M10 10v6" />
+              <path d="M14 10v6" />
+            </svg>
+          </button>
+        </div>
+        <label class="filters-option">
+          <input type="checkbox" v-model="showCreatedAt" />
+          Mostrar fecha de creacion en el listado
+        </label>
       </div>
     </section>
 
@@ -179,33 +344,125 @@ onMounted(() => {
         </div>
 
         <div v-if="error" class="bo-error">{{ error }}</div>
+        <div v-else-if="statusMessage" class="bo-error">{{ statusMessage }}</div>
         <div v-else-if="isLoading" class="bo-loading">Cargando clientes...</div>
 
         <table v-else>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Cliente</th>
-              <th>Correo</th>
-              <th>Estado</th>
-              <th>DB</th>
-              <th>Pais</th>
-              <th></th>
+              <th>
+                <button class="sort-button" type="button" @click="setSort('id')">
+                  <span>ID</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('id'), desc: isSortActive('id') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th>
+                <button class="sort-button" type="button" @click="setSort('client')">
+                  <span>Cliente</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('client'), desc: isSortActive('client') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th>
+                <button class="sort-button" type="button" @click="setSort('email')">
+                  <span>Correo</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('email'), desc: isSortActive('email') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th>
+                <button class="sort-button" type="button" @click="setSort('status')">
+                  <span>Estado</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('status'), desc: isSortActive('status') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th>
+                <button class="sort-button" type="button" @click="setSort('db')">
+                  <span>DB</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('db'), desc: isSortActive('db') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th>
+                <button class="sort-button" type="button" @click="setSort('country')">
+                  <span>Pais</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('country'), desc: isSortActive('country') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th v-if="showCreatedAt">
+                <button class="sort-button" type="button" @click="setSort('created_at')">
+                  <span>Fecha de creacion</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('created_at'), desc: isSortActive('created_at') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in list" :key="String(item.id ?? item.client_id)">
+            <tr
+              v-for="item in sortedList"
+              :key="String(item.id ?? item.client_id)"
+              class="table-row"
+              :class="{ 'is-selected': (item.id ?? item.client_id) === selectedId }"
+              @click="openClient(item)">
               <td>{{ item.id ?? item.client_id ?? '-' }}</td>
               <td>{{ item.client_name ?? item.name ?? '-' }}</td>
               <td>{{ item.email ?? '-' }}</td>
               <td>
-                <span class="status" :class="item.status">{{ item.status ?? '-' }}</span>
+                <div class="status-cell">
+                  <button
+                    v-if="editingStatusId !== (item.id ?? item.client_id)"
+                    class="status-pill"
+                    :class="item.status ?? 'active'"
+                    type="button"
+                    @click.stop="openStatusEditor(item.id ?? item.client_id ?? null)">
+                    <span>{{ formatStatus(item.status) }}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  <select
+                    v-else
+                    :disabled="updatingStatusId === (item.id ?? item.client_id)"
+                    :value="(item.status ?? 'active') as string"
+                    @click.stop
+                    @change="applyStatusChange(item.id ?? item.client_id ?? '', ($event.target as HTMLSelectElement).value as 'active' | 'inactive')"
+                    @blur="closeStatusEditor">
+                    <option value="active">Activo</option>
+                    <option value="inactive">Inactivo</option>
+                  </select>
+                </div>
               </td>
               <td>{{ item.db_name ?? '-' }}</td>
               <td>{{ item.country_code ?? '-' }}</td>
-              <td>
-                <button class="link-button" type="button" @click="openClient(item)">Ver</button>
-              </td>
+              <td v-if="showCreatedAt">{{ formatDate(item.created_at) }}</td>
+            </tr>
+            <tr v-if="!sortedList.length">
+              <td :colspan="showCreatedAt ? 7 : 6" class="bo-empty">No encontramos clientes con los filtros actuales.</td>
             </tr>
           </tbody>
         </table>
@@ -245,14 +502,29 @@ onMounted(() => {
           </div>
           <div class="detail-row">
             <span>Estado</span>
-            <select v-model="statusDraft">
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </select>
+            <div class="status-cell">
+              <button
+                v-if="!editingDetailStatus"
+                class="status-pill"
+                :class="selected.status ?? 'active'"
+                type="button"
+                @click="openDetailStatusEditor">
+                <span>{{ formatStatus(selected.status) }}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              <select
+                v-else
+                :disabled="updatingStatusId === (selected.id ?? selected.client_id)"
+                :value="(selected.status ?? 'active') as string"
+                @change="applyStatusChange((selected.id ?? selected.client_id) as string | number, ($event.target as HTMLSelectElement).value as 'active' | 'inactive')"
+                @blur="closeDetailStatusEditor">
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+              </select>
+            </div>
           </div>
-          <BaseButton variant="primary" type="button" :disabled="updateLoading" @click="updateStatus">
-            {{ updateLoading ? 'Actualizando...' : 'Actualizar estado' }}
-          </BaseButton>
         </div>
       </aside>
     </section>
@@ -269,8 +541,10 @@ onMounted(() => {
   margin-bottom: 6px;
 }
 
-.bo-page-header p {
-  color: #6b6b80;
+.bo-divider {
+  height: 1px;
+  background: #ece7f8;
+  margin-top: 12px;
 }
 
 .bo-card {
@@ -281,11 +555,67 @@ onMounted(() => {
   box-shadow: var(--shadow-card);
 }
 
+.bo-filters-card {
+  display: grid;
+  gap: 12px;
+}
+
+.filters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.filters-toggle {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2ddf7;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #fbfaff;
+  color: #7a4fd9;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filters-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.filters-panel {
+  display: grid;
+  gap: 12px;
+}
+
 .bo-filters {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
+}
+
+.field--status {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.field--country {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.field--client {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.field--db {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .field {
@@ -307,9 +637,53 @@ onMounted(() => {
   background: #fbfaff;
 }
 
-.filters-actions {
-  display: flex;
+.filters-clear {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #e2ddf7;
+  background: #fbfaff;
+  color: #7a4fd9;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  justify-self: end;
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.filters-clear svg {
+  width: 18px;
+  height: 18px;
+}
+
+.filters-clear:hover,
+.filters-clear:focus-visible {
+  background: var(--gradient-brand);
+  color: #fff;
+  border-color: rgba(155, 107, 255, 0.2);
+}
+
+.filters-option {
+  display: inline-flex;
+  align-items: center;
   gap: 10px;
+  font-size: 13px;
+  color: #6b6b80;
+  font-weight: 600;
+}
+
+.filters-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: #7a4fd9;
+}
+
+.bo-page.container {
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
 .bo-content {
@@ -326,15 +700,189 @@ onMounted(() => {
 
 .bo-table th,
 .bo-table td {
-  padding: 12px 10px;
+  padding: 14px 14px;
   text-align: left;
   border-bottom: 1px solid #edf0f6;
   font-size: 13px;
 }
 
+.bo-table tbody .table-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.bo-table tbody .table-row:hover {
+  background: #f7f3ff;
+}
+
+.bo-table tbody .table-row.is-selected {
+  background: #efe7ff;
+}
+
 .bo-table th {
   color: #6b6b80;
   font-weight: 600;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sort-indicator {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  opacity: 0.35;
+  transform: translateY(1px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sort-indicator svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sort-indicator.active {
+  opacity: 1;
+}
+
+.sort-indicator.desc {
+  transform: translateY(1px) rotate(180deg);
+}
+
+.bo-empty {
+  text-align: center !important;
+  color: #6b6b80;
+  font-weight: 600;
+  padding: 22px 10px !important;
+}
+
+.status-cell {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 6px 10px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.12);
+  color: #0f766e;
+  cursor: pointer;
+  position: relative;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.status-pill svg {
+  width: 0;
+  height: 12px;
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.2s ease, width 0.2s ease, margin-left 0.2s ease;
+  margin-left: 0;
+}
+
+.status-pill:hover svg {
+  opacity: 1;
+  width: 12px;
+  margin-left: 6px;
+}
+
+.status-pill.inactive {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.status-pill:hover {
+  border-color: rgba(122, 79, 217, 0.2);
+  color: #4c1d95;
+}
+
+.status-pill.inactive:hover {
+  border-color: rgba(185, 28, 28, 0.2);
+  color: #b91c1c;
+}
+
+.status-cell select {
+  border-radius: 10px;
+  border: 1px solid #e2ddf7;
+  padding: 6px 28px 6px 10px;
+  background: #fbfaff;
+  font-weight: 600;
+  color: #4c1d95;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #7a4fd9 50%),
+    linear-gradient(135deg, #7a4fd9 50%, transparent 50%),
+    linear-gradient(to right, #e2ddf7, #e2ddf7);
+  background-position: calc(100% - 16px) 12px, calc(100% - 12px) 12px, calc(100% - 36px) 50%;
+  background-size: 6px 6px, 6px 6px, 1px 60%;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 900px) {
+  .filters-toggle {
+    display: inline-flex;
+  }
+
+  .filters-panel {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.2s ease;
+  }
+
+  .filters-panel.open {
+    max-height: 600px;
+    opacity: 1;
+  }
+
+  .filters-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .bo-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filters-clear {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .field--status {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .field--country {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .field--client {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .field--db {
+    grid-column: 2;
+    grid-row: 2;
+  }
 }
 
 .bo-table-header {

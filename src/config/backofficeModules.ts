@@ -4,7 +4,7 @@ export type BackofficeModule = {
 }
 
 export type BackofficeModuleGroup = {
-  title: 'Gestion' | 'Cobros' | 'Configuracion'
+  title: 'Gestion' | 'Pagos' | 'Configuracion'
   items: BackofficeModule[]
 }
 
@@ -13,27 +13,27 @@ export const backofficeModuleGroups: BackofficeModuleGroup[] = [
     title: 'Gestion',
     items: [
       { label: 'Clientes', href: '/backoffice/clients' },
-      { label: 'Usuarios', href: '#' },
-      { label: 'Onboarding', href: '#' },
-      { label: 'Plantillas', href: '#' },
+      { label: 'Usuarios', href: '/backoffice/users' },
+      { label: 'Onboarding', href: '/backoffice/onboarding' },
+      { label: 'Plantillas', href: '/backoffice/templates' },
     ],
   },
   {
-    title: 'Cobros',
+    title: 'Pagos',
     items: [
-      { label: 'Pagos', href: '#' },
-      { label: 'Suscripciones', href: '#' },
+      { label: 'Pagos', href: '/backoffice/payments' },
+      { label: 'Suscripciones', href: '/backoffice/subscriptions' },
     ],
   },
   {
     title: 'Configuracion',
     items: [
-      { label: 'Planes', href: '#' },
-      { label: 'Funcionalidades', href: '#' },
-      { label: 'Funcionalidades por plan', href: '#' },
-      { label: 'Tipos de evento', href: '#' },
-      { label: 'Modulos', href: '#' },
-      { label: 'Permisos', href: '#' },
+      { label: 'Planes', href: '/backoffice/plans' },
+      { label: 'Funcionalidades', href: '/backoffice/features' },
+      { label: 'Funcionalidades por plan', href: '/backoffice/plan-features' },
+      { label: 'Tipos de evento', href: '/backoffice/event-types' },
+      { label: 'Modulos', href: '/backoffice/modules' },
+      { label: 'Permisos', href: '/backoffice/permissions' },
     ],
   },
 ]

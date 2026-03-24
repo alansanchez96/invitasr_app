@@ -21,6 +21,13 @@ const isLoginMenuOpen = ref(false)
 const loginMenuRef = ref<HTMLElement | null>(null)
 const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
+const accountDisplayName = computed(() => {
+    const fullName = [session.user?.name, session.user?.last_name]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join(' ')
+        .trim()
+    return fullName || session.user?.email || 'Mi cuenta'
+})
 
 const toggleMenu = () => {
     if (!isMobile.value) return
@@ -162,9 +169,13 @@ onUnmounted(() => {
                             <img class="account-logo" src="/brand/logo_icon.png" alt="Cuenta" />
                         </button>
                         <div v-if="isAccountMenuOpen" class="account-dropdown" @click.stop>
+                            <div class="account-user-header">
+                                <span class="account-user-label">Sesion activa</span>
+                                <p class="account-user-name">{{ accountDisplayName }}</p>
+                            </div>
                             <template v-if="isMaster">
                                 <div class="account-item">
-                                    <RouterLink class="account-link" to="/backoffice">
+                                    <RouterLink class="account-link" to="/backoffice" @click="closeAccountMenu">
                                         <span class="account-icon">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                                 <rect x="3" y="3" width="7" height="7" rx="2" />
@@ -173,16 +184,16 @@ onUnmounted(() => {
                                                 <rect x="14" y="14" width="7" height="7" rx="2" />
                                             </svg>
                                         </span>
-                                        <span>Backoffice</span>
+                                        <span>Dashboard</span>
                                     </RouterLink>
                                     <div class="account-submenu">
                                         <div v-for="group in backofficeModuleGroups" :key="group.title"
                                             class="submenu-group">
                                             <span class="submenu-title">{{ group.title }}</span>
-                                            <a v-for="module in group.items" :key="module.label" :href="module.href"
-                                                class="submenu-link">
+                                            <RouterLink v-for="module in group.items" :key="module.label" :to="module.href"
+                                                class="submenu-link" @click="closeAccountMenu">
                                                 <span>{{ module.label }}</span>
-                                            </a>
+                                            </RouterLink>
                                         </div>
                                     </div>
                                 </div>
@@ -390,7 +401,7 @@ onUnmounted(() => {
     position: absolute;
     right: 0;
     top: calc(100% + 12px);
-    min-width: 220px;
+    min-width: 250px;
     background: #fff;
     border-radius: 16px;
     border: 1px solid rgba(233, 220, 255, 0.7);
@@ -399,6 +410,31 @@ onUnmounted(() => {
     display: grid;
     gap: 6px;
     z-index: 10;
+}
+
+.account-user-header {
+    display: grid;
+    gap: 4px;
+    margin: 2px 2px 8px;
+    padding: 8px 10px 10px;
+    border-bottom: 1px solid rgba(155, 107, 255, 0.2);
+}
+
+.account-user-label {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(90, 48, 140, 0.58);
+    font-weight: 700;
+}
+
+.account-user-name {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.35;
+    font-weight: 700;
+    color: var(--brand-ink);
+    text-wrap: balance;
 }
 
 .account-item {

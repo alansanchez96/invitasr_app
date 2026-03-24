@@ -21,6 +21,20 @@ const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
 const isLoginOpen = ref(false)
 const loginStep = ref<'providers' | 'email'>('providers')
+const accountDisplayName = computed(() => {
+    const fullName = [session.user?.name, session.user?.last_name]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join(' ')
+        .trim()
+    return fullName || session.user?.email || 'Mi cuenta'
+})
+const activeMenuLabel = computed(() => {
+    if (activeMenu.value === 'backoffice') return 'Dashboard'
+    if (activeMenu.value === 'dashboard') return 'Dashboard'
+    if (activeMenu.value === 'invitaciones') return 'Mis invitaciones'
+    if (activeMenu.value === 'config') return 'Configuracion'
+    return 'Panel'
+})
 
 const invitations = ref<string[]>([])
 
@@ -125,9 +139,16 @@ onUnmounted(() => {
                 <BaseButton as="RouterLink" variant="primary" to="/planes">Ver planes</BaseButton>
             </div>
             <div v-else class="mobile-cta-inner icon-nav" :class="{ 'is-master': isMaster }">
+                <div class="mobile-identity" :class="{ 'is-master': isMaster }">
+                    <img class="mobile-identity-logo" src="/brand/logo_icon.png" alt="Cuenta de usuario" />
+                    <div class="mobile-identity-copy">
+                        <span class="mobile-identity-kicker">Sesion activa</span>
+                        <strong class="mobile-identity-name">{{ accountDisplayName }}</strong>
+                    </div>
+                </div>
                 <template v-if="isMaster">
-                    <button class="icon-link" type="button" @click="openMenu('backoffice')" title="Backoffice"
-                        aria-label="Backoffice">
+                    <button class="icon-link" type="button" @click="openMenu('backoffice')" title="Dashboard"
+                        aria-label="Dashboard">
                         <span class="icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="url(#icon-gradient)" stroke-width="1.8">
                                 <defs>
@@ -143,7 +164,7 @@ onUnmounted(() => {
                                 <rect x="14" y="14" width="7" height="7" rx="2" />
                             </svg>
                         </span>
-                        <span class="tooltip">Backoffice</span>
+                        <span class="icon-label">Dashboard</span>
                     </button>
                     <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
                         aria-label="Configuracion">
@@ -161,7 +182,7 @@ onUnmounted(() => {
                                     d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
                             </svg>
                         </span>
-                        <span class="tooltip">Configuracion</span>
+                        <span class="icon-label">Configuracion</span>
                     </button>
                 </template>
                 <template v-else>
@@ -182,7 +203,7 @@ onUnmounted(() => {
                                 <rect x="14" y="14" width="7" height="7" rx="2" />
                             </svg>
                         </span>
-                        <span class="tooltip">Ir al dashboard</span>
+                        <span class="icon-label">Dashboard</span>
                     </button>
                     <button class="icon-link" type="button" @click="openMenu('invitaciones')"
                         title="Ver mis invitaciones" aria-label="Ver mis invitaciones">
@@ -199,7 +220,7 @@ onUnmounted(() => {
                                 <path d="m4 7 8 6 8-6" />
                             </svg>
                         </span>
-                        <span class="tooltip">Ver mis invitaciones</span>
+                        <span class="icon-label">Invitaciones</span>
                     </button>
                     <button class="icon-link" type="button" @click="openMenu('config')" title="Configuracion"
                         aria-label="Configuracion">
@@ -217,7 +238,7 @@ onUnmounted(() => {
                                     d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
                             </svg>
                         </span>
-                        <span class="tooltip">Configuracion</span>
+                        <span class="icon-label">Configuracion</span>
                     </button>
                 </template>
             </div>
@@ -225,13 +246,17 @@ onUnmounted(() => {
             <div v-if="activeMenu" class="cta-popover-backdrop" @click="activeMenu = null"></div>
             <div v-if="activeMenu" class="cta-popover" :class="`is-${activeMenu}`">
                 <div class="cta-popover-inner">
+                    <div class="cta-popover-head">
+                        <span class="cta-popover-section">{{ activeMenuLabel }}</span>
+                        <p class="cta-popover-user">{{ accountDisplayName }}</p>
+                    </div>
                     <div v-if="activeMenu === 'backoffice'" class="cta-options scrollable">
                         <div v-for="group in backofficeModuleGroups" :key="group.title" class="cta-group">
                             <span class="cta-group-title">{{ group.title }}</span>
-                            <button v-for="module in group.items" :key="module.label" type="button"
-                                class="cta-group-link">
+                            <RouterLink v-for="module in group.items" :key="module.label" :to="module.href"
+                                class="cta-group-link cta-nav-link" @click="activeMenu = null">
                                 <span>{{ module.label }}</span>
-                            </button>
+                            </RouterLink>
                         </div>
                     </div>
                     <div v-else-if="activeMenu === 'dashboard'" class="cta-options">
@@ -320,22 +345,68 @@ onUnmounted(() => {
 .icon-nav {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     text-align: center;
-    padding: 6px 10px;
+    padding: 8px 10px 10px;
+    border-radius: 26px;
+    row-gap: 8px;
 }
 
 .icon-nav.is-master {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.mobile-identity {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    padding: 7px 10px 8px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(122, 79, 217, 0.12), rgba(240, 106, 166, 0.08));
+    border: 1px solid rgba(155, 107, 255, 0.18);
+}
+
+.mobile-identity-logo {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+    border-radius: 999px;
+    border: 1px solid rgba(155, 107, 255, 0.22);
+    background: #fff;
+    padding: 4px;
+}
+
+.mobile-identity-copy {
+    display: grid;
+    min-width: 0;
+}
+
+.mobile-identity-kicker {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(90, 48, 140, 0.66);
+    font-weight: 700;
+}
+
+.mobile-identity-name {
+    font-size: 13px;
+    color: var(--brand-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .icon-link {
     display: grid;
     place-items: center;
-    gap: 6px;
+    gap: 4px;
     color: var(--brand-ink);
     position: relative;
-    padding: 10px 0;
-    background: none;
-    border: none;
+    padding: 8px 0;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(155, 107, 255, 0.16);
+    border-radius: 12px;
     cursor: pointer;
 }
 
@@ -349,25 +420,23 @@ onUnmounted(() => {
     height: 100%;
 }
 
-.tooltip {
-    position: absolute;
-    bottom: 100%;
-    background: var(--brand-ink);
-    color: #fff;
-    padding: 6px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    opacity: 0;
-    transform: translateY(6px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    pointer-events: none;
-    white-space: nowrap;
+.icon-label {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    color: rgba(90, 48, 140, 0.88);
 }
 
-.icon-link:hover .tooltip,
-.icon-link:focus-visible .tooltip {
-    opacity: 1;
-    transform: translateY(-2px);
+.icon-link:hover,
+.icon-link:focus-visible {
+    background: var(--gradient-brand);
+    border-color: rgba(155, 107, 255, 0.2);
+    color: #fff;
+}
+
+.icon-link:hover .icon-label,
+.icon-link:focus-visible .icon-label {
+    color: #fff;
 }
 
 .mobile-cta-bar.is-animated .mobile-cta-inner {
@@ -407,11 +476,34 @@ onUnmounted(() => {
     border-radius: 20px;
     border: 1px solid rgba(233, 220, 255, 0.6);
     box-shadow: 0 16px 36px rgba(90, 48, 140, 0.18);
-    padding: 10px;
+    padding: 12px;
     display: grid;
-    gap: 12px;
+    gap: 10px;
     backdrop-filter: blur(10px);
     animation: pop-in 0.24s ease;
+}
+
+.cta-popover-head {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    padding: 2px 6px 10px;
+    border-bottom: 1px solid rgba(155, 107, 255, 0.2);
+}
+
+.cta-popover-section {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(90, 48, 140, 0.65);
+    font-weight: 700;
+}
+
+.cta-popover-user {
+    margin: 0;
+    font-size: 14px;
+    color: var(--brand-ink);
+    font-weight: 700;
 }
 
 .cta-popover.is-dashboard {
@@ -459,7 +551,8 @@ onUnmounted(() => {
     letter-spacing: 0.08em;
     color: rgba(90, 48, 140, 0.65);
     font-weight: 700;
-    text-align: center;
+    text-align: left;
+    padding-left: 8px;
 }
 
 .cta-group-link {
@@ -474,17 +567,30 @@ onUnmounted(() => {
     width: 100%;
     padding: 12px 14px;
     border-radius: 14px;
-    border: 1px solid transparent;
-    background: transparent;
+    border: 1px solid rgba(155, 107, 255, 0.14);
+    background: rgba(255, 255, 255, 0.76);
     font-weight: 600;
     text-align: left;
     color: var(--brand-ink);
     cursor: pointer;
-    text-align: center;
+    text-align: left;
+}
+
+.cta-options .cta-nav-link {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(155, 107, 255, 0.14);
+    background: rgba(255, 255, 255, 0.76);
+    font-weight: 600;
+    color: var(--brand-ink);
+    text-align: left;
 }
 
 .cta-options button:hover,
-.cta-options button:focus-visible {
+.cta-options button:focus-visible,
+.cta-options .cta-nav-link:hover,
+.cta-options .cta-nav-link:focus-visible {
     color: var(--bg);
     background: var(--gradient-brand);
     border-color: rgba(155, 107, 255, 0.2);
@@ -530,10 +636,6 @@ onUnmounted(() => {
         opacity: 1;
         transform: translateY(0) scale(1);
     }
-}
-
-.has-popover .tooltip {
-    display: none;
 }
 
 :global(.login-overlay) {
