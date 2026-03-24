@@ -9,6 +9,8 @@ export type ClientListParams = {
   db_name?: string
   page?: number
   perPage?: number
+  orderField?: string
+  orderDirection?: 'asc' | 'desc'
 }
 
 export type ClientListItem = {
@@ -115,6 +117,8 @@ const buildQuery = (params: ClientListParams) => {
   if (params.country_code?.trim()) search.set('country_code', params.country_code.trim())
   if (params.client_name?.trim()) search.set('client_name', params.client_name.trim())
   if (params.db_name?.trim()) search.set('db_name', params.db_name.trim())
+  if (params.orderField) search.set('orderField', params.orderField)
+  if (params.orderDirection) search.set('orderDirection', params.orderDirection)
   const query = search.toString()
   return query ? `?${query}` : ''
 }
@@ -141,8 +145,17 @@ export const listClients = async (params: ClientListParams) => {
     params.perPage ?? 10,
   )
   const total = toNumber(paginationSource.total, list.length)
+  const orderField =
+    (paginationSource.orderField ?? paginationSource.order_by ?? paginationSource.sort_by) as
+      | string
+      | undefined
+  const orderDirection =
+    (paginationSource.orderDirection ?? paginationSource.order_direction ?? paginationSource.sort_direction) as
+      | 'asc'
+      | 'desc'
+      | undefined
 
-  return { list, page, lastPage, perPage, total }
+  return { list, page, lastPage, perPage, total, orderField, orderDirection }
 }
 
 export const getClient = async (id: string | number) => {

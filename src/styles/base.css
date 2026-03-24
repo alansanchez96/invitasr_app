@@ -151,3 +151,9 @@ a {
     padding: 64px 0;
   }
 }
+
+@media (max-width: 420px) {
+  .container {
+    width: 94vw;
+  }
+}

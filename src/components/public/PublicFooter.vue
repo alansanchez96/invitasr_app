@@ -43,4 +43,15 @@
         flex-direction: column;
     }
 }
+
+@media (max-width: 420px) {
+    .public-footer {
+        padding: 40px 0 52px;
+    }
+
+    .footer-links {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+}
 </style>

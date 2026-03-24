@@ -769,4 +769,28 @@ onUnmounted(() => {
         width: 70%;
     }
 }
+
+@media (max-width: 420px) {
+    .mobile-cta-inner {
+        gap: 10px;
+        padding: 8px;
+    }
+
+    .icon-nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 10px;
+    }
+
+    .icon-label {
+        font-size: 10px;
+    }
+
+    .mobile-identity {
+        padding: 8px;
+    }
+
+    .cta-popover {
+        width: 90%;
+    }
+}
 </style>

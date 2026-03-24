@@ -788,6 +788,36 @@ onUnmounted(() => {
     }
 }
 
+@media (max-width: 420px) {
+    .nav {
+        padding: 14px 0;
+    }
+
+    .brand-logo {
+        width: 120px;
+        height: 36px;
+    }
+
+    .menu-toggle {
+        padding: 10px 14px;
+    }
+
+    .mobile-menu-inner {
+        width: min(360px, 92vw);
+        gap: 20px;
+    }
+
+    .mobile-links {
+        gap: 14px;
+        font-size: 17px;
+    }
+
+    .brand-logo-mobile {
+        width: 200px;
+        height: 100px;
+    }
+}
+
 :global(body.mobile-menu-open) .menu-close-fab {
     bottom: calc(140px + env(safe-area-inset-bottom));
 }

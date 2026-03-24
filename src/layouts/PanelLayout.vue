@@ -949,4 +949,29 @@ onUnmounted(() => {
     padding: 18px 14px 28px;
   }
 }
+
+@media (max-width: 480px) {
+  .panel-topbar {
+    padding: 10px 12px;
+    height: 70px;
+  }
+
+  .panel-sidebar {
+    width: min(280px, 92vw);
+  }
+
+  .panel-content {
+    padding: 16px 12px 24px;
+  }
+
+  .account-trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .mobile-sidebar-toggle {
+    width: 40px;
+    height: 40px;
+  }
+}
 </style>
