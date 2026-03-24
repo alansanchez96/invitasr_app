@@ -1,3 +1,5 @@
+import { notifyWarning } from '@/utils/toast'
+
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 interface RequestOptions {
@@ -5,6 +7,10 @@ interface RequestOptions {
     body?: unknown
     token?: string | null
     credentials?: RequestCredentials
+}
+
+type ValidationErrorPayload = {
+    errors?: Record<string, string[]>
 }
 
 const getBaseUrl = () => {
@@ -45,7 +51,17 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
     }
 
     if (!response.ok) {
-        throw data
+        if (response.status === 422) {
+            const validation = data as ValidationErrorPayload
+            if (validation?.errors && Object.keys(validation.errors).length > 0) {
+                notifyWarning('Revisa los datos ingresados.')
+            }
+        }
+        const errorPayload =
+            data && typeof data === 'object'
+                ? { ...(data as Record<string, unknown>), statusCode: response.status }
+                : { statusCode: response.status }
+        throw errorPayload
     }
 
     return data as T

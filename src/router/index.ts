@@ -9,6 +9,7 @@ import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
 import BackofficeClients from '@/pages/backoffice/BackofficeClients.vue'
 import BackofficeModulePlaceholder from '@/pages/backoffice/BackofficeModulePlaceholder.vue'
+import BackofficeUsers from '@/pages/backoffice/BackofficeUsers.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -86,7 +87,7 @@ const router = createRouter({
         {
           path: 'users',
           name: 'backoffice-users',
-          component: BackofficeModulePlaceholder,
+          component: BackofficeUsers,
           meta: {
             title: 'Dashboard · Usuarios',
             moduleLabel: 'Usuarios',

@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router'
 import PublicNavbar from '@/components/public/PublicNavbar.vue'
 import PublicFooter from '@/components/public/PublicFooter.vue'
 import MobileCtaBar from '@/components/public/MobileCtaBar.vue'
+import ToastStack from '@/components/ui/ToastStack.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -17,6 +18,7 @@ const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut 
     <main id="main-content" tabindex="-1">
       <RouterView />
     </main>
+    <ToastStack />
     <MobileCtaBar />
     <PublicFooter />
     <div v-if="showAuthLoader" class="auth-loading-overlay" role="status" aria-live="polite">

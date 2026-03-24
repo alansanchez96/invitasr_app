@@ -1,57 +1,52 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { listClients, getClient, updateClientStatus, type ClientDetail, type ClientListItem } from '@/services/clients'
+import { listUsers, getUser, type UserDetail, type UserListItem } from '@/services/users'
 import { notifyError } from '@/utils/toast'
-import BaseButton from '@/components/ui/BaseButton.vue'
 
 type Filters = {
-  status: '' | 'active' | 'inactive'
-  country_code: string
-  client_name: string
-  db_name: string
+  client_id: string
+  email: string
+  name: string
+  last_name: string
+  search: string
+  is_master: '' | 'true' | 'false'
   page: number
   perPage: number
 }
 
 const filters = reactive<Filters>({
-  status: '',
-  country_code: '',
-  client_name: '',
-  db_name: '',
+  client_id: '',
+  email: '',
+  name: '',
+  last_name: '',
+  search: '',
+  is_master: '',
   page: 1,
   perPage: 10,
 })
 
-const list = ref<ClientListItem[]>([])
+const list = ref<UserListItem[]>([])
 const total = ref(0)
 const lastPage = ref(1)
 const isLoading = ref(false)
 
 const selectedId = ref<string | number | null>(null)
-const selected = ref<ClientDetail | null>(null)
+const selected = ref<UserDetail | null>(null)
 const detailLoading = ref(false)
 const isResettingFilters = ref(false)
 const isFiltersOpen = ref(true)
 const showCreatedAt = ref(false)
-const editingStatusId = ref<string | number | null>(null)
-const editingDetailStatus = ref(false)
-const updatingStatusId = ref<string | number | null>(null)
 
 const hasSelection = computed(() => selectedId.value !== null)
 let filtersTimer: number | undefined
 
-type SortKey = 'id' | 'client' | 'email' | 'status' | 'db' | 'country' | 'created_at'
-
-type SortField = 'id' | 'client_name' | 'email' | 'status' | 'db_name' | 'country_code' | 'created_at'
+type SortKey = 'id' | 'name' | 'last_name' | 'email' | 'client' | 'role' | 'created_at'
+type SortField = 'id' | 'name' | 'last_name' | 'email' | 'client_id' | 'is_master' | 'created_at'
 
 const sortField = ref<SortField>('id')
 const sortDir = ref<'asc' | 'desc'>('asc')
 const perPageOptions = [10, 15, 25, 50]
 const isCompactPagination = ref(false)
-
-const getClientLabel = (item: ClientListItem) => {
-  return (item.client_name ?? item.name ?? '').toString()
-}
 
 const buildCompactPagination = (totalPages: number, current: number) => {
   if (totalPages <= 2) {
@@ -81,11 +76,11 @@ const formatDate = (value?: string) => {
 
 const sortFieldMap: Record<SortKey, SortField> = {
   id: 'id',
-  client: 'client_name',
+  name: 'name',
+  last_name: 'last_name',
   email: 'email',
-  status: 'status',
-  db: 'db_name',
-  country: 'country_code',
+  client: 'client_id',
+  role: 'is_master',
   created_at: 'created_at',
 }
 
@@ -107,61 +102,15 @@ const setSort = (key: SortKey) => {
   fetchList()
 }
 
-const formatStatus = (value?: string) => {
-  if (!value) return 'Activo'
-  return value === 'inactive' ? 'Inactivo' : 'Activo'
-}
-
-const openStatusEditor = (id: string | number | null) => {
-  if (!id) return
-  editingStatusId.value = id
-}
-
-const closeStatusEditor = () => {
-  editingStatusId.value = null
-}
-
-const openDetailStatusEditor = () => {
-  editingDetailStatus.value = true
-}
-
-const closeDetailStatusEditor = () => {
-  editingDetailStatus.value = false
-}
-
-const applyStatusChange = async (id: string | number, nextStatus: 'active' | 'inactive') => {
-  updatingStatusId.value = id
-  try {
-    const data = await updateClientStatus(id, nextStatus)
-    const matchIndex = list.value.findIndex(
-      (item) => (item.id ?? item.client_id) === id,
-    )
-    if (matchIndex >= 0) {
-      list.value[matchIndex] = {
-        ...list.value[matchIndex],
-        status: nextStatus,
-      }
-    }
-    if (selected.value && (selected.value.id ?? selected.value.client_id) === id) {
-      selected.value = {
-        ...selected.value,
-        status: nextStatus,
-        ...(data as ClientDetail),
-      }
-    }
-  } catch {
-    notifyError()
-  } finally {
-    updatingStatusId.value = null
-    closeStatusEditor()
-    closeDetailStatusEditor()
-  }
+const formatRole = (value?: boolean) => {
+  if (value === undefined || value === null) return 'Usuario'
+  return value ? 'Master' : 'Usuario'
 }
 
 const fetchList = async () => {
   isLoading.value = true
   try {
-    const result = await listClients({
+    const result = await listUsers({
       ...filters,
       orderField: sortField.value,
       orderDirection: sortDir.value,
@@ -171,8 +120,9 @@ const fetchList = async () => {
     lastPage.value = result.lastPage
     filters.page = result.page
     filters.perPage = result.perPage
-    if (result.orderField) {
-      sortField.value = result.orderField as SortField
+    if (result.orderField && sortFieldMap) {
+      const matched = Object.values(sortFieldMap).includes(result.orderField as SortField)
+      if (matched) sortField.value = result.orderField as SortField
     }
     if (result.orderDirection) {
       sortDir.value = result.orderDirection
@@ -184,14 +134,14 @@ const fetchList = async () => {
   }
 }
 
-const openClient = async (item: ClientListItem) => {
+const openUser = async (item: UserListItem) => {
   const id = item.id ?? item.client_id
   if (!id) return
   selectedId.value = id
   detailLoading.value = true
   try {
-    const data = await getClient(id)
-    selected.value = data as ClientDetail
+    const data = await getUser(id)
+    selected.value = data as UserDetail
   } catch {
     selectedId.value = null
     selected.value = null
@@ -226,10 +176,12 @@ const scheduleFiltersFetch = (immediate = false) => {
 
 const resetFilters = () => {
   isResettingFilters.value = true
-  filters.status = ''
-  filters.country_code = ''
-  filters.client_name = ''
-  filters.db_name = ''
+  filters.client_id = ''
+  filters.email = ''
+  filters.name = ''
+  filters.last_name = ''
+  filters.search = ''
+  filters.is_master = ''
   filters.page = 1
   filters.perPage = 10
   isResettingFilters.value = false
@@ -294,7 +246,14 @@ onUnmounted(() => {
 })
 
 watch(
-  () => [filters.status, filters.country_code, filters.client_name, filters.db_name],
+  () => [
+    filters.client_id,
+    filters.email,
+    filters.name,
+    filters.last_name,
+    filters.search,
+    filters.is_master,
+  ],
   () => {
     if (isResettingFilters.value) return
     scheduleFiltersFetch()
@@ -315,7 +274,7 @@ watch(
   <div class="bo-page container">
     <header class="bo-page-header">
       <div>
-        <h1>Clientes</h1>
+        <h1>Usuarios</h1>
         <div class="bo-divider"></div>
       </div>
     </header>
@@ -335,27 +294,19 @@ watch(
           </svg>
         </button>
       </div>
-      <div id="filters-panel" class="filters-panel" :class="{ open: isFiltersOpen }" role="region" aria-label="Filtros de clientes">
+      <div id="filters-panel" class="filters-panel" :class="{ open: isFiltersOpen }" role="region" aria-label="Filtros de usuarios">
         <div class="bo-filters">
-          <div class="field field--status">
-            <label for="filter-status">Estado</label>
-            <select id="filter-status" v-model="filters.status">
-              <option value="">Todos</option>
-              <option value="active">Activos</option>
-              <option value="inactive">Inactivos</option>
-            </select>
+          <div class="field field--client-id">
+            <label for="filter-client-id">ID de cliente</label>
+            <input id="filter-client-id" v-model="filters.client_id" type="text" placeholder="123" />
           </div>
-          <div class="field field--country">
-            <label for="filter-country">Pais</label>
-            <input id="filter-country" v-model="filters.country_code" type="text" placeholder="AR, MX, CO" />
+          <div class="field field--email">
+            <label for="filter-email">Correo</label>
+            <input id="filter-email" v-model="filters.email" type="text" placeholder="ejemplo@correo.com" />
           </div>
-          <div class="field field--client">
-            <label for="filter-client">Nombre cliente</label>
-            <input id="filter-client" v-model="filters.client_name" type="text" placeholder="Ej: Alan" />
-          </div>
-          <div class="field field--db">
-            <label for="filter-db">Base de datos</label>
-            <input id="filter-db" v-model="filters.db_name" type="text" placeholder="invita_alan" />
+          <div class="field field--name">
+            <label for="filter-name">Nombre</label>
+            <input id="filter-name" v-model="filters.name" type="text" placeholder="Alan" />
           </div>
           <button class="filters-clear" type="button" aria-label="Limpiar filtros" title="Limpiar filtros" @click="resetFilters">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
@@ -366,6 +317,22 @@ watch(
               <path d="M14 10v6" />
             </svg>
           </button>
+          <div class="field field--last-name">
+            <label for="filter-last-name">Apellido</label>
+            <input id="filter-last-name" v-model="filters.last_name" type="text" placeholder="Sanchez" />
+          </div>
+          <div class="field field--search">
+            <label for="filter-search">Busqueda rapida</label>
+            <input id="filter-search" v-model="filters.search" type="text" placeholder="Buscar..." />
+          </div>
+          <div class="field field--is-master">
+            <label for="filter-role">Rol Master</label>
+            <select id="filter-role" v-model="filters.is_master">
+              <option value="">Todos</option>
+              <option value="true">Master</option>
+              <option value="false">Usuario</option>
+            </select>
+          </div>
         </div>
         <label class="filters-option">
           <input type="checkbox" v-model="showCreatedAt" />
@@ -381,10 +348,10 @@ watch(
           <span class="bo-muted">Total: {{ total }}</span>
         </div>
 
-        <div v-if="isLoading" class="bo-loading" role="status" aria-live="polite">Cargando clientes...</div>
+        <div v-if="isLoading" class="bo-loading" role="status" aria-live="polite">Cargando usuarios...</div>
 
         <table v-else>
-          <caption class="sr-only">Listado de clientes</caption>
+          <caption class="sr-only">Listado de usuarios</caption>
           <thead>
             <tr>
               <th scope="col" :aria-sort="getAriaSort('id')">
@@ -397,10 +364,20 @@ watch(
                   </span>
                 </button>
               </th>
-              <th scope="col" :aria-sort="getAriaSort('client')">
-                <button class="sort-button" type="button" @click="setSort('client')">
-                  <span>Cliente</span>
-                  <span class="sort-indicator" :class="{ active: isSortActive('client'), desc: isSortActive('client') && sortDir === 'desc' }">
+              <th scope="col" :aria-sort="getAriaSort('name')">
+                <button class="sort-button" type="button" @click="setSort('name')">
+                  <span>Nombre</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('name'), desc: isSortActive('name') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th scope="col" :aria-sort="getAriaSort('last_name')">
+                <button class="sort-button" type="button" @click="setSort('last_name')">
+                  <span>Apellido</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('last_name'), desc: isSortActive('last_name') && sortDir === 'desc' }">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="m6 9 6 6 6-6" />
                     </svg>
@@ -417,30 +394,20 @@ watch(
                   </span>
                 </button>
               </th>
-              <th scope="col" :aria-sort="getAriaSort('status')">
-                <button class="sort-button" type="button" @click="setSort('status')">
-                  <span>Estado</span>
-                  <span class="sort-indicator" :class="{ active: isSortActive('status'), desc: isSortActive('status') && sortDir === 'desc' }">
+              <th scope="col" :aria-sort="getAriaSort('client')">
+                <button class="sort-button" type="button" @click="setSort('client')">
+                  <span>Cliente</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('client'), desc: isSortActive('client') && sortDir === 'desc' }">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="m6 9 6 6 6-6" />
                     </svg>
                   </span>
                 </button>
               </th>
-              <th scope="col" :aria-sort="getAriaSort('db')">
-                <button class="sort-button" type="button" @click="setSort('db')">
-                  <span>DB</span>
-                  <span class="sort-indicator" :class="{ active: isSortActive('db'), desc: isSortActive('db') && sortDir === 'desc' }">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </span>
-                </button>
-              </th>
-              <th scope="col" :aria-sort="getAriaSort('country')">
-                <button class="sort-button" type="button" @click="setSort('country')">
-                  <span>Pais</span>
-                  <span class="sort-indicator" :class="{ active: isSortActive('country'), desc: isSortActive('country') && sortDir === 'desc' }">
+              <th scope="col" :aria-sort="getAriaSort('role')">
+                <button class="sort-button" type="button" @click="setSort('role')">
+                  <span>Rol</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('role'), desc: isSortActive('role') && sortDir === 'desc' }">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="m6 9 6 6 6-6" />
                     </svg>
@@ -466,50 +433,25 @@ watch(
               class="table-row"
               :class="{ 'is-selected': (item.id ?? item.client_id) === selectedId }"
               tabindex="0"
-              :aria-label="`Ver detalle de ${getClientLabel(item) || 'cliente'}`"
+              :aria-label="`Ver detalle de ${item.name ?? item.last_name ?? 'usuario'}`"
               :aria-selected="(item.id ?? item.client_id) === selectedId"
-              @click="openClient(item)"
-              @keydown.enter.prevent="openClient(item)"
-              @keydown.space.prevent="openClient(item)">
+              @click="openUser(item)"
+              @keydown.enter.prevent="openUser(item)"
+              @keydown.space.prevent="openUser(item)">
               <td>{{ item.id ?? item.client_id ?? '-' }}</td>
-              <td>{{ item.client_name ?? item.name ?? '-' }}</td>
+              <td>{{ item.name ?? '-' }}</td>
+              <td>{{ item.last_name ?? '-' }}</td>
               <td>{{ item.email ?? '-' }}</td>
+              <td>{{ item.client_label ?? item.client_id ?? '-' }}</td>
               <td>
-                <div class="status-cell">
-                  <button
-                    v-if="editingStatusId !== (item.id ?? item.client_id)"
-                    class="status-pill"
-                    :class="item.status ?? 'active'"
-                    type="button"
-                    aria-haspopup="listbox"
-                    :aria-expanded="editingStatusId === (item.id ?? item.client_id)"
-                    :aria-controls="`status-select-${item.id ?? item.client_id}`"
-                    @click.stop="openStatusEditor(item.id ?? item.client_id ?? null)">
-                    <span>{{ formatStatus(item.status) }}</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-                  <select
-                    v-else
-                    :id="`status-select-${item.id ?? item.client_id}`"
-                    :disabled="updatingStatusId === (item.id ?? item.client_id)"
-                    :value="(item.status ?? 'active') as string"
-                    aria-label="Cambiar estado"
-                    @click.stop
-                    @change="applyStatusChange(item.id ?? item.client_id ?? '', ($event.target as HTMLSelectElement).value as 'active' | 'inactive')"
-                    @blur="closeStatusEditor">
-                    <option value="active">Activo</option>
-                    <option value="inactive">Inactivo</option>
-                  </select>
-                </div>
+                <span class="role-pill" :class="item.is_master ? 'master' : 'user'">
+                  {{ formatRole(item.is_master) }}
+                </span>
               </td>
-              <td>{{ item.db_name ?? '-' }}</td>
-              <td>{{ item.country_code ?? '-' }}</td>
               <td v-if="showCreatedAt">{{ formatDate(item.created_at) }}</td>
             </tr>
             <tr v-if="!list.length">
-              <td :colspan="showCreatedAt ? 7 : 6" class="bo-empty">No encontramos clientes con los filtros actuales.</td>
+              <td :colspan="showCreatedAt ? 7 : 6" class="bo-empty">No encontramos usuarios con los filtros actuales.</td>
             </tr>
           </tbody>
         </table>
@@ -550,54 +492,30 @@ watch(
           <button v-if="hasSelection" class="link-button" type="button" @click="clearSelection">Cerrar</button>
         </header>
 
-        <div v-if="!hasSelection" class="bo-muted">Selecciona un cliente para ver el detalle.</div>
+        <div v-if="!hasSelection" class="bo-muted">Selecciona un usuario para ver el detalle.</div>
         <div v-else-if="detailLoading" class="bo-loading" role="status" aria-live="polite">Cargando detalle...</div>
         <div v-else-if="selected" class="bo-detail-body">
           <div class="detail-row">
             <span>Nombre</span>
-            <strong>{{ selected.client_name ?? selected.name ?? '-' }}</strong>
+            <strong>{{ (selected.name ?? '-') }}</strong>
+          </div>
+          <div class="detail-row">
+            <span>Apellido</span>
+            <strong>{{ (selected.last_name ?? '-') }}</strong>
           </div>
           <div class="detail-row">
             <span>Correo</span>
             <strong>{{ selected.email ?? '-' }}</strong>
           </div>
           <div class="detail-row">
-            <span>Base de datos</span>
-            <strong>{{ selected.db_name ?? '-' }}</strong>
+            <span>Cliente</span>
+            <strong>{{ selected.client_label ?? selected.client_id ?? '-' }}</strong>
           </div>
           <div class="detail-row">
-            <span>Pais</span>
-            <strong>{{ selected.country_code ?? '-' }}</strong>
-          </div>
-          <div class="detail-row">
-            <span>Estado</span>
-            <div class="status-cell">
-              <button
-                v-if="!editingDetailStatus"
-                class="status-pill"
-                :class="selected.status ?? 'active'"
-                type="button"
-                aria-haspopup="listbox"
-                :aria-expanded="editingDetailStatus"
-                aria-controls="detail-status-select"
-                @click="openDetailStatusEditor">
-                <span>{{ formatStatus(selected.status) }}</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              <select
-                v-else
-                id="detail-status-select"
-                :disabled="updatingStatusId === (selected.id ?? selected.client_id)"
-                :value="(selected.status ?? 'active') as string"
-                aria-label="Cambiar estado"
-                @change="applyStatusChange((selected.id ?? selected.client_id) as string | number, ($event.target as HTMLSelectElement).value as 'active' | 'inactive')"
-                @blur="closeDetailStatusEditor">
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
-              </select>
-            </div>
+            <span>Rol</span>
+            <span class="role-pill" :class="selected.is_master ? 'master' : 'user'">
+              {{ formatRole(selected.is_master) }}
+            </span>
           </div>
         </div>
       </aside>
@@ -670,26 +588,6 @@ watch(
   gap: 16px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
-}
-
-.field--status {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.field--country {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.field--client {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-.field--db {
-  grid-column: 1;
-  grid-row: 2;
 }
 
 .field {
@@ -770,6 +668,11 @@ watch(
   width: 100%;
   border-collapse: collapse;
   margin-top: 16px;
+  min-width: 760px;
+}
+
+.bo-table {
+  overflow-x: auto;
 }
 
 .bo-table th,
@@ -778,6 +681,11 @@ watch(
   text-align: left;
   border-bottom: 1px solid #edf0f6;
   font-size: 13px;
+}
+
+.bo-table th {
+  color: #6b6b80;
+  font-weight: 600;
 }
 
 .bo-table tbody .table-row {
@@ -796,11 +704,6 @@ watch(
 .bo-table tbody .table-row:focus-visible {
   outline: 2px solid rgba(122, 79, 217, 0.6);
   outline-offset: -2px;
-}
-
-.bo-table th {
-  color: #6b6b80;
-  font-weight: 600;
 }
 
 .sort-button {
@@ -835,6 +738,21 @@ watch(
 
 .sort-indicator.desc {
   transform: translateY(1px) rotate(180deg);
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.18);
+  color: #475569;
+}
+
+.role-pill.master {
+  background: rgba(122, 79, 217, 0.16);
+  color: #5b21b6;
 }
 
 .bo-empty {
@@ -912,64 +830,6 @@ watch(
   background-repeat: no-repeat;
 }
 
-@media (max-width: 900px) {
-  .filters-toggle {
-    display: inline-flex;
-  }
-
-  .filters-panel {
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, opacity 0.2s ease;
-  }
-
-  .filters-panel.open {
-    max-height: 600px;
-    opacity: 1;
-  }
-
-  .filters-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .bo-filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .filters-clear {
-    grid-column: 3;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .field--status {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .field--country {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .field--client {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .field--db {
-    grid-column: 2;
-    grid-row: 2;
-  }
-}
-
-.bo-table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .bo-pagination {
   display: flex;
   justify-content: space-between;
@@ -987,6 +847,11 @@ watch(
   font-weight: 600;
   color: #7a4fd9;
   cursor: pointer;
+}
+
+.bo-pagination button:disabled {
+  color: #bdb7d6;
+  cursor: not-allowed;
 }
 
 .pagination-left {
@@ -1058,9 +923,10 @@ watch(
   color: #4c1d95;
 }
 
-.bo-pagination button:disabled {
-  color: #bdb7d6;
-  cursor: not-allowed;
+.bo-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .bo-detail {
@@ -1137,9 +1003,42 @@ watch(
   cursor: pointer;
 }
 
-@media (max-width: 1010px) {
-  .bo-content {
+@media (max-width: 900px) {
+  .filters-toggle {
+    display: inline-flex;
+  }
+
+  .filters-panel {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.2s ease;
+  }
+
+  .filters-panel.open {
+    max-height: 600px;
+    opacity: 1;
+  }
+
+  .filters-panel {
     grid-template-columns: 1fr;
+  }
+
+  .bo-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filters-clear {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .field--client-id,
+  .field--email,
+  .field--name {
+    grid-column: span 1;
+    grid-row: auto;
   }
 
   .bo-pagination {
@@ -1156,6 +1055,12 @@ watch(
     margin-left: 0;
     justify-content: center;
     flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 1010px) {
+  .bo-content {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1195,27 +1100,36 @@ watch(
   .filters-clear {
     grid-column: 2;
     grid-row: 1;
-    justify-self: end;
   }
 
-  .field--status {
+  .field--client-id {
     grid-column: 1;
     grid-row: 1;
   }
 
-  .field--country {
+  .field--email {
     grid-column: 1 / -1;
     grid-row: 2;
   }
 
-  .field--client {
+  .field--name {
     grid-column: 1 / -1;
     grid-row: 3;
   }
 
-  .field--db {
+  .field--last-name {
     grid-column: 1 / -1;
     grid-row: 4;
+  }
+
+  .field--search {
+    grid-column: 1 / -1;
+    grid-row: 5;
+  }
+
+  .field--is-master {
+    grid-column: 1 / -1;
+    grid-row: 6;
   }
 
   .field input,
@@ -1249,3 +1163,4 @@ watch(
   }
 }
 </style>
+*** End Patch

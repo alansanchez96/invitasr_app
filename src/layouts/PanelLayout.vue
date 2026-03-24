@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import { backofficeModuleGroups, type BackofficeModuleGroup } from '@/config/backofficeModules'
+import ToastStack from '@/components/ui/ToastStack.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -128,6 +129,7 @@ const handleDocumentClick = (event: MouseEvent) => {
     closeAccountMenu()
   }
 }
+
 
 const updateViewport = () => {
   isMobile.value = window.matchMedia('(max-width: 1010px)').matches
@@ -390,6 +392,8 @@ onUnmounted(() => {
           </div>
         </div>
       </header>
+
+      <ToastStack />
 
       <main id="main-content" class="panel-content" tabindex="-1">
         <RouterView />
