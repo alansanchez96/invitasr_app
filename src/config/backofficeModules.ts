@@ -32,8 +32,6 @@ export const backofficeModuleGroups: BackofficeModuleGroup[] = [
       { label: 'Funcionalidades', href: '/backoffice/features' },
       { label: 'Funcionalidades por plan', href: '/backoffice/plan-features' },
       { label: 'Tipos de evento', href: '/backoffice/event-types' },
-      { label: 'Modulos', href: '/backoffice/modules' },
-      { label: 'Permisos', href: '/backoffice/permissions' },
     ],
   },
 ]

@@ -4,12 +4,20 @@ import PanelLayout from '@/layouts/PanelLayout.vue'
 import HomePage from '@/pages/public/HomePage.vue'
 import PlansPage from '@/pages/public/PlansPage.vue'
 import NewsPage from '@/pages/public/NewsPage.vue'
+import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
 import ClientPlaceholder from '@/pages/public/ClientPlaceholder.vue'
 import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
 import BackofficeClients from '@/pages/backoffice/BackofficeClients.vue'
 import BackofficeModulePlaceholder from '@/pages/backoffice/BackofficeModulePlaceholder.vue'
 import BackofficeUsers from '@/pages/backoffice/BackofficeUsers.vue'
+import BackofficeOnboarding from '@/pages/backoffice/BackofficeOnboarding.vue'
+import BackofficePayments from '@/pages/backoffice/BackofficePayments.vue'
+import BackofficeSubscriptions from '@/pages/backoffice/BackofficeSubscriptions.vue'
+import BackofficePlans from '@/pages/backoffice/BackofficePlans.vue'
+import BackofficeFeatures from '@/pages/backoffice/BackofficeFeatures.vue'
+import BackofficePlanFeatures from '@/pages/backoffice/BackofficePlanFeatures.vue'
+import BackofficeEventTypes from '@/pages/backoffice/BackofficeEventTypes.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -35,6 +43,12 @@ const router = createRouter({
           name: 'noticias',
           component: NewsPage,
           meta: { title: 'Noticias' },
+        },
+        {
+          path: 'onboarding/:code',
+          name: 'public-onboarding',
+          component: PublicOnboarding,
+          meta: { title: 'Onboarding' },
         },
       ],
     },
@@ -97,7 +111,7 @@ const router = createRouter({
         {
           path: 'onboarding',
           name: 'backoffice-onboarding',
-          component: BackofficeModulePlaceholder,
+          component: BackofficeOnboarding,
           meta: {
             title: 'Dashboard · Onboarding',
             moduleLabel: 'Onboarding',
@@ -117,7 +131,7 @@ const router = createRouter({
         {
           path: 'payments',
           name: 'backoffice-payments',
-          component: BackofficeModulePlaceholder,
+          component: BackofficePayments,
           meta: {
             title: 'Dashboard · Pagos',
             moduleLabel: 'Pagos',
@@ -127,7 +141,7 @@ const router = createRouter({
         {
           path: 'subscriptions',
           name: 'backoffice-subscriptions',
-          component: BackofficeModulePlaceholder,
+          component: BackofficeSubscriptions,
           meta: {
             title: 'Dashboard · Suscripciones',
             moduleLabel: 'Suscripciones',
@@ -137,7 +151,7 @@ const router = createRouter({
         {
           path: 'plans',
           name: 'backoffice-plans',
-          component: BackofficeModulePlaceholder,
+          component: BackofficePlans,
           meta: {
             title: 'Dashboard · Planes',
             moduleLabel: 'Planes',
@@ -147,7 +161,7 @@ const router = createRouter({
         {
           path: 'features',
           name: 'backoffice-features',
-          component: BackofficeModulePlaceholder,
+          component: BackofficeFeatures,
           meta: {
             title: 'Dashboard · Funcionalidades',
             moduleLabel: 'Funcionalidades',
@@ -157,7 +171,7 @@ const router = createRouter({
         {
           path: 'plan-features',
           name: 'backoffice-plan-features',
-          component: BackofficeModulePlaceholder,
+          component: BackofficePlanFeatures,
           meta: {
             title: 'Dashboard · Funcionalidades por plan',
             moduleLabel: 'Funcionalidades por plan',
@@ -167,31 +181,11 @@ const router = createRouter({
         {
           path: 'event-types',
           name: 'backoffice-event-types',
-          component: BackofficeModulePlaceholder,
+          component: BackofficeEventTypes,
           meta: {
             title: 'Dashboard · Tipos de evento',
             moduleLabel: 'Tipos de evento',
             moduleDescription: 'Configuracion de tipos de evento y sus reglas base.',
-          },
-        },
-        {
-          path: 'modules',
-          name: 'backoffice-modules',
-          component: BackofficeModulePlaceholder,
-          meta: {
-            title: 'Dashboard · Modulos',
-            moduleLabel: 'Modulos',
-            moduleDescription: 'Administracion de modulos funcionales disponibles.',
-          },
-        },
-        {
-          path: 'permissions',
-          name: 'backoffice-permissions',
-          component: BackofficeModulePlaceholder,
-          meta: {
-            title: 'Dashboard · Permisos',
-            moduleLabel: 'Permisos',
-            moduleDescription: 'Matriz de permisos, roles y niveles de autorizacion.',
           },
         },
       ],
