@@ -592,7 +592,7 @@ watch(
       </div>
     </section>
 
-    <section class="bo-content">
+    <section class="bo-content" :class="{ 'is-detail-open': hasSelection }">
       <div class="bo-card bo-table">
         <div class="bo-table-header">
           <h2>Listado</h2>
@@ -701,7 +701,12 @@ watch(
       <aside class="bo-card bo-detail" :class="{ empty: !hasSelection }">
         <header class="bo-detail-header">
           <h2>Detalle</h2>
-          <button v-if="hasSelection" class="link-button" type="button" @click="clearSelection">Cerrar</button>
+          <button v-if="hasSelection" class="icon-button" type="button" aria-label="Cerrar detalle" @click="clearSelection">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <path d="M18 6 6 18" />
+    <path d="M6 6l12 12" />
+  </svg>
+</button>
         </header>
 
         <div v-if="!hasSelection" class="bo-muted">Selecciona un plan para ver el detalle.</div>
@@ -923,7 +928,25 @@ watch(
 .filters-option input { width: 16px; height: 16px; accent-color: #7a4fd9; }
 
 .bo-page.container { width: 100%; max-width: 1320px; margin: 0 auto; }
-.bo-content { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+.bo-content {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.bo-content.is-detail-open {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.bo-content:not(.is-detail-open) .bo-detail {
+  display: none;
+}
+
+.bo-detail {
+  min-width: 0;
+}
 .bo-table table { width: 100%; border-collapse: collapse; margin-top: 16px; }
 .bo-table th, .bo-table td { padding: 14px 14px; text-align: left; border-bottom: 1px solid #edf0f6; font-size: 13px; }
 .bo-table th { color: #475569; font-weight: 700; }
@@ -1067,6 +1090,36 @@ watch(
 .bo-muted { color: #6b6b80; }
 .bo-loading { padding: 20px 0; font-weight: 600; color: #6b6b80; }
 .link-button { background: none; border: none; color: #7a4fd9; font-weight: 600; cursor: pointer; }
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #e2ddf7;
+  background: #fff;
+  color: #7a4fd9;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  background: #7a4fd9;
+  color: #fff;
+  border-color: #cdbbff;
+  transform: translateY(-1px);
+}
+
+.icon-button:active {
+  transform: translateY(0);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
 
 .modal-overlay {
   position: fixed;

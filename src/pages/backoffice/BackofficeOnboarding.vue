@@ -682,18 +682,15 @@ watch(isAnyModalOpen, (isOpen) => {
   <div class="bo-page container">
     <header class="bo-page-header">
       <h1>Onboarding</h1>
-      <button class="primary-action" type="button" :disabled="catalogsLoading" @click="openCreateModal">Crear onboarding</button>
+      <button class="primary-action" type="button" :disabled="catalogsLoading" @click="openCreateModal">Crear
+        onboarding</button>
       <div class="bo-divider"></div>
     </header>
 
     <section class="bo-card bo-filters-card">
       <div class="filters-head">
         <strong>Filtros</strong>
-        <button
-          class="filters-toggle"
-          type="button"
-          :aria-expanded="isFiltersOpen"
-          aria-controls="filters-panel"
+        <button class="filters-toggle" type="button" :aria-expanded="isFiltersOpen" aria-controls="filters-panel"
           @click="isFiltersOpen = !isFiltersOpen">
           <span>{{ isFiltersOpen ? 'Ocultar' : 'Ver' }}</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -701,7 +698,8 @@ watch(isAnyModalOpen, (isOpen) => {
           </svg>
         </button>
       </div>
-      <div id="filters-panel" class="filters-panel" :class="{ open: isFiltersOpen }" role="region" aria-label="Filtros de onboarding">
+      <div id="filters-panel" class="filters-panel" :class="{ open: isFiltersOpen }" role="region"
+        aria-label="Filtros de onboarding">
         <div class="bo-filters">
           <div class="field field--status">
             <label for="filter-status">Estado</label>
@@ -720,7 +718,8 @@ watch(isAnyModalOpen, (isOpen) => {
               <option value="gift">Regalo</option>
             </select>
           </div>
-          <button class="filters-clear" type="button" aria-label="Limpiar filtros" title="Limpiar filtros" @click="resetFilters">
+          <button class="filters-clear" type="button" aria-label="Limpiar filtros" title="Limpiar filtros"
+            @click="resetFilters">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
               <path d="M3 6h18" />
               <path d="M8 6V4h8v2" />
@@ -737,7 +736,7 @@ watch(isAnyModalOpen, (isOpen) => {
       </div>
     </section>
 
-    <section class="bo-content">
+    <section class="bo-content" :class="{ 'is-detail-open': hasSelection }">
       <div class="bo-card bo-table">
         <div class="bo-table-header">
           <h2>Listado</h2>
@@ -750,41 +749,67 @@ watch(isAnyModalOpen, (isOpen) => {
           <caption class="sr-only">Listado de onboardings</caption>
           <thead>
             <tr>
-              <th scope="col" :aria-sort="getAriaSort('id')"><button class="sort-button" type="button" @click="setSort('id')"><span>ID</span><span class="sort-indicator" :class="{ active: isSortActive('id'), desc: isSortActive('id') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
-              <th scope="col" :aria-sort="getAriaSort('client')"><button class="sort-button" type="button" @click="setSort('client')"><span>Cliente</span><span class="sort-indicator" :class="{ active: isSortActive('client'), desc: isSortActive('client') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
-              <th scope="col" :aria-sort="getAriaSort('plan')"><button class="sort-button" type="button" @click="setSort('plan')"><span>Plan</span><span class="sort-indicator" :class="{ active: isSortActive('plan'), desc: isSortActive('plan') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
-              <th scope="col" :aria-sort="getAriaSort('payment_mode')"><button class="sort-button" type="button" @click="setSort('payment_mode')"><span>Pago</span><span class="sort-indicator" :class="{ active: isSortActive('payment_mode'), desc: isSortActive('payment_mode') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
-              <th scope="col" :aria-sort="getAriaSort('status')"><button class="sort-button" type="button" @click="setSort('status')"><span>Estado</span><span class="sort-indicator" :class="{ active: isSortActive('status'), desc: isSortActive('status') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
+              <th scope="col" :aria-sort="getAriaSort('id')"><button class="sort-button" type="button"
+                  @click="setSort('id')"><span>ID</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('id'), desc: isSortActive('id') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
+              <th scope="col" :aria-sort="getAriaSort('client')"><button class="sort-button" type="button"
+                  @click="setSort('client')"><span>Cliente</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('client'), desc: isSortActive('client') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
+              <th scope="col" :aria-sort="getAriaSort('plan')"><button class="sort-button" type="button"
+                  @click="setSort('plan')"><span>Plan</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('plan'), desc: isSortActive('plan') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
+              <th scope="col" :aria-sort="getAriaSort('payment_mode')"><button class="sort-button" type="button"
+                  @click="setSort('payment_mode')"><span>Pago</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('payment_mode'), desc: isSortActive('payment_mode') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
+              <th scope="col" :aria-sort="getAriaSort('status')"><button class="sort-button" type="button"
+                  @click="setSort('status')"><span>Estado</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('status'), desc: isSortActive('status') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
               <th scope="col">Codigo</th>
-              <th scope="col" :aria-sort="getAriaSort('expires_at')"><button class="sort-button" type="button" @click="setSort('expires_at')"><span>Expira</span><span class="sort-indicator" :class="{ active: isSortActive('expires_at'), desc: isSortActive('expires_at') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
-              <th v-if="showCreatedAt" scope="col" :aria-sort="getAriaSort('created_at')"><button class="sort-button" type="button" @click="setSort('created_at')"><span>Creado</span><span class="sort-indicator" :class="{ active: isSortActive('created_at'), desc: isSortActive('created_at') && sortDir === 'desc' }"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg></span></button></th>
+              <th scope="col" :aria-sort="getAriaSort('expires_at')"><button class="sort-button" type="button"
+                  @click="setSort('expires_at')"><span>Expira</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('expires_at'), desc: isSortActive('expires_at') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
+              <th v-if="showCreatedAt" scope="col" :aria-sort="getAriaSort('created_at')"><button class="sort-button"
+                  type="button" @click="setSort('created_at')"><span>Creado</span><span class="sort-indicator"
+                    :class="{ active: isSortActive('created_at'), desc: isSortActive('created_at') && sortDir === 'desc' }"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg></span></button></th>
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="item in list"
-              :key="String(item.id)"
-              class="table-row"
-              :class="{ 'is-selected': item.id === selectedId }"
-              tabindex="0"
-              :aria-label="`Ver detalle de onboarding ${item.id ?? ''}`"
-              :aria-selected="item.id === selectedId"
-              @click="openOnboarding(item)"
-              @keydown.enter.prevent="openOnboarding(item)"
+            <tr v-for="item in list" :key="String(item.id)" class="table-row"
+              :class="{ 'is-selected': item.id === selectedId }" tabindex="0"
+              :aria-label="`Ver detalle de onboarding ${item.id ?? ''}`" :aria-selected="item.id === selectedId"
+              @click="openOnboarding(item)" @keydown.enter.prevent="openOnboarding(item)"
               @keydown.space.prevent="openOnboarding(item)">
               <td>{{ item.id ?? '-' }}</td>
               <td>{{ item.client_name ?? '-' }}</td>
               <td>{{ item.plan_name ?? '-' }}</td>
               <td>{{ formatPaymentMode(item.payment_mode) }}</td>
-              <td><span class="status-badge" :class="statusClass(item.status)">{{ formatStatus(item.status) }}</span></td>
+              <td><span class="status-badge" :class="statusClass(item.status)">{{ formatStatus(item.status) }}</span>
+              </td>
               <td>
                 <div class="code-cell">
                   <span>{{ item.token_short_code ?? '-' }}</span>
-                  <button
-                    v-if="item.token_short_code"
-                    class="copy-code-btn"
-                    type="button"
-                    title="Copiar codigo"
+                  <button v-if="item.token_short_code" class="copy-code-btn" type="button" title="Copiar codigo"
                     :aria-label="`Copiar codigo ${item.token_short_code}`"
                     @click.stop="copyAccessCode(item.token_short_code)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -799,7 +824,8 @@ watch(isAnyModalOpen, (isOpen) => {
               <td v-if="showCreatedAt">{{ formatDateTime(item.created_at) }}</td>
             </tr>
             <tr v-if="!list.length">
-              <td :colspan="showCreatedAt ? 8 : 7" class="bo-empty">No encontramos onboardings con los filtros actuales.</td>
+              <td :colspan="showCreatedAt ? 8 : 7" class="bo-empty">No encontramos onboardings con los filtros actuales.
+              </td>
             </tr>
           </tbody>
         </table>
@@ -808,13 +834,8 @@ watch(isAnyModalOpen, (isOpen) => {
           <div class="pagination-left">
             <button type="button" @click="goToPage('prev')" :disabled="filters.page <= 1">Anterior</button>
             <div class="page-buttons" role="navigation" aria-label="Paginas">
-              <button
-                v-for="(item, index) in paginationItems"
-                :key="`page-${item}-${index}`"
-                type="button"
-                class="page-button"
-                :class="{ active: item === filters.page }"
-                :disabled="item === '...'"
+              <button v-for="(item, index) in paginationItems" :key="`page-${item}-${index}`" type="button"
+                class="page-button" :class="{ active: item === filters.page }" :disabled="item === '...'"
                 :aria-current="item === filters.page ? 'page' : undefined"
                 @click="typeof item === 'number' && goToPageNumber(item)">
                 {{ item }}
@@ -837,7 +858,13 @@ watch(isAnyModalOpen, (isOpen) => {
       <aside class="bo-card bo-detail" :class="{ empty: !hasSelection }">
         <header class="bo-detail-header">
           <h2>Detalle</h2>
-          <button v-if="hasSelection" class="link-button" type="button" @click="clearSelection">Cerrar</button>
+          <button v-if="hasSelection" class="icon-button" type="button" aria-label="Cerrar detalle"
+            @click="clearSelection">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M18 6 6 18" />
+              <path d="M6 6l12 12" />
+            </svg>
+          </button>
         </header>
 
         <div v-if="!hasSelection" class="bo-muted">Selecciona un onboarding para ver el detalle.</div>
@@ -855,16 +882,19 @@ watch(isAnyModalOpen, (isOpen) => {
 
           <div class="detail-row">
             <span>Plan</span>
-            <strong v-if="!isEditing" class="dbl-edit-trigger" title="Doble clic para editar" @dblclick.stop="startEdit">{{ selectedPlanLabel }}</strong>
+            <strong v-if="!isEditing" class="dbl-edit-trigger" title="Doble clic para editar"
+              @dblclick.stop="startEdit">{{ selectedPlanLabel }}</strong>
             <select v-else v-model="editForm.plan_id">
               <option value="">Selecciona un plan</option>
-              <option v-for="plan in planOptions" :key="String(plan.id)" :value="String(plan.id)">{{ plan.label }}</option>
+              <option v-for="plan in planOptions" :key="String(plan.id)" :value="String(plan.id)">{{ plan.label }}
+              </option>
             </select>
           </div>
 
           <div class="detail-row">
             <span>Modo de pago</span>
-            <strong v-if="!isEditing" class="dbl-edit-trigger" title="Doble clic para editar" @dblclick.stop="startEdit">{{ formatPaymentMode(selected.payment_mode) }}</strong>
+            <strong v-if="!isEditing" class="dbl-edit-trigger" title="Doble clic para editar"
+              @dblclick.stop="startEdit">{{ formatPaymentMode(selected.payment_mode) }}</strong>
             <select v-else v-model="editForm.payment_mode">
               <option value="paid">Pago</option>
               <option value="gift">Regalo</option>
@@ -873,18 +903,15 @@ watch(isAnyModalOpen, (isOpen) => {
 
           <div class="detail-row">
             <span>Estado</span>
-            <strong><span class="status-badge" :class="statusClass(selected.status)">{{ formatStatus(selected.status) }}</span></strong>
+            <strong><span class="status-badge" :class="statusClass(selected.status)">{{ formatStatus(selected.status)
+                }}</span></strong>
           </div>
 
           <div class="detail-row">
             <span>Codigo acceso</span>
             <div class="detail-code">
               <strong>{{ selected.token_short_code ?? '-' }}</strong>
-              <button
-                v-if="selected.token_short_code"
-                class="copy-code-btn"
-                type="button"
-                title="Copiar codigo"
+              <button v-if="selected.token_short_code" class="copy-code-btn" type="button" title="Copiar codigo"
                 :aria-label="`Copiar codigo ${selected.token_short_code}`"
                 @click="copyAccessCode(selected.token_short_code)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -923,16 +950,20 @@ watch(isAnyModalOpen, (isOpen) => {
 
           <div class="detail-actions">
             <div class="detail-actions-main">
-              <button class="btn-outline" type="button" :disabled="isSaving || isCanceling || isResending" @click="isEditing ? saveEdit() : startEdit()">
+              <button class="btn-outline" type="button" :disabled="isSaving || isCanceling || isResending"
+                @click="isEditing ? saveEdit() : startEdit()">
                 {{ isSaving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Editar' }}
               </button>
-              <button v-if="isEditing" class="btn-link" type="button" :disabled="isSaving" @click="cancelEdit">Cancelar</button>
+              <button v-if="isEditing" class="btn-link" type="button" :disabled="isSaving"
+                @click="cancelEdit">Cancelar</button>
             </div>
             <div class="detail-actions-secondary">
-              <button class="btn-outline" type="button" :disabled="isEditing || isResending || !canResend" @click="openResendModal">
+              <button class="btn-outline" type="button" :disabled="isEditing || isResending || !canResend"
+                @click="openResendModal">
                 {{ isResending ? 'Reenviando...' : 'Reenviar acceso' }}
               </button>
-              <button class="btn-danger" type="button" :class="{ disabled: isEditing || !canCancel }" :disabled="isCanceling || isEditing || !canCancel" @click="openCancelConfirm">
+              <button class="btn-danger" type="button" :class="{ disabled: isEditing || !canCancel }"
+                :disabled="isCanceling || isEditing || !canCancel" @click="openCancelConfirm">
                 {{ isCanceling ? 'Cancelando...' : 'Cancelar onboarding' }}
               </button>
             </div>
@@ -941,12 +972,7 @@ watch(isAnyModalOpen, (isOpen) => {
       </aside>
     </section>
 
-    <div
-      v-if="isCreateModalOpen"
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Crear onboarding"
+    <div v-if="isCreateModalOpen" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Crear onboarding"
       @click.self="closeCreateModal">
       <div class="modal-card" @click.stop>
         <h3>Crear onboarding</h3>
@@ -955,7 +981,8 @@ watch(isAnyModalOpen, (isOpen) => {
             <span>Plan</span>
             <select v-model="createForm.plan_id">
               <option value="">Selecciona un plan</option>
-              <option v-for="plan in planOptions" :key="String(plan.id)" :value="String(plan.id)">{{ plan.label }}</option>
+              <option v-for="plan in planOptions" :key="String(plan.id)" :value="String(plan.id)">{{ plan.label }}
+              </option>
             </select>
           </label>
           <label>
@@ -971,7 +998,8 @@ watch(isAnyModalOpen, (isOpen) => {
           </label>
         </div>
         <div class="modal-actions">
-          <button class="btn-outline" type="button" :disabled="isCreateLoading" @click="closeCreateModal">Cancelar</button>
+          <button class="btn-outline" type="button" :disabled="isCreateLoading"
+            @click="closeCreateModal">Cancelar</button>
           <button class="primary-action" type="button" :disabled="isCreateLoading" @click="submitCreate">
             {{ isCreateLoading ? 'Creando...' : 'Crear onboarding' }}
           </button>
@@ -979,13 +1007,8 @@ watch(isAnyModalOpen, (isOpen) => {
       </div>
     </div>
 
-    <div
-      v-if="isCancelConfirmOpen"
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirmar cancelacion de onboarding"
-      @click.self="closeCancelConfirm">
+    <div v-if="isCancelConfirmOpen" class="modal-overlay" role="dialog" aria-modal="true"
+      aria-label="Confirmar cancelacion de onboarding" @click.self="closeCancelConfirm">
       <div class="modal-card confirm-card" @click.stop>
         <h3>Cancelar onboarding</h3>
         <p>
@@ -1001,13 +1024,8 @@ watch(isAnyModalOpen, (isOpen) => {
       </div>
     </div>
 
-    <div
-      v-if="isResendModalOpen"
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Reenviar acceso de onboarding"
-      @click.self="closeResendModal">
+    <div v-if="isResendModalOpen" class="modal-overlay" role="dialog" aria-modal="true"
+      aria-label="Reenviar acceso de onboarding" @click.self="closeResendModal">
       <div class="modal-card confirm-card" @click.stop>
         <h3>Reenviar acceso</h3>
         <p>Generaremos un nuevo vencimiento para el enlace de onboarding.</p>
@@ -1202,8 +1220,22 @@ watch(isAnyModalOpen, (isOpen) => {
 
 .bo-content {
   display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.bo-content.is-detail-open {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 20px;
+}
+
+.bo-content:not(.is-detail-open) .bo-detail {
+  display: none;
+}
+
+.bo-detail {
+  min-width: 0;
 }
 
 .bo-table table {
@@ -1442,7 +1474,6 @@ watch(isAnyModalOpen, (isOpen) => {
 
 .detail-row span {
   font-size: 12px;
-  color: #64748b;
   font-weight: 600;
 }
 
@@ -1530,6 +1561,36 @@ watch(isAnyModalOpen, (isOpen) => {
   color: #7a4fd9;
   font-weight: 600;
   cursor: pointer;
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #e2ddf7;
+  background: #fff;
+  color: #7a4fd9;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  background: #7a4fd9;
+  color: #fff;
+  border-color: #cdbbff;
+  transform: translateY(-1px);
+}
+
+.icon-button:active {
+  transform: translateY(0);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .modal-overlay {

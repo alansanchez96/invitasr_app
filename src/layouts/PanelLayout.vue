@@ -746,6 +746,21 @@ onUnmounted(() => {
 
 .panel-content {
   padding: 26px 24px 48px;
+  min-width: 0;
+}
+
+:deep(.bo-table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+:deep(.bo-table table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+:deep(.bo-content) {
+  min-width: 0;
 }
 
 .account-menu {
@@ -951,6 +966,12 @@ onUnmounted(() => {
 
   .panel-content {
     padding: 18px 14px 28px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .panel-layout:not(.is-collapsed) .panel-content :deep(.bo-content) {
+    grid-template-columns: 1fr;
   }
 }
 
