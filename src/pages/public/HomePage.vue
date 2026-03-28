@@ -1,4 +1,75 @@
-﻿<template>
+﻿<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import PlanAcquisitionModal from '@/components/public/PlanAcquisitionModal.vue'
+import { useSessionStore } from '@/stores/session'
+import type { PublicOnboardingRegistrationInput } from '@/services/publicOnboarding'
+
+type PlanCard = {
+  id: number
+  name: string
+  price_usd: number
+  billing_type: 'one_time' | 'subscription'
+}
+
+const router = useRouter()
+const session = useSessionStore()
+const isPlanModalOpen = ref(false)
+const selectedPlan = ref<PlanCard | null>(null)
+const DRAFT_KEY = 'public_onboarding_draft'
+
+const loadDraft = (): PublicOnboardingRegistrationInput | null => {
+  const raw = sessionStorage.getItem(DRAFT_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as PublicOnboardingRegistrationInput
+  } catch {
+    return null
+  }
+}
+
+const openPlanModal = async (plan: PlanCard) => {
+  selectedPlan.value = plan
+
+  if (!session.isAuthenticated && !session.isHydrating) {
+    await session.refreshMe()
+  }
+
+  if (session.isAuthenticated) {
+    const currentDraft = loadDraft()
+    const fullName = `${session.user?.name ?? ''} ${session.user?.last_name ?? ''}`.trim()
+    const nextDraft: PublicOnboardingRegistrationInput = {
+      plan_id: plan.id,
+      template_id: null,
+      register_method: currentDraft?.register_method ?? 'email',
+      full_name: currentDraft?.full_name ?? fullName,
+      email: currentDraft?.email ?? session.user?.email ?? '',
+      password: currentDraft?.password ?? '',
+      country_code: currentDraft?.country_code ?? '',
+    }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(nextDraft))
+    router.push({
+      name: 'public-onboarding-flow',
+      query: { planId: String(plan.id), planName: plan.name },
+    })
+    return
+  }
+
+  isPlanModalOpen.value = true
+}
+
+const handleRegistered = () => {
+  router.push({
+    name: 'public-onboarding-flow',
+    query: {
+      planId: selectedPlan.value ? String(selectedPlan.value.id) : undefined,
+      planName: selectedPlan.value?.name,
+    },
+  })
+}
+</script>
+
+<template>
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-copy">
@@ -136,7 +207,7 @@
             <li>RSVP limitado</li>
             <li>Cuenta regresiva</li>
           </ul>
-          <BaseButton variant="ghost">Probar demo</BaseButton>
+          <BaseButton variant="ghost" disabled>Probar plantilla</BaseButton>
         </article>
         <article class="card plan-card featured">
           <div>
@@ -148,7 +219,9 @@
             <li>Galeria limitada</li>
             <li>Dominio personalizado</li>
           </ul>
-          <BaseButton variant="primary">Comprar Basic</BaseButton>
+          <BaseButton variant="primary" @click="openPlanModal({ id: 2, name: 'Basic', price_usd: 9.99, billing_type: 'one_time' })">
+            Obtener Basic
+          </BaseButton>
         </article>
         <article class="card plan-card">
           <div>
@@ -160,7 +233,9 @@
             <li>RSVP avanzado</li>
             <li>Musica libre</li>
           </ul>
-          <BaseButton variant="ghost">Comprar Pro</BaseButton>
+          <BaseButton variant="ghost" @click="openPlanModal({ id: 3, name: 'Pro', price_usd: 19.99, billing_type: 'one_time' })">
+            Obtener Pro
+          </BaseButton>
         </article>
       </div>
     </div>
@@ -185,6 +260,11 @@
       </div>
     </div>
   </section>
+
+  <PlanAcquisitionModal
+    v-model="isPlanModalOpen"
+    :plan="selectedPlan"
+    @registered="handleRegistered" />
 </template>
 
 <style scoped>

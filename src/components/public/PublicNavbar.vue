@@ -169,7 +169,7 @@ onUnmounted(() => {
                                 <AuthProviders :providers="['google', 'facebook']" />
                             </div>
                         </div>
-                        <BaseButton as="a" href="/planes" variant="primary">Ver planes</BaseButton>
+                        <BaseButton as="RouterLink" to="/planes" variant="primary">Ver planes</BaseButton>
                     </template>
                     <div v-else class="account-menu" ref="accountMenuRef">
                         <button class="account-trigger" type="button" @click.stop="toggleAccountMenu"

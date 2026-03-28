@@ -3,12 +3,28 @@ import { defineStore } from 'pinia'
 import { request } from '@/services/http'
 
 type AuthUser = {
+  id?: number | string
   name: string
   last_name: string
   email: string
   created_at: string
   updated_at: string
   contextEncrypt: boolean
+  tenant?: {
+    id?: number | string
+    status?: string
+  } | null
+  client_plan?: {
+    has_plan?: boolean
+    has_active_plan?: boolean
+    plan_status?: string
+    source?: string
+    plan?: {
+      id?: number | string
+      name?: string
+      billing_type?: string
+    } | null
+  } | null
 }
 
 type LoginResponse = {
@@ -64,6 +80,11 @@ export const useSessionStore = defineStore('session', () => {
     authMode === 'cookie' ? Boolean(user.value) : Boolean(token.value),
   )
   const isMaster = computed(() => Boolean(user.value?.contextEncrypt))
+  const isClient = computed(() => Boolean(user.value) && !isMaster.value)
+  const hasClientPlan = computed(() => Boolean(user.value?.client_plan?.has_plan))
+  const hasActiveClientPlan = computed(() => Boolean(user.value?.client_plan?.has_active_plan))
+  const clientPlanStatus = computed(() => user.value?.client_plan?.plan_status ?? '')
+  const isTenantActive = computed(() => (user.value?.tenant?.status ?? 'active') === 'active')
 
   const persistSession = (newToken: string | null, userData?: AuthUser, remember = false) => {
     token.value = authMode === 'token' ? newToken : null
@@ -162,6 +183,27 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  const refreshMe = async () => {
+    if (authMode !== 'cookie') {
+      return { ok: false as const, user: null as AuthUser | null }
+    }
+
+    try {
+      const payload = await request<MeResponse>('/auth/me')
+      const meUser = extractUser(payload)
+      if (!meUser || payload.status === false) {
+        clearSession()
+        return { ok: false as const, user: null as AuthUser | null }
+      }
+      const remember = localStorage.getItem(REMEMBER_KEY) === '1'
+      persistSession(null, meUser, remember)
+      return { ok: true as const, user: meUser }
+    } catch {
+      clearSession()
+      return { ok: false as const, user: null as AuthUser | null }
+    }
+  }
+
   const logout = async () => {
     isLoggingOut.value = true
     const currentToken = token.value
@@ -186,9 +228,15 @@ export const useSessionStore = defineStore('session', () => {
     isHydrating,
     isAuthenticated,
     isMaster,
+    isClient,
+    hasClientPlan,
+    hasActiveClientPlan,
+    clientPlanStatus,
+    isTenantActive,
     clearSession,
     login,
     logout,
     hydrateSession,
+    refreshMe,
   }
 })

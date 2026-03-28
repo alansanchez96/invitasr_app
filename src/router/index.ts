@@ -1,10 +1,12 @@
 ﻿import { createRouter, createWebHistory } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
 import PublicLayout from '@/layouts/PublicLayout.vue'
 import PanelLayout from '@/layouts/PanelLayout.vue'
 import HomePage from '@/pages/public/HomePage.vue'
 import PlansPage from '@/pages/public/PlansPage.vue'
 import NewsPage from '@/pages/public/NewsPage.vue'
 import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
+import PublicCommercialOnboarding from '@/pages/public/PublicCommercialOnboarding.vue'
 import ClientPlaceholder from '@/pages/public/ClientPlaceholder.vue'
 import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
@@ -45,6 +47,12 @@ const router = createRouter({
           meta: { title: 'Noticias' },
         },
         {
+          path: 'onboarding/public',
+          name: 'public-onboarding-flow',
+          component: PublicCommercialOnboarding,
+          meta: { title: 'Onboarding publico', requiresAuth: true, requiresClient: true },
+        },
+        {
           path: 'onboarding/:code',
           name: 'public-onboarding',
           component: PublicOnboarding,
@@ -60,19 +68,34 @@ const router = createRouter({
           path: 'dashboard',
           name: 'dashboard',
           component: ClientPlaceholder,
-          meta: { title: 'Dashboard' },
+          meta: {
+            title: 'Dashboard',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActivePlan: true,
+          },
         },
         {
           path: 'invitaciones',
           name: 'invitaciones',
           component: ClientPlaceholder,
-          meta: { title: 'Mis invitaciones' },
+          meta: {
+            title: 'Mis invitaciones',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActivePlan: true,
+          },
         },
         {
           path: 'configuracion',
           name: 'configuracion',
           component: ClientPlaceholder,
-          meta: { title: 'Configuracion' },
+          meta: {
+            title: 'Configuracion',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActivePlan: true,
+          },
         },
       ],
     },
@@ -84,19 +107,19 @@ const router = createRouter({
           path: '',
           name: 'backoffice-home',
           component: BackofficeHome,
-          meta: { title: 'Dashboard' },
+          meta: { title: 'Dashboard', requiresAuth: true, requiresMaster: true },
         },
         {
           path: 'dashboard',
           name: 'backoffice-dashboard',
           component: BackofficeDashboard,
-          meta: { title: 'Dashboard · Vista general' },
+          meta: { title: 'Dashboard · Vista general', requiresAuth: true, requiresMaster: true },
         },
         {
           path: 'clients',
           name: 'backoffice-clients',
           component: BackofficeClients,
-          meta: { title: 'Dashboard · Clientes' },
+          meta: { title: 'Dashboard · Clientes', requiresAuth: true, requiresMaster: true },
         },
         {
           path: 'users',
@@ -106,6 +129,8 @@ const router = createRouter({
             title: 'Dashboard · Usuarios',
             moduleLabel: 'Usuarios',
             moduleDescription: 'Gestion de usuarios y sus niveles de acceso.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -116,6 +141,8 @@ const router = createRouter({
             title: 'Dashboard · Onboarding',
             moduleLabel: 'Onboarding',
             moduleDescription: 'Flujos de activacion y configuracion inicial de clientes.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -126,6 +153,8 @@ const router = createRouter({
             title: 'Dashboard · Plantillas',
             moduleLabel: 'Plantillas',
             moduleDescription: 'Biblioteca de plantillas y estructura de contenido.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -136,6 +165,8 @@ const router = createRouter({
             title: 'Dashboard · Pagos',
             moduleLabel: 'Pagos',
             moduleDescription: 'Seguimiento de cobros, intentos y estado de transacciones.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -146,6 +177,8 @@ const router = createRouter({
             title: 'Dashboard · Suscripciones',
             moduleLabel: 'Suscripciones',
             moduleDescription: 'Control de planes activos, renovaciones y bajas.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -156,6 +189,8 @@ const router = createRouter({
             title: 'Dashboard · Planes',
             moduleLabel: 'Planes',
             moduleDescription: 'Definicion de oferta comercial y estructura de precios.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -166,6 +201,8 @@ const router = createRouter({
             title: 'Dashboard · Funcionalidades',
             moduleLabel: 'Funcionalidades',
             moduleDescription: 'Catalogo global de capacidades habilitables por modulo.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -176,6 +213,8 @@ const router = createRouter({
             title: 'Dashboard · Funcionalidades por plan',
             moduleLabel: 'Funcionalidades por plan',
             moduleDescription: 'Asignacion de funcionalidades segun cada plan comercial.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
         {
@@ -186,6 +225,8 @@ const router = createRouter({
             title: 'Dashboard · Tipos de evento',
             moduleLabel: 'Tipos de evento',
             moduleDescription: 'Configuracion de tipos de evento y sus reglas base.',
+            requiresAuth: true,
+            requiresMaster: true,
           },
         },
       ],
@@ -201,6 +242,36 @@ const router = createRouter({
     }
     return { top: 0 }
   },
+})
+
+router.beforeEach(async (to) => {
+  const session = useSessionStore()
+
+  if (to.meta.requiresAuth) {
+    if (!session.isAuthenticated) {
+      const refreshed = await session.refreshMe()
+      if (!refreshed.ok) return { name: 'home' }
+    }
+
+    if (!session.isTenantActive) {
+      session.clearSession()
+      return { name: 'home' }
+    }
+  }
+
+  if (to.meta.requiresMaster && !session.isMaster) {
+    return session.isClient ? { name: 'dashboard' } : { name: 'home' }
+  }
+
+  if (to.meta.requiresClient && !session.isClient) {
+    return session.isMaster ? { name: 'backoffice-home' } : { name: 'home' }
+  }
+
+  if (to.meta.requiresActivePlan && !session.hasActiveClientPlan) {
+    return { name: 'planes', query: { reason: 'plan_required' } }
+  }
+
+  return true
 })
 
 router.afterEach((to) => {
