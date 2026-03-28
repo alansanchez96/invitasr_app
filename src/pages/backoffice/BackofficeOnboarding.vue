@@ -204,6 +204,19 @@ const formatTokenUsed = (used?: boolean) => {
   return used ? 'Si' : 'No'
 }
 
+const buildOnboardingPublicUrl = (code?: string | null) => {
+  const value = code?.toString().trim()
+  if (!value) return null
+  const path = `/onboarding/${encodeURIComponent(value)}`
+
+  if (typeof window !== 'undefined') {
+    return new URL(path, window.location.origin).toString()
+  }
+
+  const appUrl = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.replace(/\/$/, '')
+  return appUrl ? `${appUrl}${path}` : path
+}
+
 const copyTextToClipboard = async (value: string) => {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value)
@@ -226,6 +239,27 @@ const copyTextToClipboard = async (value: string) => {
   document.body.removeChild(input)
   if (!copied) {
     throw new Error('No fue posible copiar')
+  }
+}
+
+const copyAccessUrl = async (code?: string | null) => {
+  const value = code?.toString().trim()
+  if (!value) {
+    notifyError('No hay codigo disponible para copiar.')
+    return
+  }
+
+  const onboardingUrl = buildOnboardingPublicUrl(value)
+  if (!onboardingUrl) {
+    notifyError('No hay URL disponible para copiar.')
+    return
+  }
+
+  try {
+    await copyTextToClipboard(onboardingUrl)
+    notifySuccess('URL copiada al portapapeles.')
+  } catch {
+    notifyError('No pudimos copiar la URL.')
   }
 }
 
@@ -911,15 +945,26 @@ watch(isAnyModalOpen, (isOpen) => {
             <span>Codigo acceso</span>
             <div class="detail-code">
               <strong>{{ selected.token_short_code ?? '-' }}</strong>
-              <button v-if="selected.token_short_code" class="copy-code-btn" type="button" title="Copiar codigo"
-                :aria-label="`Copiar codigo ${selected.token_short_code}`"
-                @click="copyAccessCode(selected.token_short_code)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <span>Copiar</span>
-              </button>
+              <div v-if="selected.token_short_code" class="detail-code-actions">
+                <button class="copy-code-btn" type="button" title="Copiar codigo"
+                  :aria-label="`Copiar codigo ${selected.token_short_code}`"
+                  @click="copyAccessCode(selected.token_short_code)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span>Copiar codigo</span>
+                </button>
+                <button class="copy-code-btn" type="button" title="Copiar URL"
+                  :aria-label="`Copiar URL del onboarding ${selected.token_short_code}`"
+                  @click="copyAccessUrl(selected.token_short_code)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M10 14a5 5 0 0 1 0-7l1.5-1.5a5 5 0 0 1 7 7L17 14" />
+                    <path d="M14 10a5 5 0 0 1 0 7L12.5 18.5a5 5 0 0 1-7-7L7 10" />
+                  </svg>
+                  <span>URL</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1483,8 +1528,14 @@ watch(isAnyModalOpen, (isOpen) => {
 }
 
 .detail-code {
+  display: grid;
+  gap: 8px;
+}
+
+.detail-code-actions {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 

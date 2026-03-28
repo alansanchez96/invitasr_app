@@ -97,12 +97,38 @@ export type PublicOnboardingContext = OnboardingDetail & {
 }
 
 export type CompletePublicOnboardingInput = {
-  name: string
-  last_name: string
+  register_method: 'email' | 'google' | 'facebook'
+  full_name: string
   email: string
   password: string
-  password_confirmation?: string
-  template_id: number | string
+  country_code: string
+  template_id: number | string | null
+  type_event_id: number | string | null
+}
+
+export type CompletePublicOnboardingResult = {
+  message: string
+  next_step?: string
+  onboarding: OnboardingListItem | null
+  registration: {
+    full_name?: string
+    email?: string
+    country_code?: string
+    register_method?: string
+  } | null
+  client: {
+    id?: number | string
+    client_name?: string
+    country_code?: string | null
+    status?: string | null
+  } | null
+  user: {
+    id?: number | string
+    name?: string
+    last_name?: string
+    email?: string
+    is_master?: boolean
+  } | null
 }
 
 const toRecord = (value: unknown): Record<string, unknown> =>
@@ -384,8 +410,41 @@ export const getPublicOnboarding = async (code: string) => {
 }
 
 export const completePublicOnboarding = async (code: string, body: CompletePublicOnboardingInput) => {
-  return request<PublicCompleteResponse>(`${PUBLIC_ONBOARDINGS_ENDPOINT}/${code}/complete`, {
+  const payload = await request<PublicCompleteResponse>(`${PUBLIC_ONBOARDINGS_ENDPOINT}/${code}/complete`, {
     method: 'POST',
     body,
   })
+  const data = toRecord(payload.data)
+  return {
+    message: payload.message ?? 'Onboarding completado.',
+    next_step: data.next_step as string | undefined,
+    onboarding: Object.keys(toRecord(data.onboarding)).length
+      ? normalizeOnboardingItem(data.onboarding)
+      : null,
+    registration: Object.keys(toRecord(data.registration)).length
+      ? {
+          full_name: toRecord(data.registration).full_name as string | undefined,
+          email: toRecord(data.registration).email as string | undefined,
+          country_code: toRecord(data.registration).country_code as string | undefined,
+          register_method: toRecord(data.registration).register_method as string | undefined,
+        }
+      : null,
+    client: Object.keys(toRecord(data.client)).length
+      ? {
+          id: toRecord(data.client).id as number | string | undefined,
+          client_name: toRecord(data.client).client_name as string | undefined,
+          country_code: toRecord(data.client).country_code as string | null | undefined,
+          status: toRecord(data.client).status as string | null | undefined,
+        }
+      : null,
+    user: Object.keys(toRecord(data.user)).length
+      ? {
+          id: toRecord(data.user).id as number | string | undefined,
+          name: toRecord(data.user).name as string | undefined,
+          last_name: toRecord(data.user).last_name as string | undefined,
+          email: toRecord(data.user).email as string | undefined,
+          is_master: toBoolean(toRecord(data.user).is_master),
+        }
+      : null,
+  } satisfies CompletePublicOnboardingResult
 }

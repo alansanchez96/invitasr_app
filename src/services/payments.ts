@@ -61,7 +61,24 @@ type GetResponse = {
   payment?: PaymentDetail
 }
 
+type CheckoutResponse = {
+  status?: boolean | number
+  message?: string
+  data?: Record<string, unknown>
+  checkout_url?: string
+  url?: string
+}
+
+export type PaymentCheckoutResult = {
+  message: string
+  checkout_url?: string
+  provider?: string
+  payment_id?: number | string
+  plan_id?: number | string
+}
+
 const MASTER_PAYMENTS_ENDPOINT = '/master/payments'
+const PAYMENTS_CHECKOUT_ENDPOINT = '/payments/checkout'
 
 const toRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
@@ -176,4 +193,20 @@ export const listPayments = async (params: PaymentListParams) => {
 export const getPayment = async (id: string | number) => {
   const payload = await request<GetResponse>(`${MASTER_PAYMENTS_ENDPOINT}/${id}`)
   return payload.data ?? payload.payment ?? payload
+}
+
+export const checkoutPayment = async (planId: string | number): Promise<PaymentCheckoutResult> => {
+  const payload = await request<CheckoutResponse>(PAYMENTS_CHECKOUT_ENDPOINT, {
+    method: 'POST',
+    body: { plan_id: planId },
+  })
+
+  const data = toRecord(payload.data ?? payload)
+  return {
+    message: payload.message ?? 'Checkout inicializado.',
+    checkout_url: (data.checkout_url ?? data.url ?? payload.checkout_url ?? payload.url) as string | undefined,
+    provider: data.provider as string | undefined,
+    payment_id: (data.payment_id ?? data.id) as number | string | undefined,
+    plan_id: data.plan_id as number | string | undefined,
+  }
 }
