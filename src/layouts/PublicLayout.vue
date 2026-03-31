@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 import PublicNavbar from '@/components/public/PublicNavbar.vue'
 import PublicFooter from '@/components/public/PublicFooter.vue'
 import MobileCtaBar from '@/components/public/MobileCtaBar.vue'
@@ -8,19 +8,21 @@ import ToastStack from '@/components/ui/ToastStack.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const route = useRoute()
 const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut || session.isHydrating)
+const showFooter = computed(() => route.name !== 'home')
 </script>
 
 <template>
   <div class="public-layout">
     <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <PublicNavbar />
-    <main id="main-content" tabindex="-1">
+    <main id="main-content" tabindex="-1" class="with-mobile-cta">
       <RouterView />
     </main>
     <ToastStack />
     <MobileCtaBar />
-    <PublicFooter />
+    <PublicFooter v-if="showFooter" />
     <div v-if="showAuthLoader" class="auth-loading-overlay" role="status" aria-live="polite">
       <span class="spinner auth-loading-spinner" aria-hidden="true"></span>
       <span class="sr-only">Cargando...</span>
@@ -52,7 +54,7 @@ const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut 
 }
 
 @media (max-width: 1010px) {
-  main {
+  main.with-mobile-cta {
     padding-bottom: 120px;
   }
 }

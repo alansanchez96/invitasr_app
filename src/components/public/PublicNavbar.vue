@@ -5,7 +5,9 @@ import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import { backofficeModuleGroups } from '@/config/backofficeModules'
+import { buildAvatarPaletteStyle, buildDisplayInitials } from '@/utils/userIdentity'
 
 const session = useSessionStore()
 const route = useRoute()
@@ -15,12 +17,24 @@ const isMobile = ref(false)
 const isAuthenticated = computed(() => session.isAuthenticated)
 const isMaster = computed(() => session.isMaster)
 const isLoginLoading = computed(() => session.isLoading)
+const isHomeRoute = computed(() => route.name === 'home')
 const isAccountMenuOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
 const isLoginMenuOpen = ref(false)
 const loginMenuRef = ref<HTMLElement | null>(null)
 const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
+const accountIdentitySeed = computed(() => {
+    const fullName = [session.user?.name, session.user?.last_name]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join(' ')
+        .trim()
+
+    if (fullName) return fullName
+
+    const emailPrefix = session.user?.email?.split('@')[0]?.replace(/[._-]+/g, ' ').trim()
+    return emailPrefix || 'Cliente'
+})
 const accountDisplayName = computed(() => {
     const fullName = [session.user?.name, session.user?.last_name]
         .filter((value): value is string => Boolean(value?.trim()))
@@ -28,6 +42,8 @@ const accountDisplayName = computed(() => {
         .trim()
     return fullName || session.user?.email || 'Mi cuenta'
 })
+const accountInitials = computed(() => buildDisplayInitials(accountIdentitySeed.value, 'CU'))
+const accountAvatarStyle = computed(() => buildAvatarPaletteStyle(accountIdentitySeed.value))
 
 const toggleMenu = () => {
     if (!isMobile.value) return
@@ -60,8 +76,18 @@ const closeLoginMenu = () => {
     loginFieldErrors.value = {}
 }
 
+const handleMobileLoginAction = () => {
+    closeMenu()
+    loginError.value = null
+    loginFieldErrors.value = {}
+    window.setTimeout(() => {
+        isLoginMenuOpen.value = true
+    }, 180)
+}
+
 const handleLogout = () => {
     session.logout().finally(() => {
+        closeMenu()
         closeAccountMenu()
         if (route.path.startsWith('/backoffice') || route.path.startsWith('/dashboard')) {
             router.push('/')
@@ -134,7 +160,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <header class="public-header" :class="{ 'menu-open': isMenuOpen && isMobile }">
+    <header class="public-header" :class="{ 'menu-open': isMenuOpen && isMobile, 'is-home': isHomeRoute }">
         <div class="container nav">
             <div class="brand-row">
                 <RouterLink v-show="!(isMenuOpen && isMobile)" class="brand" to="/">
@@ -177,7 +203,10 @@ onUnmounted(() => {
                             aria-haspopup="menu"
                             aria-controls="account-dropdown"
                             aria-label="Abrir menu de cuenta">
-                            <img class="account-logo" src="/brand/logo_icon.png" alt="Cuenta" />
+                            <img v-if="isMaster" class="account-logo" src="/brand/logo_icon.png" alt="Cuenta master" />
+                            <span v-else class="account-initials" :style="accountAvatarStyle" aria-hidden="true">
+                                {{ accountInitials }}
+                            </span>
                         </button>
                         <div v-if="isAccountMenuOpen" id="account-dropdown" class="account-dropdown" role="region"
                             aria-label="Opciones de cuenta" @click.stop>
@@ -225,7 +254,16 @@ onUnmounted(() => {
                                         <a href="#">Seguridad</a>
                                     </div>
                                 </div>
-                                <button type="button" class="account-logout-main" @click="handleLogout">Cerrar sesion</button>
+                                <button type="button" class="account-logout-main" @click="handleLogout">
+                                    <span class="logout-label">Cerrar sesion</span>
+                                    <span class="logout-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                            <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+                                            <path d="m16 17 5-5-5-5" />
+                                            <path d="M21 12H9" />
+                                        </svg>
+                                    </span>
+                                </button>
                             </template>
                             <template v-else>
                                 <div class="account-item">
@@ -279,7 +317,16 @@ onUnmounted(() => {
                                         <a href="#">Seguridad</a>
                                     </div>
                                 </div>
-                                <button type="button" class="account-logout-main" @click="handleLogout">Cerrar sesion</button>
+                                <button type="button" class="account-logout-main" @click="handleLogout">
+                                    <span class="logout-label">Cerrar sesion</span>
+                                    <span class="logout-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                            <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+                                            <path d="m16 17 5-5-5-5" />
+                                            <path d="M21 12H9" />
+                                        </svg>
+                                    </span>
+                                </button>
                             </template>
                         </div>
                     </div>
@@ -298,26 +345,97 @@ onUnmounted(() => {
         <transition name="menu-slide">
             <div v-if="isMenuOpen && isMobile" id="mobile-menu" class="mobile-menu" role="dialog" aria-modal="true"
                 aria-label="Menu principal">
-                <div class="mobile-menu-inner">
-                    <div class="mobile-brand">
-                        <img class="brand-logo-mobile" src="/brand/logo_icon.png" alt="InvitaSR" />
+                <button type="button" class="mobile-menu-scrim" aria-label="Cerrar menu" @click="closeMenu"></button>
+                <aside class="mobile-menu-panel">
+                    <div class="mobile-menu-head">
+                        <div class="mobile-brand-icon-wrap">
+                            <img class="brand-logo-mobile brand-logo-mobile-icon" src="/brand/logo_icon.png" alt="InvitaSR" />
+                        </div>
+                        <button type="button" class="mobile-menu-close" aria-label="Cerrar menu" @click="closeMenu">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M6 6 18 18" />
+                                <path d="M18 6 6 18" />
+                            </svg>
+                        </button>
                     </div>
+
+                    <p class="mobile-menu-caption">
+                        Crea una invitacion profesional en minutos, sin complicaciones.
+                    </p>
+
                     <nav class="mobile-links" aria-label="Navegacion principal">
-                        <RouterLink to="/noticias" @click="closeMenu">Noticias</RouterLink>
-                        <RouterLink to="/planes" @click="closeMenu">Planes</RouterLink>
-                        <a href="/#como-funciona" @click="closeMenu">Como funciona</a>
-                        <a href="/#inspiracion" @click="closeMenu">Inspiracion</a>
-                        <a href="/#demo" @click="closeMenu">Ver demo</a>
+                        <RouterLink class="mobile-link-card" to="/planes" @click="closeMenu">
+                            <span class="mobile-link-title">Planes</span>
+                            <span class="mobile-link-subtitle">Elige la opcion ideal para tu evento</span>
+                        </RouterLink>
+                        <a class="mobile-link-card" href="/#como-funciona" @click="closeMenu">
+                            <span class="mobile-link-title">Como funciona</span>
+                            <span class="mobile-link-subtitle">Mira lo facil que es crear y publicar</span>
+                        </a>
+                        <a class="mobile-link-card" href="/#inspiracion" @click="closeMenu">
+                            <span class="mobile-link-title">Inspiracion</span>
+                            <span class="mobile-link-subtitle">Descubre estilos para tu tipo de evento</span>
+                        </a>
+                        <a class="mobile-link-card" href="/#demo" @click="closeMenu">
+                            <span class="mobile-link-title">Demo</span>
+                            <span class="mobile-link-subtitle">Explora una vista real de la experiencia</span>
+                        </a>
+                        <RouterLink class="mobile-link-card" to="/noticias" @click="closeMenu">
+                            <span class="mobile-link-title">Noticias</span>
+                            <span class="mobile-link-subtitle">Novedades y tendencias del momento</span>
+                        </RouterLink>
                     </nav>
-                    <button class="menu-close-fab" type="button" aria-label="Cerrar menu" @click="closeMenu">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M12 5v14" />
-                            <path d="m6 11 6-6 6 6" />
-                        </svg>
-                    </button>
-                </div>
+
+                    <div class="mobile-menu-actions">
+                        <template v-if="!isAuthenticated">
+                            <BaseButton variant="ghost" type="button" @click="handleMobileLoginAction">
+                                Iniciar sesion
+                            </BaseButton>
+                            <BaseButton as="RouterLink" to="/planes" variant="primary" @click="closeMenu">
+                                Ver planes
+                            </BaseButton>
+                        </template>
+                        <template v-else>
+                            <BaseButton
+                                as="RouterLink"
+                                :to="isMaster ? '/backoffice' : '/dashboard'"
+                                variant="primary"
+                                @click="closeMenu">
+                                Ir a dashboard
+                            </BaseButton>
+                            <button type="button" class="mobile-logout-btn" @click="handleLogout">
+                                <span class="logout-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+                                        <path d="m16 17 5-5-5-5" />
+                                        <path d="M21 12H9" />
+                                    </svg>
+                                </span>
+                                <span class="logout-label">Cerrar sesion</span>
+                            </button>
+                        </template>
+                    </div>
+                </aside>
             </div>
         </transition>
+
+        <BaseModal
+            v-if="isMobile"
+            v-model="isLoginMenuOpen"
+            overlay-class="mobile-login-overlay"
+            panel-class="mobile-login-panel"
+            aria-label="Iniciar sesion"
+            @close="closeLoginMenu">
+            <div class="mobile-login-head">
+                <img class="mobile-login-brand" src="/brand/logo_icon.png" alt="InvitaSR" />
+                <h3>Inicia sesion</h3>
+                <p>Accede a tu cuenta y continua donde quedaste.</p>
+            </div>
+            <AuthForm :loading="isLoginLoading" :error-message="loginError" :field-errors="loginFieldErrors"
+                @submit="handleLoginSubmit" />
+            <div class="mobile-login-divider"></div>
+            <AuthProviders :providers="['google', 'facebook']" />
+        </BaseModal>
     </header>
 </template>
 
@@ -330,12 +448,36 @@ onUnmounted(() => {
     border-bottom: 1px solid rgba(233, 220, 255, 0.9);
 }
 
+.public-header.is-home:not(.menu-open) {
+    position: fixed;
+    inset: 0 0 auto 0;
+    background: linear-gradient(180deg, rgba(15, 9, 24, 0.56), rgba(15, 9, 24, 0.2) 70%, transparent);
+    border-bottom-color: transparent;
+    backdrop-filter: blur(4px);
+}
+
+.public-header.is-home:not(.menu-open) .brand-logo {
+    filter: drop-shadow(0 8px 22px rgba(12, 8, 20, 0.4));
+}
+
+.public-header.is-home:not(.menu-open) .nav-links {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.public-header.is-home:not(.menu-open) .nav-links a:hover {
+    color: #fff;
+}
+
+.public-header.is-home:not(.menu-open) .account-trigger {
+    background: rgba(255, 255, 255, 0.96);
+}
+
 .public-header.menu-open {
     position: fixed;
     inset: 0;
     height: 100vh;
-    background: rgba(247, 243, 255, 0.72);
-    backdrop-filter: blur(5px);
+    background: transparent;
+    backdrop-filter: none;
     overflow-y: auto;
     z-index: 60;
 }
@@ -364,10 +506,24 @@ onUnmounted(() => {
 }
 
 .brand-logo-mobile {
-    width: 240px;
-    height: 120px;
+    width: 160px;
+    height: 50px;
     object-fit: contain;
-    margin-top: -50px;
+}
+
+.brand-logo-mobile-icon {
+    width: 42px;
+    height: 42px;
+}
+
+.mobile-brand-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: rgba(122, 79, 217, 0.1);
+    border: 1px solid rgba(155, 107, 255, 0.22);
 }
 
 .brand-name {
@@ -394,20 +550,29 @@ onUnmounted(() => {
 .account-trigger {
     width: 48px;
     height: 48px;
-    border-radius: 999px;
+    border-radius: 50%;
     border: 2px solid rgb(208, 181, 253);
     background: #fff;
-    display: grid;
-    place-items: center;
     cursor: pointer;
     box-shadow: var(--shadow-card);
 }
 
 .account-logo {
-    margin-top: -3px;
-    margin-left: -2px;
+    margin-top: -1px;
+    margin-left: -1px;
     object-fit: contain;
     filter: brightness(1.1);
+}
+
+.account-initials {
+    border-radius: 50%;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #3c4043;
+    background: #d7e3fc;
+    border: none;
+    padding: 9px;
 }
 
 .account-dropdown {
@@ -588,6 +753,10 @@ onUnmounted(() => {
 .account-logout-main {
     margin-top: 4px;
     width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     padding: 10px 12px;
     border-radius: 12px;
     border: 1px solid rgba(242, 178, 178, 0.8);
@@ -601,6 +770,23 @@ onUnmounted(() => {
     background: #b91c1c;
     color: #fff;
     border-color: #b91c1c;
+}
+
+.logout-label {
+    line-height: 1;
+}
+
+.logout-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logout-icon svg {
+    width: 100%;
+    height: 100%;
 }
 
 .login-dropdown {
@@ -675,61 +861,214 @@ onUnmounted(() => {
 
 
 .mobile-menu {
-    position: absolute;
+    position: fixed;
     inset: 0;
-    background: transparent;
     z-index: 40;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 120px 20px 40px;
+    display: grid;
+    grid-template-columns: 1fr min(430px, 92vw);
 }
 
-.menu-close-fab {
-    position: absolute;
-    right: 34px;
-    bottom: 100px;
-    width: 54px;
-    height: 54px;
-    border-radius: 16px;
+.mobile-menu-scrim {
+    width: 100%;
+    height: 100%;
     border: none;
-    background: var(--gradient-brand);
-    color: #fff;
-    box-shadow: var(--shadow-soft);
+    margin: 0;
+    padding: 0;
+    background: rgba(17, 10, 30, 0.45);
+    backdrop-filter: blur(3px);
+    cursor: pointer;
+}
+
+.mobile-menu-panel {
+    height: 100%;
+    padding: calc(20px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: linear-gradient(170deg, #fff 0%, #f9f4ff 100%);
+    border-left: 1px solid rgba(233, 220, 255, 0.9);
+    box-shadow: -22px 0 44px rgba(36, 22, 60, 0.18);
+}
+
+.mobile-menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mobile-menu-close {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1px solid rgba(155, 107, 255, 0.26);
+    background: #fff;
+    color: #6f46c9;
     display: grid;
     place-items: center;
     cursor: pointer;
-    transition: bottom 0.25s ease;
-    z-index: 50;
+    box-shadow: var(--shadow-card);
 }
 
-.menu-close-fab svg {
-    width: 22px;
-    height: 22px;
-}
-
-.mobile-menu-inner {
-    width: min(420px, 90vw);
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.mobile-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 20px;
-    justify-content: center;
+.mobile-menu-close svg {
+    width: 20px;
+    height: 20px;
 }
 
 .mobile-links {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    font-size: 18px;
-    font-weight: 600;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+    min-height: 0;
+}
+
+.mobile-link-card {
+    display: grid;
+    gap: 2px;
+    padding: 13px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(155, 107, 255, 0.14);
+    background: rgba(255, 255, 255, 0.74);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.mobile-link-card:hover,
+.mobile-link-card:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(155, 107, 255, 0.34);
+    box-shadow: 0 10px 22px rgba(90, 48, 140, 0.16);
+}
+
+.mobile-link-title {
+    font-size: 16px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #2f1f47;
+}
+
+.mobile-link-subtitle {
+    font-size: 12px;
+    line-height: 1.3;
+    color: #6a5a84;
+}
+
+.mobile-menu-caption {
+    margin: 0;
+    color: #5f4f78;
+    font-size: 14px;
+    line-height: 1.4;
+    max-width: 32ch;
+}
+
+.mobile-menu-actions {
+    margin-top: auto;
+    display: grid;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(155, 107, 255, 0.18);
+}
+
+.mobile-menu-actions .btn {
+    width: 100%;
+}
+
+.mobile-dashboard-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    padding: 11px 14px;
+    border: 1px solid rgba(155, 107, 255, 0.24);
+    color: #5d2dc2;
+    font-weight: 700;
+    font-size: 14px;
+    background: #fff;
+}
+
+.mobile-dashboard-link:hover,
+.mobile-dashboard-link:focus-visible {
+    border-color: rgba(155, 107, 255, 0.4);
+    background: #f8f2ff;
+}
+
+.mobile-logout-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 12px;
+    padding: 11px 14px;
+    border: 1px solid rgba(242, 178, 178, 0.8);
+    background: #ffe8ea;
+    color: #b91c1c;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.mobile-logout-btn:hover,
+.mobile-logout-btn:focus-visible {
+    background: #b91c1c;
+    color: #fff;
+    border-color: #b91c1c;
+}
+
+:global(.mobile-login-overlay) {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(20, 12, 34, 0.45);
+    backdrop-filter: blur(8px);
+}
+
+:global(.mobile-login-panel) {
+    width: min(430px, 94vw);
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(233, 220, 255, 0.82);
+    border-radius: 24px;
+    padding: 20px;
+    display: grid;
+    gap: 12px;
+    box-shadow: 0 20px 44px rgba(38, 20, 66, 0.26);
+}
+
+.mobile-login-head {
+    display: grid;
+    gap: 4px;
     text-align: center;
+}
+
+.mobile-login-brand {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    margin: 0 auto 2px;
+}
+
+.mobile-login-head h3 {
+    margin: 0;
+    color: #2f1f47;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.mobile-login-head p {
+    margin: 0;
+    color: #6d5d87;
+    font-size: 13px;
+}
+
+.mobile-login-divider {
+    height: 1px;
+    border-radius: 999px;
+    background: rgba(155, 107, 255, 0.2);
 }
 
 .mobile-links a,
@@ -758,6 +1097,16 @@ onUnmounted(() => {
 .menu-slide-enter-from,
 .menu-slide-leave-to {
     opacity: 0;
+}
+
+.menu-slide-enter-from .mobile-menu-panel,
+.menu-slide-leave-to .mobile-menu-panel {
+    transform: translateX(18px);
+}
+
+.menu-slide-enter-active .mobile-menu-panel,
+.menu-slide-leave-active .mobile-menu-panel {
+    transition: transform 0.24s ease;
 }
 
 @media (max-width: 1010px) {
@@ -802,28 +1151,24 @@ onUnmounted(() => {
         padding: 10px 14px;
     }
 
-    .mobile-menu-inner {
-        width: min(360px, 92vw);
-        gap: 20px;
-    }
-
     .mobile-links {
-        gap: 14px;
-        font-size: 17px;
+        gap: 8px;
     }
 
     .brand-logo-mobile {
-        width: 200px;
-        height: 100px;
+        width: 42px;
+        height: 42px;
     }
-}
 
-:global(body.mobile-menu-open) .menu-close-fab {
-    bottom: calc(140px + env(safe-area-inset-bottom));
-}
+    .mobile-menu-panel {
+        grid-column: 1 / -1;
+        width: 100%;
+        border-left: none;
+    }
 
-:global(body.mobile-cta-open) .menu-close-fab {
-    bottom: clamp(280px, 38vh, 520px);
+    .mobile-menu-scrim {
+        display: none;
+    }
 }
 
 :global(body) {

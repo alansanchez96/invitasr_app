@@ -7,6 +7,7 @@ import AuthProviders from '@/components/auth/AuthProviders.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { backofficeModuleGroups } from '@/config/backofficeModules'
+import { buildAvatarPaletteStyle, buildDisplayInitials } from '@/utils/userIdentity'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,6 +22,17 @@ const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
 const isLoginOpen = ref(false)
 const loginStep = ref<'providers' | 'email'>('providers')
+const accountIdentitySeed = computed(() => {
+    const fullName = [session.user?.name, session.user?.last_name]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join(' ')
+        .trim()
+
+    if (fullName) return fullName
+
+    const emailPrefix = session.user?.email?.split('@')[0]?.replace(/[._-]+/g, ' ').trim()
+    return emailPrefix || 'Cliente'
+})
 const accountDisplayName = computed(() => {
     const fullName = [session.user?.name, session.user?.last_name]
         .filter((value): value is string => Boolean(value?.trim()))
@@ -28,6 +40,8 @@ const accountDisplayName = computed(() => {
         .trim()
     return fullName || session.user?.email || 'Mi cuenta'
 })
+const accountInitials = computed(() => buildDisplayInitials(accountIdentitySeed.value, 'CU'))
+const accountAvatarStyle = computed(() => buildAvatarPaletteStyle(accountIdentitySeed.value))
 const activeMenuLabel = computed(() => {
     if (activeMenu.value === 'backoffice') return 'Dashboard'
     if (activeMenu.value === 'dashboard') return 'Dashboard'
@@ -140,7 +154,10 @@ onUnmounted(() => {
             </div>
             <nav v-else class="mobile-cta-inner icon-nav" :class="{ 'is-master': isMaster }" aria-label="Accesos rapidos">
                 <div class="mobile-identity" :class="{ 'is-master': isMaster }">
-                    <img class="mobile-identity-logo" src="/brand/logo_icon.png" alt="Cuenta de usuario" />
+                    <img v-if="isMaster" class="mobile-identity-logo" src="/brand/logo_icon.png" alt="Cuenta master" />
+                    <span v-else class="mobile-identity-badge" :style="accountAvatarStyle" aria-hidden="true">
+                        {{ accountInitials }}
+                    </span>
                     <div class="mobile-identity-copy">
                         <span class="mobile-identity-kicker">Sesion activa</span>
                         <strong class="mobile-identity-name">{{ accountDisplayName }}</strong>
@@ -292,7 +309,16 @@ onUnmounted(() => {
                     <div v-else-if="activeMenu === 'config'" class="cta-options">
                         <button type="button">Perfil</button>
                         <button type="button">Seguridad</button>
-                        <button type="button" class="cta-logout" @click="handleLogout">Cerrar sesion</button>
+                        <button type="button" class="cta-logout" @click="handleLogout">
+                            <span class="logout-label">Cerrar sesion</span>
+                            <span class="logout-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+                                    <path d="m16 17 5-5-5-5" />
+                                    <path d="M21 12H9" />
+                                </svg>
+                            </span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -398,13 +424,27 @@ onUnmounted(() => {
     padding: 4px;
 }
 
+.mobile-identity-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #3c4043;
+    background: #d7e3fc;
+    border: none;
+}
+
 .mobile-identity-copy {
     display: grid;
     min-width: 0;
 }
 
 .mobile-identity-kicker {
-    font-size: 10px;
+    font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: rgba(90, 48, 140, 0.66);
@@ -412,7 +452,7 @@ onUnmounted(() => {
 }
 
 .mobile-identity-name {
-    font-size: 13px;
+    font-size: 18px;
     color: var(--brand-ink);
     white-space: nowrap;
     overflow: hidden;
@@ -639,6 +679,10 @@ onUnmounted(() => {
     color: #b91c1c !important;
     font-weight: 600;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
 }
 
 .cta-logout:hover,
@@ -646,6 +690,23 @@ onUnmounted(() => {
     background: #b91c1c !important;
     color: #fff !important;
     border-color: #b91c1c !important;
+}
+
+.logout-label {
+    line-height: 1;
+}
+
+.logout-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logout-icon svg {
+    width: 100%;
+    height: 100%;
 }
 
 @keyframes pop-in {

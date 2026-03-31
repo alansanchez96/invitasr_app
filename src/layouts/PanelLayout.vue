@@ -387,7 +387,16 @@ onUnmounted(() => {
                   </div>
                 </div>
               </template>
-              <button type="button" class="account-logout-main" @click="handleLogout">Cerrar sesion</button>
+              <button type="button" class="account-logout-main" @click="handleLogout">
+                <span class="logout-label">Cerrar sesion</span>
+                <span class="logout-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+                    <path d="m16 17 5-5-5-5" />
+                    <path d="M21 12H9" />
+                  </svg>
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -770,11 +779,9 @@ onUnmounted(() => {
 .account-trigger {
   width: 48px;
   height: 48px;
-  border-radius: 999px;
+  border-radius: 50%;
   border: 2px solid rgb(208, 181, 253);
   background: #fff;
-  display: grid;
-  place-items: center;
   cursor: pointer;
   box-shadow: var(--shadow-card);
 }
@@ -913,6 +920,10 @@ onUnmounted(() => {
 .account-logout-main {
   margin-top: 4px;
   width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(242, 178, 178, 0.8);
@@ -926,6 +937,23 @@ onUnmounted(() => {
   background: #b91c1c;
   color: #fff;
   border-color: #b91c1c;
+}
+
+.logout-label {
+  line-height: 1;
+}
+
+.logout-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .sidebar-backdrop {
