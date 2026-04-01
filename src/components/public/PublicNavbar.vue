@@ -208,7 +208,7 @@ watch(
 </script>
 
 <template>
-    <header class="public-header" :class="{ 'menu-open': isMenuOpen && isMobile, 'is-home-hero': isHomeHeroZone }">
+    <header class="public-header" :class="{ 'menu-open': isMenuOpen && isMobile, 'is-home-route': isHomeRoute, 'is-home-hero': isHomeHeroZone }">
         <div class="container nav">
             <div class="brand-row">
                 <RouterLink v-show="!(isMenuOpen && isMobile)" class="brand" to="/">
@@ -498,9 +498,12 @@ watch(
     transition: background 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease;
 }
 
-.public-header.is-home-hero:not(.menu-open) {
+.public-header.is-home-route:not(.menu-open) {
     position: fixed;
     inset: 0 0 auto 0;
+}
+
+.public-header.is-home-hero:not(.menu-open) {
     background: linear-gradient(180deg, rgba(15, 9, 24, 0.56), rgba(15, 9, 24, 0.2) 70%, transparent);
     border-bottom-color: transparent;
     backdrop-filter: blur(4px);
