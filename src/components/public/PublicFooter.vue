@@ -58,8 +58,8 @@ const isMaster = computed(() => session.isMaster)
           <a href="mailto:hola@invitasr.com">hola@invitasr.com</a>
           <span>Lun a Vie · 9:00 a 18:00 hs</span>
           <div class="footer-legal">
-            <a href="#">Privacidad</a>
-            <a href="#">Terminos</a>
+            <span class="footer-legal-item">Privacidad</span>
+            <span class="footer-legal-item">Terminos</span>
           </div>
         </section>
       </div>
@@ -162,6 +162,11 @@ const isMaster = computed(() => session.isMaster)
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.footer-legal-item {
+  color: #85759d;
+  font-size: 13px;
 }
 
 .footer-bottom {

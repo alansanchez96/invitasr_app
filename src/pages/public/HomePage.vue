@@ -17,6 +17,35 @@ type HeroSlide = {
   cta: string
 }
 
+type SocialStat = {
+  value: string
+  label: string
+}
+
+type SocialReview = {
+  quote: string
+  author: string
+}
+
+type TemplateCard = {
+  name: string
+  tag: string
+}
+
+type FlowStep = {
+  title: string
+  description: string
+}
+
+type PlanCard = {
+  name: string
+  price: string
+  features: string[]
+  cta: string
+  variant: 'primary' | 'ghost'
+  featured?: boolean
+}
+
 const slides: HeroSlide[] = [
   {
     image: heroBoda,
@@ -73,6 +102,82 @@ const slides: HeroSlide[] = [
     title: 'Proyecta confianza desde la primera invitacion de tu evento.',
     description: 'Comunicacion clara, diseno profesional y una experiencia moderna para tus asistentes.',
     cta: 'Potenciar mi evento',
+  },
+]
+
+const socialStats: SocialStat[] = [
+  { value: '+1,200', label: 'Eventos activos este mes' },
+  { value: '97%', label: 'Clientes satisfechos con su primera invitacion' },
+  { value: '3 min', label: 'Tiempo promedio para publicar la primera version' },
+]
+
+const socialReviews: SocialReview[] = [
+  { quote: '“La hicimos en minutos y todos nos escribieron para decir que estaba hermosa.”', author: '- Camila & Bruno, Boda' },
+  { quote: '“No sabia nada de diseno. Igual pude personalizar todo y quedo super pro.”', author: '- Ana, Cumpleanos' },
+  { quote: '“Para eventos corporativos nos ahorro tiempo y mejoro la imagen de marca.”', author: '- Equipo Nexus, Corporativo' },
+]
+
+const socialTags: string[] = ['Bodas', 'XV Años', 'Baby Shower', 'Bautismo', 'Cumpleanos', 'Corporativo']
+
+const flowSteps: FlowStep[] = [
+  { title: 'Elige estilo', description: 'Selecciona el diseño que mejor representa tu evento.' },
+  { title: 'Personaliza datos', description: 'Nombres, fecha, ubicacion y mensaje en una experiencia guiada.' },
+  { title: 'Comparte al instante', description: 'Tu invitacion queda lista para WhatsApp, redes o link directo.' },
+]
+
+const templateCards: TemplateCard[] = [
+  { name: 'Elegante Class', tag: 'Bodas' },
+  { name: 'Glow Party', tag: 'Cumpleanos' },
+  { name: 'Golden XV', tag: 'XV Años' },
+  { name: 'Sweet Welcome', tag: 'Baby Shower' },
+  { name: 'Pure Blessing', tag: 'Bautismo' },
+  { name: 'Impact Pro', tag: 'Corporativo' },
+]
+
+const benefitCards: { title: string; description: string }[] = [
+  { title: 'Impacto visual inmediato', description: 'Tu invitacion genera una primera impresion fuerte en segundos.' },
+  { title: 'Proceso simple y guiado', description: 'Todo esta pensado para que avances rapido, incluso si es tu primera vez.' },
+  { title: 'Mas conversion de invitados', description: 'Una experiencia clara aumenta la respuesta y reduce fricciones.' },
+]
+
+const planCards: PlanCard[] = [
+  {
+    name: 'Basic',
+    price: 'US$ 9.99',
+    features: ['Plantillas listas para personalizar', 'Publicacion rapida', 'Flujo guiado'],
+    cta: 'Ver Basic',
+    variant: 'ghost',
+  },
+  {
+    name: 'Pro',
+    price: 'US$ 19.99',
+    features: ['Mas variedad de estilos', 'Mayor personalizacion', 'Experiencia premium'],
+    cta: 'Elegir Pro',
+    variant: 'primary',
+    featured: true,
+  },
+  {
+    name: 'Premium',
+    price: 'US$ 29.99',
+    features: ['Acceso continuo a mejoras', 'Ideal para uso frecuente', 'Escalabilidad total'],
+    cta: 'Explorar Premium',
+    variant: 'ghost',
+  },
+]
+
+const faqItems: { question: string; answer: string; open?: boolean }[] = [
+  {
+    question: 'Realmente puedo crearla sin saber de diseño?',
+    answer: 'Si. El flujo esta pensado para personas sin experiencia tecnica ni creativa.',
+    open: true,
+  },
+  {
+    question: 'Cuanto se tarda en tener una primera version lista?',
+    answer: 'En promedio, entre 2 y 3 minutos puedes tener una version para compartir.',
+  },
+  {
+    question: 'Puedo mejorarla despues de publicarla?',
+    answer: 'Si. Puedes editar y actualizar detalles cuando quieras desde tu panel.',
   },
 ]
 
@@ -179,42 +284,21 @@ onUnmounted(() => {
       </div>
 
       <div class="social-proof-stats">
-        <article class="social-stat-card">
-          <strong>+1,200</strong>
-          <span>Eventos activos este mes</span>
-        </article>
-        <article class="social-stat-card">
-          <strong>97%</strong>
-          <span>Clientes satisfechos con su primera invitacion</span>
-        </article>
-        <article class="social-stat-card">
-          <strong>3 min</strong>
-          <span>Tiempo promedio para publicar la primera version</span>
+        <article v-for="item in socialStats" :key="item.label" class="social-stat-card">
+          <strong>{{ item.value }}</strong>
+          <span>{{ item.label }}</span>
         </article>
       </div>
 
       <div class="social-proof-reviews">
-        <article class="social-review-card">
-          <p>“La hicimos en minutos y todos nos escribieron para decir que estaba hermosa.”</p>
-          <span>- Camila & Bruno, Boda</span>
-        </article>
-        <article class="social-review-card">
-          <p>“No sabia nada de diseno. Igual pude personalizar todo y quedo super pro.”</p>
-          <span>- Ana, Cumpleanos</span>
-        </article>
-        <article class="social-review-card">
-          <p>“Para eventos corporativos nos ahorro tiempo y mejoro la imagen de marca.”</p>
-          <span>- Equipo Nexus, Corporativo</span>
+        <article v-for="item in socialReviews" :key="item.author" class="social-review-card">
+          <p>{{ item.quote }}</p>
+          <span>{{ item.author }}</span>
         </article>
       </div>
 
       <div class="social-proof-tags" aria-label="Tipos de eventos populares">
-        <span>Bodas</span>
-        <span>XV Años</span>
-        <span>Baby Shower</span>
-        <span>Bautismo</span>
-        <span>Cumpleanos</span>
-        <span>Corporativo</span>
+        <span v-for="tag in socialTags" :key="tag">{{ tag }}</span>
       </div>
     </div>
   </section>
@@ -228,17 +312,9 @@ onUnmounted(() => {
           Sin curva tecnica y sin friccion. En minutos puedes pasar de idea a invitacion publicada.
         </p>
         <ol class="flow-steps">
-          <li>
-            <strong>Elige estilo</strong>
-            <span>Selecciona el diseño que mejor representa tu evento.</span>
-          </li>
-          <li>
-            <strong>Personaliza datos</strong>
-            <span>Nombres, fecha, ubicacion y mensaje en una experiencia guiada.</span>
-          </li>
-          <li>
-            <strong>Comparte al instante</strong>
-            <span>Tu invitacion queda lista para WhatsApp, redes o link directo.</span>
+          <li v-for="step in flowSteps" :key="step.title">
+            <strong>{{ step.title }}</strong>
+            <span>{{ step.description }}</span>
           </li>
         </ol>
       </div>
@@ -283,29 +359,9 @@ onUnmounted(() => {
         <h2 id="templates-title">Estilos listos para cada tipo de evento</h2>
       </div>
       <div class="templates-grid">
-        <article class="template-card">
-          <h3>Elegante Class</h3>
-          <span>Bodas</span>
-        </article>
-        <article class="template-card">
-          <h3>Glow Party</h3>
-          <span>Cumpleanos</span>
-        </article>
-        <article class="template-card">
-          <h3>Golden XV</h3>
-          <span>XV Años</span>
-        </article>
-        <article class="template-card">
-          <h3>Sweet Welcome</h3>
-          <span>Baby Shower</span>
-        </article>
-        <article class="template-card">
-          <h3>Pure Blessing</h3>
-          <span>Bautismo</span>
-        </article>
-        <article class="template-card">
-          <h3>Impact Pro</h3>
-          <span>Corporativo</span>
+        <article v-for="item in templateCards" :key="item.name" class="template-card">
+          <h3>{{ item.name }}</h3>
+          <span>{{ item.tag }}</span>
         </article>
       </div>
     </div>
@@ -318,17 +374,9 @@ onUnmounted(() => {
         <h2 id="benefits-title">Diseñada para vender emocion y facilitar tu organizacion</h2>
       </div>
       <div class="benefits-grid">
-        <article class="benefit-card">
-          <h3>Impacto visual inmediato</h3>
-          <p>Tu invitacion genera una primera impresion fuerte en segundos.</p>
-        </article>
-        <article class="benefit-card">
-          <h3>Proceso simple y guiado</h3>
-          <p>Todo esta pensado para que avances rapido, incluso si es tu primera vez.</p>
-        </article>
-        <article class="benefit-card">
-          <h3>Mas conversion de invitados</h3>
-          <p>Una experiencia clara aumenta la respuesta y reduce fricciones.</p>
+        <article v-for="item in benefitCards" :key="item.title" class="benefit-card">
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.description }}</p>
         </article>
       </div>
     </div>
@@ -341,35 +389,13 @@ onUnmounted(() => {
         <h2 id="plans-title">Elige el plan ideal y comienza hoy</h2>
       </div>
       <div class="plans-grid">
-        <article class="plan-card">
-          <h3>Basic</h3>
-          <p class="plan-price">US$ 9.99</p>
+        <article v-for="item in planCards" :key="item.name" class="plan-card" :class="{ featured: item.featured }">
+          <h3>{{ item.name }}</h3>
+          <p class="plan-price">{{ item.price }}</p>
           <ul>
-            <li>Plantillas listas para personalizar</li>
-            <li>Publicacion rapida</li>
-            <li>Flujo guiado</li>
+            <li v-for="feature in item.features" :key="feature">{{ feature }}</li>
           </ul>
-          <BaseButton as="RouterLink" to="/planes" variant="ghost">Ver Basic</BaseButton>
-        </article>
-        <article class="plan-card featured">
-          <h3>Pro</h3>
-          <p class="plan-price">US$ 19.99</p>
-          <ul>
-            <li>Mas variedad de estilos</li>
-            <li>Mayor personalizacion</li>
-            <li>Experiencia premium</li>
-          </ul>
-          <BaseButton as="RouterLink" to="/planes" variant="primary">Elegir Pro</BaseButton>
-        </article>
-        <article class="plan-card">
-          <h3>Premium</h3>
-          <p class="plan-price">US$ 29.99</p>
-          <ul>
-            <li>Acceso continuo a mejoras</li>
-            <li>Ideal para uso frecuente</li>
-            <li>Escalabilidad total</li>
-          </ul>
-          <BaseButton as="RouterLink" to="/planes" variant="ghost">Explorar Premium</BaseButton>
+          <BaseButton as="RouterLink" to="/planes" :variant="item.variant">{{ item.cta }}</BaseButton>
         </article>
       </div>
     </div>
@@ -382,17 +408,9 @@ onUnmounted(() => {
         <h2 id="faq-title">Resolvemos tus dudas antes de empezar</h2>
       </div>
       <div class="faq-list">
-        <details class="faq-item" open>
-          <summary>Realmente puedo crearla sin saber de diseño?</summary>
-          <p>Si. El flujo esta pensado para personas sin experiencia tecnica ni creativa.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Cuanto se tarda en tener una primera version lista?</summary>
-          <p>En promedio, entre 2 y 3 minutos puedes tener una version para compartir.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Puedo mejorarla despues de publicarla?</summary>
-          <p>Si. Puedes editar y actualizar detalles cuando quieras desde tu panel.</p>
+        <details v-for="item in faqItems" :key="item.question" class="faq-item" :open="item.open">
+          <summary>{{ item.question }}</summary>
+          <p>{{ item.answer }}</p>
         </details>
       </div>
     </div>
