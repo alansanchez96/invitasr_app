@@ -10,11 +10,15 @@ import { useSessionStore } from '@/stores/session'
 const session = useSessionStore()
 const route = useRoute()
 const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut || session.isHydrating)
-const showFooter = computed(() => route.name !== 'home')
+const isHomeRoute = computed(() => route.name === 'home')
+const showFooter = computed(() => {
+  const hiddenFooterRoutes = new Set(['public-onboarding-flow', 'public-onboarding'])
+  return !hiddenFooterRoutes.has(String(route.name ?? ''))
+})
 </script>
 
 <template>
-  <div class="public-layout">
+  <div class="public-layout" :class="{ 'is-home': isHomeRoute }">
     <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <PublicNavbar />
     <main id="main-content" tabindex="-1" class="with-mobile-cta">
@@ -34,6 +38,13 @@ const showFooter = computed(() => route.name !== 'home')
 .public-layout {
   min-height: 100vh;
   background: var(--gradient-soft), var(--bg);
+}
+
+.public-layout.is-home {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(102, 218, 188, 0.22), transparent 28%),
+    radial-gradient(circle at 94% 24%, rgba(155, 107, 255, 0.22), transparent 30%),
+    linear-gradient(180deg, #faf6ff 0%, #ffffff 100%);
 }
 
 .auth-loading-overlay {

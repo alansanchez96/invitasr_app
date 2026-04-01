@@ -1,49 +1,71 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
+
 const currentYear = new Date().getFullYear()
+const route = useRoute()
+const session = useSessionStore()
+const isHomeFooter = computed(() => route.name === 'home')
+const isAuthenticated = computed(() => session.isAuthenticated)
+const isMaster = computed(() => session.isMaster)
 </script>
 
 <template>
-  <footer class="public-footer">
-    <div class="container footer-shell">
-      <section class="footer-hero" aria-label="Resumen de marca">
+  <footer class="public-footer" :class="{ 'is-home-continuation': isHomeFooter }">
+    <div class="footer-shell">
+      <section class="footer-brand" aria-label="Informacion general">
         <img src="/brand/logo-transparent.png" alt="InvitaSR" class="footer-logo" />
         <p>
-          Convierte tu evento en una experiencia memorable con invitaciones digitales
-          personalizadas y una administracion simple para tu equipo.
+          Plataforma de invitaciones digitales para gestionar, personalizar y compartir eventos desde una interfaz simple.
         </p>
-        <a class="footer-cta" href="/planes">Ver planes y activar cuenta</a>
       </section>
 
       <div class="footer-columns">
-        <nav class="footer-col" aria-label="Producto">
-          <h3>Producto</h3>
-          <a href="/#como-funciona">Como funciona</a>
-          <a href="/#demo">Demo</a>
-          <a href="/#inspiracion">Inspiracion</a>
+        <nav class="footer-col" aria-label="Rutas principales">
+          <h3>Navegacion</h3>
+          <a href="/">Inicio</a>
           <a href="/planes">Planes</a>
+          <a href="/noticias">Noticias</a>
         </nav>
 
-        <nav class="footer-col" aria-label="Ayuda">
-          <h3>Ayuda</h3>
-          <a href="/#faq">Preguntas frecuentes</a>
-          <a href="/noticias">Novedades</a>
-          <a href="/#planes">Empezar ahora</a>
+        <nav class="footer-col" aria-label="Secciones de landing">
+          <h3>Secciones</h3>
+          <a href="/#como-funciona">Como funciona</a>
+          <a href="/#demo">Plantillas</a>
+          <a href="/#inspiracion">Beneficios</a>
+          <a href="/#faq">FAQ</a>
         </nav>
 
-        <section class="footer-col footer-col-contact" aria-label="Contacto">
-          <h3>Contacto</h3>
+        <nav class="footer-col" aria-label="Cuenta">
+          <h3>Cuenta</h3>
+          <template v-if="!isAuthenticated">
+            <a href="/planes">Iniciar sesion</a>
+            <span class="footer-note">Accede para ver tu panel correspondiente.</span>
+          </template>
+          <template v-else-if="isMaster">
+            <a href="/backoffice">Dashboard master</a>
+            <span class="footer-note">Gestion administrativa y control general.</span>
+          </template>
+          <template v-else>
+            <a href="/dashboard">Dashboard cliente</a>
+            <span class="footer-note">Gestiona tus invitaciones y tu cuenta.</span>
+          </template>
+        </nav>
+
+        <section class="footer-col" aria-label="Contacto y legal">
+          <h3>Informacion</h3>
           <a href="mailto:hola@invitasr.com">hola@invitasr.com</a>
-          <span>Atencion comercial: Lun a Vie · 9 a 18 hs</span>
-          <small>InvitaSR · Diseñado para escalar eventos con una experiencia premium.</small>
+          <span>Lun a Vie · 9:00 a 18:00 hs</span>
+          <div class="footer-legal">
+            <a href="#">Privacidad</a>
+            <a href="#">Terminos</a>
+          </div>
         </section>
       </div>
 
       <div class="footer-bottom">
         <span>© {{ currentYear }} InvitaSR. Todos los derechos reservados.</span>
-        <div class="footer-legal">
-          <a href="#">Privacidad</a>
-          <a href="#">Terminos</a>
-        </div>
       </div>
     </div>
   </footer>
@@ -51,138 +73,118 @@ const currentYear = new Date().getFullYear()
 
 <style scoped>
 .public-footer {
-  padding: 52px 0 84px;
-  background: radial-gradient(circle at 0% 0%, rgba(155, 107, 255, 0.12), transparent 46%), #fff;
-  border-top: 1px solid var(--border);
+  position: relative;
+  margin-top: 0;
+  padding: 10px 0 70px;
+  width: 100%;
+  background:
+    radial-gradient(circle at 8% 4%, rgba(102, 218, 188, 0.22), transparent 28%),
+    radial-gradient(circle at 94% 24%, rgba(155, 107, 255, 0.22), transparent 30%),
+    linear-gradient(180deg, #faf6ff 0%, #ffffff 100%);
+}
+
+.public-footer.is-home-continuation {
+  padding-top: 0;
+  background: transparent;
 }
 
 .footer-shell {
-  border: 1px solid rgba(233, 220, 255, 0.8);
-  border-radius: 22px;
-  background: linear-gradient(145deg, #fff, #faf6ff);
-  padding: 24px;
+  margin-top: 24px;
+  width: 100%;
+  padding: 0 clamp(18px, 4.2vw, 56px);
   display: grid;
   gap: 24px;
-  box-shadow: var(--shadow-card);
 }
 
-.footer-hero {
+.footer-brand {
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  max-width: 720px;
 }
 
 .footer-logo {
-  width: 150px;
+  width: clamp(126px, 18vw, 168px);
 }
 
-.footer-hero p {
+.footer-brand p {
   margin: 0;
-  color: #5f4f78;
-  max-width: 70ch;
-}
-
-.footer-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: var(--gradient-brand);
-  color: #fff;
-  font-weight: 700;
-  border: 1px solid transparent;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.footer-cta:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(122, 79, 217, 0.24);
+  color: #605077;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .footer-columns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .footer-col {
   display: grid;
-  gap: 8px;
   align-content: start;
+  gap: 8px;
 }
 
 .footer-col h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
-  color: #302044;
+  margin: 0 0 2px;
+  color: #49306f;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .footer-col a,
-.footer-col span,
-.footer-col small {
-  color: #6f6188;
+.footer-col span {
+  color: #685882;
   font-size: 14px;
 }
 
+.footer-note {
+  color: #85759d;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .footer-col a {
-  font-weight: 600;
   width: fit-content;
+  font-weight: 600;
+  transition: color 0.25s ease, transform 0.25s ease;
 }
 
 .footer-col a:hover {
   color: #5f2ec8;
+  transform: translateX(2px);
 }
 
-.footer-col-contact small {
-  margin-top: 6px;
-  display: block;
-  color: #8a7ba3;
+.footer-legal {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .footer-bottom {
-  border-top: 1px solid #eee5fb;
   padding-top: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  border-top: 1px solid rgba(208, 186, 242, 0.6);
   color: #7b6f95;
   font-size: 13px;
 }
 
-.footer-legal {
-  display: flex;
-  gap: 14px;
-}
-
-.footer-legal a {
-  font-weight: 600;
-}
-
-.footer-legal a:hover {
-  color: #5f2ec8;
+@media (max-width: 1010px) {
+  .footer-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
-  .footer-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .footer-bottom {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 420px) {
   .public-footer {
-    padding: 40px 0 70px;
+    padding-top: 0;
   }
 
-  .footer-shell {
-    padding: 16px;
-    border-radius: 16px;
+  .footer-columns {
+    gap: 16px;
+    grid-template-columns: 1fr;
   }
 }
 </style>

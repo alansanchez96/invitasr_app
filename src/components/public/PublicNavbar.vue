@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import AuthForm from '@/components/auth/AuthForm.vue'
@@ -18,6 +18,7 @@ const isAuthenticated = computed(() => session.isAuthenticated)
 const isMaster = computed(() => session.isMaster)
 const isLoginLoading = computed(() => session.isLoading)
 const isHomeRoute = computed(() => route.name === 'home')
+const isHomeHeroZone = ref(false)
 const isAccountMenuOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
 const isLoginMenuOpen = ref(false)
@@ -44,6 +45,7 @@ const accountDisplayName = computed(() => {
 })
 const accountInitials = computed(() => buildDisplayInitials(accountIdentitySeed.value, 'CU'))
 const accountAvatarStyle = computed(() => buildAvatarPaletteStyle(accountIdentitySeed.value))
+let homeHeroElement: HTMLElement | null = null
 
 const toggleMenu = () => {
     if (!isMobile.value) return
@@ -139,11 +141,46 @@ const updateViewport = () => {
     if (!isMobile.value) {
         isMenuOpen.value = false
     }
+    updateHomeHeaderState()
+}
+
+const resolveHomeHeroElement = () => {
+    if (!isHomeRoute.value) {
+        homeHeroElement = null
+        return
+    }
+    homeHeroElement = document.querySelector('.hero-only') as HTMLElement | null
+}
+
+const updateHomeHeaderState = () => {
+    if (!isHomeRoute.value) {
+        isHomeHeroZone.value = false
+        return
+    }
+
+    if (!homeHeroElement) {
+        resolveHomeHeroElement()
+    }
+
+    if (!homeHeroElement) {
+        isHomeHeroZone.value = false
+        return
+    }
+
+    const rect = homeHeroElement.getBoundingClientRect()
+    const triggerOffset = Number.parseInt(
+        getComputedStyle(document.body).getPropertyValue('--public-header-height') || '80',
+        10,
+    )
+    isHomeHeroZone.value = rect.bottom > Math.max(64, triggerOffset)
 }
 
 onMounted(() => {
     updateViewport()
+    resolveHomeHeroElement()
+    updateHomeHeaderState()
     window.addEventListener('resize', updateViewport)
+    window.addEventListener('scroll', updateHomeHeaderState, { passive: true })
     document.addEventListener('click', handleDocumentClick)
     document.addEventListener('click', handleLoginDocumentClick)
     document.addEventListener('keydown', handleLoginKeydown)
@@ -153,14 +190,25 @@ onUnmounted(() => {
     document.body.style.overflow = ''
     document.body.classList.remove('mobile-menu-open')
     window.removeEventListener('resize', updateViewport)
+    window.removeEventListener('scroll', updateHomeHeaderState)
     document.removeEventListener('click', handleDocumentClick)
     document.removeEventListener('click', handleLoginDocumentClick)
     document.removeEventListener('keydown', handleLoginKeydown)
 })
+
+watch(
+    () => route.name,
+    async () => {
+        await nextTick()
+        resolveHomeHeroElement()
+        updateHomeHeaderState()
+    },
+    { immediate: true },
+)
 </script>
 
 <template>
-    <header class="public-header" :class="{ 'menu-open': isMenuOpen && isMobile, 'is-home': isHomeRoute }">
+    <header class="public-header" :class="{ 'menu-open': isMenuOpen && isMobile, 'is-home-hero': isHomeHeroZone }">
         <div class="container nav">
             <div class="brand-row">
                 <RouterLink v-show="!(isMenuOpen && isMobile)" class="brand" to="/">
@@ -446,9 +494,11 @@ onUnmounted(() => {
     z-index: 20;
     background: rgba(255, 255, 255, 0.7);
     border-bottom: 1px solid rgba(233, 220, 255, 0.9);
+    backdrop-filter: blur(4px);
+    transition: background 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease;
 }
 
-.public-header.is-home:not(.menu-open) {
+.public-header.is-home-hero:not(.menu-open) {
     position: fixed;
     inset: 0 0 auto 0;
     background: linear-gradient(180deg, rgba(15, 9, 24, 0.56), rgba(15, 9, 24, 0.2) 70%, transparent);
@@ -456,19 +506,19 @@ onUnmounted(() => {
     backdrop-filter: blur(4px);
 }
 
-.public-header.is-home:not(.menu-open) .brand-logo {
+.public-header.is-home-hero:not(.menu-open) .brand-logo {
     filter: drop-shadow(0 8px 22px rgba(12, 8, 20, 0.4));
 }
 
-.public-header.is-home:not(.menu-open) .nav-links {
+.public-header.is-home-hero:not(.menu-open) .nav-links {
     color: rgba(255, 255, 255, 0.85);
 }
 
-.public-header.is-home:not(.menu-open) .nav-links a:hover {
+.public-header.is-home-hero:not(.menu-open) .nav-links a:hover {
     color: #fff;
 }
 
-.public-header.is-home:not(.menu-open) .account-trigger {
+.public-header.is-home-hero:not(.menu-open) .account-trigger {
     background: rgba(255, 255, 255, 0.96);
 }
 
@@ -503,6 +553,7 @@ onUnmounted(() => {
     width: 140px;
     height: 44px;
     object-fit: contain;
+    transition: filter 0.35s ease;
 }
 
 .brand-logo-mobile {
@@ -555,6 +606,7 @@ onUnmounted(() => {
     background: #fff;
     cursor: pointer;
     box-shadow: var(--shadow-card);
+    transition: background 0.35s ease;
 }
 
 .account-logo {
@@ -812,6 +864,11 @@ onUnmounted(() => {
     gap: 22px;
     font-weight: 600;
     color: var(--muted);
+    transition: color 0.35s ease;
+}
+
+.nav-links a {
+    transition: color 0.35s ease;
 }
 
 .nav-links a:hover {
