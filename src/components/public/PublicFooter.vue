@@ -13,11 +13,12 @@ const isMaster = computed(() => session.isMaster)
 
 <template>
   <footer class="public-footer" :class="{ 'is-home-continuation': isHomeFooter }">
-    <div class="footer-shell">
+    <div class="container footer-shell">
       <section class="footer-brand" aria-label="Informacion general">
         <img src="/brand/logo-transparent.png" alt="InvitaSR" class="footer-logo" />
         <p>
-          Plataforma de invitaciones digitales para gestionar, personalizar y compartir eventos desde una interfaz simple.
+          Plataforma de invitaciones digitales para gestionar, personalizar y compartir eventos desde una interfaz
+          simple.
         </p>
       </section>
 
@@ -90,16 +91,17 @@ const isMaster = computed(() => session.isMaster)
 
 .footer-shell {
   margin-top: 24px;
-  width: 100%;
-  padding: 0 clamp(18px, 4.2vw, 56px);
   display: grid;
   gap: 24px;
 }
 
 .footer-brand {
-  display: grid;
-  gap: 10px;
-  max-width: 720px;
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  max-width: 100%;
+  margin-bottom: 24px;
+  margin-left: -10px;
 }
 
 .footer-logo {
@@ -111,6 +113,9 @@ const isMaster = computed(() => session.isMaster)
   color: #605077;
   font-size: 14px;
   line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .footer-columns {
@@ -177,6 +182,19 @@ const isMaster = computed(() => session.isMaster)
 }
 
 @media (max-width: 1010px) {
+  .footer-brand {
+    display: grid;
+    gap: 10px;
+    margin-left: 0;
+
+  }
+
+  .footer-brand p {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
   .footer-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -185,6 +203,19 @@ const isMaster = computed(() => session.isMaster)
 @media (max-width: 720px) {
   .public-footer {
     padding-top: 0;
+  }
+
+  .footer-brand {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .footer-logo {
+    margin-inline: auto;
+  }
+
+  .footer-brand p {
+    text-align: center;
   }
 
   .footer-columns {
