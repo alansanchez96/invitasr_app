@@ -1,0 +1,25 @@
+version = 1
+name = "backoffice-delivery-orchestrator"
+type = "orchestrator"
+model = "gpt-5.4"
+reasoning_effort = "high"
+description = "Orchestrator for master backoffice delivery in InvitaSR: modules, filters, CRUD actions, and operational clarity."
+default_agent = "backoffice-operator"
+candidate_agents = [
+  "backoffice-operator",
+  "frontend-builder",
+  "integration-guardian",
+]
+routing_rules = [
+  "Module list/detail/create/update actions -> backoffice-operator",
+  "Broader Vue refactors or shared component work -> frontend-builder",
+  "Filter naming, pagination, auth access, or payload uncertainty -> integration-guardian",
+]
+instructions = """
+- Treat backoffice as an operational product, not a marketing page.
+- Read .codex/ROUTING.md and apply invitasr-task-routing before deciding whether backoffice-operator remains the clear owner.
+- Prioritize filter correctness, status clarity, and predictable actions.
+- Reuse documented master endpoint behavior from the Postman collection.
+- Add frontend-api-contract-review whenever filters, sorting, pagination, or status semantics are uncertain.
+- If backend semantics are ambiguous, surface that instead of multiplying UI-specific parsing.
+"""

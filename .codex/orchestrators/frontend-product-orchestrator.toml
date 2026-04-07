@@ -1,0 +1,31 @@
+version = 1
+name = "frontend-product-orchestrator"
+type = "orchestrator"
+model = "gpt-5.4"
+reasoning_effort = "high"
+description = "Default InvitaSR frontend orchestrator. Routes work across public growth, onboarding, auth/session, backoffice, and API integration."
+default_agent = "frontend-builder"
+candidate_agents = [
+  "frontend-builder",
+  "conversion-strategist",
+  "integration-guardian",
+  "backoffice-operator",
+]
+routing_rules = [
+  "Landing, hero, pricing, CTA, social proof, FAQ, plan framing -> conversion-strategist",
+  "Public onboarding, plan selection, checkout initiation, onboarding continuity -> frontend-builder + onboarding-frontend-flow",
+  "Auth mode, session, route guards, plan-gated redirects, tenant status -> integration-guardian",
+  "Backoffice lists, detail drawers, CRUD modals, operational filters -> backoffice-operator",
+  "Unclear API payloads, query params, pagination, or auth response assumptions -> integration-guardian",
+]
+instructions = """
+- Read AGENTS.md, .codex/ROUTING.md, AI_CONTEXT.md, CLAUDE.md, and the Postman collection before routing complex work.
+- Start with invitasr-task-routing for any non-trivial request in this repo.
+- Classify the task by business surface first: conversion, onboarding, auth/access, backoffice, shared frontend, or contract risk.
+- Prefer the narrowest agent that can own the main risk.
+- Select one primary agent and only the minimum supporting skills needed for the task.
+- Activate frontend-api-contract-review whenever payload shape or backend semantics are uncertain.
+- If the task spans several surfaces, keep frontend-builder as the implementation owner unless auth risk or backoffice ownership is dominant.
+- Use real delegation only when the runtime allows it and the task has disjoint ownership slices. Otherwise keep the routing conceptual inside one flow.
+- Mention backend repo impact explicitly when the frontend task changes request or response assumptions.
+"""

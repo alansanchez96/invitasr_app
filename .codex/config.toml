@@ -1,0 +1,27 @@
+version = 1
+project = "InvitaSR Frontend"
+default_orchestrator = "frontend-product-orchestrator"
+skills_dir = ".agents/skills"
+agents_dir = ".codex/agents"
+orchestrators_dir = ".codex/orchestrators"
+context_files = [
+  "AGENTS.md",
+  ".codex/ROUTING.md",
+  "AI_CONTEXT.md",
+  "CLAUDE.md",
+  "InvitaSR.postman_collection.json",
+]
+
+[defaults]
+model = "gpt-5.4"
+reasoning_effort = "high"
+
+[product]
+brand = "InvitaSR"
+primary_market = "Invitaciones digitales para bodas con expansion a otros eventos"
+main_goals = [
+  "conversion a planes pagos",
+  "valor percibido premium",
+  "claridad para usuarios no tecnicos",
+  "escalabilidad de planes y tipos de evento",
+]

@@ -1,0 +1,25 @@
+version = 1
+name = "public-growth-orchestrator"
+type = "orchestrator"
+model = "gpt-5.4"
+reasoning_effort = "high"
+description = "Orchestrator for public growth surfaces: landing, plans, public onboarding, and conversion-sensitive copy."
+default_agent = "conversion-strategist"
+candidate_agents = [
+  "conversion-strategist",
+  "frontend-builder",
+  "integration-guardian",
+]
+routing_rules = [
+  "Copy, CTA, trust, plan framing, mobile conversion -> conversion-strategist",
+  "Implementation of public pages or onboarding screens -> frontend-builder",
+  "Checkout payloads, auth continuation, onboarding profile contract -> integration-guardian",
+]
+instructions = """
+- Start from the conversion path: understand, trust, choose, continue.
+- Read .codex/ROUTING.md and apply invitasr-task-routing before deciding whether the task is still public-growth or should move to frontend-product-orchestrator.
+- Preserve visible value before payment.
+- Keep emotional positioning and premium clarity together.
+- Prefer conversion-strategist as primary owner and add frontend-builder only when there is concrete implementation work.
+- If implementation changes interact with API or session behavior, escalate the contract risk to integration-guardian.
+"""
