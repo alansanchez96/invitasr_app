@@ -12,7 +12,7 @@ const route = useRoute()
 const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut || session.isHydrating)
 const isHomeRoute = computed(() => route.name === 'home')
 const showFooter = computed(() => {
-  const hiddenFooterRoutes = new Set(['public-onboarding-flow', 'public-onboarding'])
+  const hiddenFooterRoutes = new Set(['public-onboarding-flow', 'public-onboarding', 'template-preview'])
   return !hiddenFooterRoutes.has(String(route.name ?? ''))
 })
 </script>

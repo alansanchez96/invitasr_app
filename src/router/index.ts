@@ -7,6 +7,7 @@ import PlansPage from '@/pages/public/PlansPage.vue'
 import NewsPage from '@/pages/public/NewsPage.vue'
 import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
 import PublicCommercialOnboarding from '@/pages/public/PublicCommercialOnboarding.vue'
+import TemplatePreviewPage from '@/pages/public/TemplatePreviewPage.vue'
 import ClientPlaceholder from '@/pages/public/ClientPlaceholder.vue'
 import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
@@ -57,6 +58,12 @@ const router = createRouter({
           name: 'public-onboarding',
           component: PublicOnboarding,
           meta: { title: 'Onboarding' },
+        },
+        {
+          path: 'templates/:templateId/preview',
+          name: 'template-preview',
+          component: TemplatePreviewPage,
+          meta: { title: 'Preview de template' },
         },
       ],
     },

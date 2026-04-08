@@ -119,6 +119,8 @@ const selectedPlanLabel = computed(() => {
 const selectedCreateFeature = computed(() =>
   featureOptions.value.find((feature) => String(feature.id) === createForm.feature_id),
 )
+const selectedCreateFeatureType = computed(() => selectedCreateFeature.value?.type ?? 'boolean')
+const selectedEditFeatureType = computed(() => selected.value?.feature_type ?? 'boolean')
 
 const itemKey = (item: PlanFeatureItem) => {
   if (item.feature_id !== undefined && item.feature_id !== null) {
@@ -141,8 +143,7 @@ const formatConfig = (value: unknown) => {
 }
 
 const formatFeatureOptionLabel = (feature: FeatureOption) => {
-  const summary = feature.description?.trim() ? ` - ${feature.description.trim()}` : ''
-  return `${feature.key}${summary} (${formatType(feature.type)})`
+  return `${feature.key} (${formatType(feature.type)})`
 }
 
 const getFeatureDescription = (item?: PlanFeatureItem | PlanFeatureDetail | null) => {
@@ -154,10 +155,17 @@ const getFeatureDescription = (item?: PlanFeatureItem | PlanFeatureDetail | null
 }
 
 const parseOptionalNumber = (value: string) => {
-  const trimmed = value.trim()
+  const trimmed = String(value ?? '').trim()
   if (!trimmed) return null
   const parsed = Number(trimmed)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+const parsePositiveInteger = (value: string) => {
+  const parsed = parseOptionalNumber(value)
+  if (parsed === null) return null
+  if (!Number.isInteger(parsed) || parsed < 1) return null
+  return parsed
 }
 
 const parseConfigInput = (value: string) => {
@@ -169,6 +177,12 @@ const parseConfigInput = (value: string) => {
     notifyError('El campo Config debe tener un JSON valido.')
     return null
   }
+}
+
+const extractErrorMessage = (error: unknown) => {
+  if (!error || typeof error !== 'object') return 'No pudimos completar la accion.'
+  const payload = error as { message?: string; error?: string }
+  return payload.message?.trim() || payload.error?.trim() || 'No pudimos completar la accion.'
 }
 
 const configToEditorText = (value: unknown) => {
@@ -193,6 +207,40 @@ const resetCreateForm = () => {
   createForm.status = 'active'
   createForm.limit = ''
   createForm.config = '[]'
+}
+
+const normalizeAssociationFormByType = (form: AssociationForm, featureType?: string) => {
+  if (featureType !== 'limit') {
+    form.limit = ''
+  }
+}
+
+const buildAssociationPayload = (form: AssociationForm) => {
+  const payload: {
+    status: 'active' | 'inactive'
+    limit: number | null
+    config: unknown
+  } = {
+    status: form.status,
+    limit: null,
+    config: [],
+  }
+
+  const parsedConfig = parseConfigInput(form.config)
+  if (parsedConfig === null) return null
+  payload.config = parsedConfig
+
+  const rawLimit = String(form.limit ?? '').trim()
+  if (rawLimit) {
+    const parsedLimit = parsePositiveInteger(form.limit)
+    if (parsedLimit === null) {
+      notifyError('El limite debe ser un numero entero mayor o igual a 1.')
+      return null
+    }
+    payload.limit = parsedLimit
+  }
+
+  return payload
 }
 
 const loadPlanOptions = async () => {
@@ -352,31 +400,29 @@ const submitCreate = async () => {
     return
   }
 
-  const config = parseConfigInput(createForm.config)
-  if (config === null) return
+  const payload = buildAssociationPayload(createForm)
+  if (!payload) return
 
   isCreateLoading.value = true
   try {
     const created = (await createPlanFeature(filters.plan_id, {
       feature_id: createForm.feature_id,
-      status: createForm.status,
-      limit: parseOptionalNumber(createForm.limit),
-      config,
+      ...payload,
     })) as PlanFeatureDetail
 
+    isCreateModalOpen.value = false
     notifySuccess('Funcionalidad asociada al plan correctamente.')
-    closeCreateModal()
     await fetchList()
 
-    const createdKey = created.feature_id ? String(created.feature_id) : ''
+    const createdKey = created?.feature_id ? String(created.feature_id) : ''
     if (createdKey) {
       const target = list.value.find((item) => itemKey(item) === createdKey)
       if (target) {
         openAssociation(target)
       }
     }
-  } catch {
-    notifyError()
+  } catch (error) {
+    notifyError(extractErrorMessage(error))
   } finally {
     isCreateLoading.value = false
   }
@@ -404,23 +450,21 @@ const saveEdit = async () => {
     return
   }
 
-  const config = parseConfigInput(editForm.config)
-  if (config === null) return
+  const payload = buildAssociationPayload(editForm)
+  if (!payload) return
 
   isSaving.value = true
   try {
     const updated = (await updatePlanFeature(planId, featureId, {
-      status: editForm.status,
-      limit: parseOptionalNumber(editForm.limit),
-      config,
+      ...payload,
     })) as PlanFeatureDetail
 
     const merged: PlanFeatureDetail = {
       ...selected.value,
       ...updated,
-      status: editForm.status,
-      limit: parseOptionalNumber(editForm.limit),
-      config,
+      ...payload,
+      limit: payload.limit ?? null,
+      config: payload.config ?? null,
     }
 
     selected.value = merged
@@ -436,8 +480,8 @@ const saveEdit = async () => {
 
     isEditing.value = false
     notifySuccess('Asociacion actualizada correctamente.')
-  } catch {
-    notifyError()
+  } catch (error) {
+    notifyError(extractErrorMessage(error))
   } finally {
     isSaving.value = false
   }
@@ -470,8 +514,8 @@ const confirmDelete = async () => {
     isDeleteConfirmOpen.value = false
     clearSelection()
     await fetchList()
-  } catch {
-    notifyError()
+  } catch (error) {
+    notifyError(extractErrorMessage(error))
   } finally {
     isDeleting.value = false
   }
@@ -576,6 +620,13 @@ watch(
     if (isResettingFilters.value) return
     filters.page = 1
     fetchList()
+  },
+)
+
+watch(
+  () => createForm.feature_id,
+  () => {
+    normalizeAssociationFormByType(createForm, selectedCreateFeatureType.value)
   },
 )
 
@@ -770,13 +821,32 @@ watch(isAnyModalOpen, (isOpen) => {
           <div class="detail-row">
             <span>Limite</span>
             <strong v-if="!isEditing" class="dbl-edit-trigger" title="Doble clic para editar" @dblclick.stop="startEdit">{{ selected.limit ?? '-' }}</strong>
-            <input v-else v-model="editForm.limit" type="number" placeholder="Opcional" />
+            <input
+              v-else
+              v-model="editForm.limit"
+              type="number"
+              min="1"
+              step="1"
+              :placeholder="
+                selectedEditFeatureType === 'limit'
+                  ? 'Ej. 1'
+                  : 'Opcional. Solo aplica si la feature usa limite'
+              " />
           </div>
 
           <div class="detail-row">
             <span>Config (JSON)</span>
             <strong v-if="!isEditing" class="dbl-edit-trigger config-preview" title="Doble clic para editar" @dblclick.stop="startEdit">{{ formatConfig(selected.config) }}</strong>
-            <textarea v-else v-model="editForm.config" rows="5" spellcheck="false"></textarea>
+            <textarea
+              v-else
+              v-model="editForm.config"
+              rows="5"
+              spellcheck="false"
+              :placeholder="
+                selectedEditFeatureType === 'config'
+                  ? 'Ingresa JSON valido'
+                  : 'Opcional. Puedes dejar [] si la feature no usa config'
+              "></textarea>
           </div>
 
           <div class="detail-actions">
@@ -819,7 +889,7 @@ watch(isAnyModalOpen, (isOpen) => {
           </label>
           <label class="full-width">
             <span>Funcionalidad</span>
-            <select v-model="createForm.feature_id" :disabled="catalogsLoading">
+            <select v-model="createForm.feature_id" class="feature-select" :disabled="catalogsLoading">
               <option value="">Selecciona una funcionalidad</option>
               <option v-for="feature in featureOptions" :key="String(feature.id)" :value="String(feature.id)">
                 {{ formatFeatureOptionLabel(feature) }}
@@ -839,11 +909,28 @@ watch(isAnyModalOpen, (isOpen) => {
           </label>
           <label>
             <span>Limite</span>
-            <input v-model="createForm.limit" type="number" placeholder="Opcional" />
+            <input
+              v-model="createForm.limit"
+              type="number"
+              min="1"
+              step="1"
+              :placeholder="
+                selectedCreateFeatureType === 'limit'
+                  ? 'Ej. 1'
+                  : 'Opcional. Solo aplica si la feature usa limite'
+              " />
           </label>
           <label class="full-width">
             <span>Config (JSON)</span>
-            <textarea v-model="createForm.config" rows="5" spellcheck="false"></textarea>
+            <textarea
+              v-model="createForm.config"
+              rows="5"
+              spellcheck="false"
+              :placeholder="
+                selectedCreateFeatureType === 'config'
+                  ? 'Ingresa JSON valido'
+                  : 'Opcional. Puedes dejar [] si la feature no usa config'
+              "></textarea>
           </label>
         </div>
         <div class="modal-actions">
@@ -1110,6 +1197,7 @@ textarea {
   padding: 18px;
   display: grid;
   gap: 14px;
+  overflow: hidden;
 }
 
 .confirm-card {
@@ -1135,14 +1223,23 @@ textarea {
   gap: 6px;
   font-size: 13px;
   color: #475569;
+  min-width: 0;
 }
 
 .modal-form input,
 .modal-form select,
 .modal-form textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   border-radius: 10px;
   border: 1px solid #d6dbe7;
   padding: 9px 10px;
+}
+
+.feature-select {
+  text-overflow: ellipsis;
 }
 
 .feature-hint {
