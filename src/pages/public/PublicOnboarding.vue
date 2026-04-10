@@ -3,6 +3,12 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import {
+  listCatalogTemplates,
+  listCatalogTypeEvents,
+  type CatalogTemplateItem,
+  type CatalogTypeEventItem,
+} from '@/services/catalogs'
+import {
   completePublicOnboarding,
   getPublicOnboarding,
   type PublicOnboardingContext,
@@ -69,6 +75,7 @@ const shouldShowCheckoutCta = computed(() => Boolean(successMessage.value) && Bo
 const isTemplateExplorerOpen = ref(false)
 const explorerStep = ref<'event' | 'template'>('event')
 const selectedTemplateName = ref('')
+const isTemplateCatalogLoading = ref(false)
 let checkoutInterval: number | undefined
 
 type MockEventType = {
@@ -100,6 +107,30 @@ const formatPaymentMode = (value?: string) => {
   if (!value || value === 'paid') return 'Pago'
   if (value === 'gift') return 'Regalo'
   return value
+}
+
+const formatEventTypeLabel = (value?: string) => {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return 'Evento'
+  if (normalized === 'xv') return '15 anos'
+  return normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+const describeEventType = (value?: string) => {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (normalized === 'boda') return 'Coleccion romantica para ceremonia, fiesta y RSVP.'
+  if (normalized === 'xv') return 'Estilo festivo con foco en impacto visual y confirmaciones.'
+  if (normalized === 'cumpleanos') return 'Experiencias agiles para compartir sin friccion.'
+  if (normalized === 'empresarial') return 'Comunicacion clara para eventos con tono mas profesional.'
+  if (normalized === 'baby shower') return 'Narrativa suave y emocional para momentos memorables.'
+  if (normalized === 'bautismo') return 'Estetica delicada para una invitacion sobria y cercana.'
+  if (normalized === 'graduacion') return 'Celebracion con narrativa visual y tono mas vibrante.'
+  if (normalized === 'aniversario') return 'Diseños pensados para celebrar recuerdos y continuidad.'
+  return 'Plantillas activas disponibles para este tipo de evento.'
 }
 
 const parseErrorMessage = (error: unknown) => {
@@ -149,22 +180,87 @@ const mockTemplatesByPlan: Record<string, Array<{ name: string; description: str
   ],
 }
 
+const catalogEventTypes = ref<CatalogTypeEventItem[]>([])
+const catalogTemplates = ref<CatalogTemplateItem[]>([])
+
+const loadTemplateCatalogs = async () => {
+  const planId = context.value?.plan_id
+  if (planId === undefined || planId === null || String(planId).trim() === '') {
+    catalogEventTypes.value = []
+    catalogTemplates.value = []
+    return
+  }
+
+  isTemplateCatalogLoading.value = true
+  try {
+    const [typeEventsResponse, templatesResponse] = await Promise.all([
+      listCatalogTypeEvents({ page: 1, perPage: 50 }),
+      listCatalogTemplates({ plan_id: planId, page: 1, perPage: 50 }),
+    ])
+
+    catalogEventTypes.value = typeEventsResponse.list.filter(
+      (eventType) => String(eventType.status ?? 'active').toLowerCase() === 'active',
+    )
+    catalogTemplates.value = templatesResponse.list.filter(
+      (template) => String(template.status ?? 'active').toLowerCase() === 'active',
+    )
+  } catch {
+    catalogEventTypes.value = []
+    catalogTemplates.value = []
+    notifyWarning(
+      'No pudimos cargar el catalogo publico de plantillas. Usaremos la referencia disponible del onboarding.',
+    )
+  } finally {
+    isTemplateCatalogLoading.value = false
+  }
+}
+
 const templateFlow = computed(() => {
   const planId = String(context.value?.plan_id ?? '')
-  const eventTypes = planEventTypeMap[planId] ?? defaultEventTypes
-  const fallbackEventTypeId = eventTypes[0]?.id ?? 'wedding'
-  const apiTemplates = context.value?.templates ?? []
+  const catalogEventTypeMap = new Map(
+    catalogEventTypes.value.map((eventType) => [String(eventType.id ?? ''), eventType]),
+  )
 
-  if (apiTemplates.length) {
-    const templates = apiTemplates.map((template, index) => ({
+  if (catalogTemplates.value.length) {
+    const eventTypes = Array.from(
+      new Map(
+        catalogTemplates.value
+          .filter((template) => template.type_event_id !== undefined && template.type_event_id !== null)
+          .map((template) => {
+            const eventTypeId = String(template.type_event_id)
+            const eventType = catalogEventTypeMap.get(eventTypeId)
+            const eventTypeName = template.type_event?.name ?? eventType?.name
+            return [
+              eventTypeId,
+              {
+                id: eventTypeId,
+                label: formatEventTypeLabel(eventTypeName),
+                description: describeEventType(eventTypeName),
+              } satisfies MockEventType,
+            ]
+          }),
+      ).values(),
+    )
+
+    const fallbackEventTypeId = eventTypes[0]?.id ?? 'wedding'
+    const templates = catalogTemplates.value.map((template) => ({
       id: template.id === undefined || template.id === null ? null : String(template.id),
-      name: template.name || `Template ${index + 1}`,
-      description: template.description || 'Vista previa disponible para este plan.',
-      event_type_id: eventTypes[index % eventTypes.length]?.id ?? fallbackEventTypeId,
+      name: template.name || 'Template disponible',
+      description:
+        template.type_event?.name
+          ? `${formatEventTypeLabel(template.type_event.name)} disponible para este plan.`
+          : 'Vista previa disponible para este plan.',
+      event_type_id:
+        template.type_event_id === undefined || template.type_event_id === null
+          ? fallbackEventTypeId
+          : String(template.type_event_id),
     }))
+
     return { eventTypes, templates }
   }
 
+  const eventTypes = planEventTypeMap[planId] ?? defaultEventTypes
+  const fallbackEventTypeId = eventTypes[0]?.id ?? 'wedding'
   const fallbackTemplates = mockTemplatesByPlan[planId] ?? mockTemplatesByPlan['2'] ?? []
   const templates: MockTemplateCard[] = fallbackTemplates.map((template, index) => ({
     id: null,
@@ -190,6 +286,11 @@ const pickDefaultTemplate = () => {
   const templateId = context.value?.template_id
   if (templateId !== undefined && templateId !== null && String(templateId).trim()) {
     form.template_id = String(templateId)
+    return
+  }
+  const firstCatalogTemplate = catalogTemplates.value[0]
+  if (firstCatalogTemplate?.id !== undefined && firstCatalogTemplate.id !== null) {
+    form.template_id = String(firstCatalogTemplate.id)
     return
   }
   const firstTemplate = context.value?.templates?.[0]
@@ -341,6 +442,7 @@ const loadOnboarding = async () => {
   try {
     const payload = await getPublicOnboarding(onboardingCode.value)
     context.value = payload
+    await loadTemplateCatalogs()
     pickDefaultTemplate()
     hydrateTemplateSelection()
   } catch (error) {
@@ -370,8 +472,8 @@ const submitOnboarding = async () => {
       email: form.email.trim(),
       password: form.password,
       country_code: form.country_code.trim(),
-      template_id: null,
-      type_event_id: null,
+      template_id: form.template_id.trim() ? form.template_id.trim() : null,
+      type_event_id: form.type_event_id.trim() ? form.type_event_id.trim() : null,
     })
 
     const nextStepMessage =
@@ -542,8 +644,12 @@ onUnmounted(() => {
             <div class="template-picker field-full">
               <div class="template-picker-head">
                 <strong>Plantilla del plan (opcional)</strong>
-                <button type="button" class="btn btn-ghost template-picker-btn" @click="openTemplateExplorer">
-                  Explorar plantillas
+                <button
+                  type="button"
+                  class="btn btn-ghost template-picker-btn"
+                  :disabled="isTemplateCatalogLoading"
+                  @click="openTemplateExplorer">
+                  {{ isTemplateCatalogLoading ? 'Cargando catalogo...' : 'Explorar plantillas' }}
                 </button>
               </div>
               <p>
@@ -636,7 +742,7 @@ onUnmounted(() => {
           <p>{{ template.description }}</p>
         </button>
         <div v-if="!templatesForSelectedEvent.length" class="template-empty">
-          No hay plantillas mock para este tipo de evento aun.
+          No encontramos plantillas activas para este tipo de evento.
         </div>
       </section>
     </div>

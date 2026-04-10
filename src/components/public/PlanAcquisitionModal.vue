@@ -9,10 +9,10 @@ type FieldErrors = Record<string, string[]>
 type Provider = 'email' | 'google' | 'facebook'
 
 type PlanSelection = {
-  id: number | string
-  name: string
-  price_usd: number
-  billing_type: string
+  id?: number | string
+  name?: string
+  price_usd?: number | string | null
+  billing_type?: string
 }
 
 const props = defineProps<{
@@ -52,6 +52,11 @@ const COUNTRIES = [
 ]
 
 const DRAFT_KEY = 'public_onboarding_draft'
+
+const formatPlanPrice = (value?: number | string | null) => {
+  const amount = Number(value ?? 0)
+  return `US$ ${amount.toFixed(2)}`
+}
 
 const close = () => {
   emit('update:modelValue', false)
@@ -98,7 +103,8 @@ const validateForm = () => {
 }
 
 const submitRegister = async () => {
-  if (!props.plan) {
+  const planId = props.plan?.id
+  if (!props.plan || planId === undefined || planId === null) {
     notifyWarning('Selecciona un plan para continuar.')
     return
   }
@@ -110,7 +116,7 @@ const submitRegister = async () => {
   }
 
   const payload: PublicOnboardingRegistrationInput = {
-    plan_id: props.plan.id,
+    plan_id: planId,
     template_id: null,
     register_method: 'email',
     full_name: form.full_name.trim(),
@@ -154,7 +160,7 @@ const submitRegister = async () => {
       <span class="modal-kicker">Plan seleccionado</span>
       <h3>{{ props.plan?.name ?? 'Plan' }}</h3>
       <p>
-        {{ props.plan ? `$${props.plan.price_usd.toFixed(2)} USD` : '' }}
+        {{ props.plan ? formatPlanPrice(props.plan.price_usd) : '' }}
         ·
         {{ props.plan?.billing_type === 'subscription' ? 'Suscripcion' : 'Pago unico' }}
       </p>

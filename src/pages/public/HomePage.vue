@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import PublicPlanCatalogGrid from '@/components/public/PublicPlanCatalogGrid.vue'
+import type { CatalogPlanListItem } from '@/services/catalogs'
 import heroBoda from '@/assets/img/hero/boda.webp'
 import heroEgresados from '@/assets/img/hero/egresados.webp'
 import heroBabyShower from '@/assets/img/hero/babyshower.webp'
@@ -35,15 +38,6 @@ type TemplateCard = {
 type FlowStep = {
   title: string
   description: string
-}
-
-type PlanCard = {
-  name: string
-  price: string
-  features: string[]
-  cta: string
-  variant: 'primary' | 'ghost'
-  featured?: boolean
 }
 
 const slides: HeroSlide[] = [
@@ -149,31 +143,6 @@ const benefitCards: { title: string; description: string }[] = [
   { title: 'Mas conversion de invitados', description: 'Una experiencia clara aumenta la respuesta y reduce fricciones.' },
 ]
 
-const planCards: PlanCard[] = [
-  {
-    name: 'Basic',
-    price: 'US$ 9.99',
-    features: ['Plantillas listas para personalizar', 'Publicacion rapida', 'Flujo guiado'],
-    cta: 'Ver Basic',
-    variant: 'ghost',
-  },
-  {
-    name: 'Pro',
-    price: 'US$ 19.99',
-    features: ['Mas variedad de estilos', 'Mayor personalizacion', 'Experiencia premium'],
-    cta: 'Elegir Pro',
-    variant: 'primary',
-    featured: true,
-  },
-  {
-    name: 'Premium',
-    price: 'US$ 29.99',
-    features: ['Acceso continuo a mejoras', 'Ideal para uso frecuente', 'Escalabilidad total'],
-    cta: 'Explorar Premium',
-    variant: 'ghost',
-  },
-]
-
 const faqItems: { question: string; answer: string; open?: boolean }[] = [
   {
     question: 'Realmente puedo crearla sin saber de diseño?',
@@ -192,6 +161,7 @@ const faqItems: { question: string; answer: string; open?: boolean }[] = [
 
 const activeIndex = ref(0)
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
+const router = useRouter()
 
 const activeSlide = computed<HeroSlide>(() => slides[activeIndex.value] ?? slides[0] ?? fallbackHeroSlide)
 
@@ -205,6 +175,15 @@ const nextSlide = () => {
 
 const prevSlide = () => {
   activeIndex.value = (activeIndex.value - 1 + slides.length) % slides.length
+}
+
+const handleSelectHomePlan = (plan: CatalogPlanListItem) => {
+  router.push({
+    name: 'planes',
+    query: {
+      plan: plan.id === undefined || plan.id === null ? undefined : String(plan.id),
+    },
+  })
 }
 
 const stopAutoplay = () => {
@@ -397,16 +376,7 @@ onUnmounted(() => {
         <p class="plans-kicker">Planes</p>
         <h2 id="plans-title">Elige el plan ideal y comienza hoy</h2>
       </div>
-      <div class="plans-grid">
-        <article v-for="item in planCards" :key="item.name" class="plan-card" :class="{ featured: item.featured }">
-          <h3>{{ item.name }}</h3>
-          <p class="plan-price">{{ item.price }}</p>
-          <ul>
-            <li v-for="feature in item.features" :key="feature">{{ feature }}</li>
-          </ul>
-          <BaseButton as="RouterLink" to="/planes" :variant="item.variant">{{ item.cta }}</BaseButton>
-        </article>
-      </div>
+      <PublicPlanCatalogGrid primary-action-label="Quiero este plan" @select-plan="handleSelectHomePlan" />
     </div>
   </section>
 
@@ -1050,52 +1020,6 @@ onUnmounted(() => {
     linear-gradient(180deg, #ffffff 0%, #f9f4ff 100%);
 }
 
-.plans-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.plan-card {
-  border-radius: 18px;
-  border: 1px solid rgba(223, 208, 245, 0.9);
-  background: #fff;
-  padding: 18px;
-  display: grid;
-  gap: 10px;
-}
-
-.plan-card.featured {
-  border-color: rgba(131, 83, 214, 0.5);
-  box-shadow: 0 16px 30px rgba(90, 48, 140, 0.14);
-}
-
-.plan-card h3 {
-  margin: 0;
-  color: #2f194d;
-  font-size: 24px;
-}
-
-.plan-price {
-  margin: 0;
-  color: #5e38a0;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.plan-card ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 6px;
-}
-
-.plan-card li {
-  color: #63537e;
-  font-size: 14px;
-}
-
 .faq-section {
   padding: 74px 0;
   background: #fff;
@@ -1208,8 +1132,7 @@ onUnmounted(() => {
   }
 
   .templates-grid,
-  .benefits-grid,
-  .plans-grid {
+  .benefits-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1271,8 +1194,7 @@ onUnmounted(() => {
   }
 
   .templates-grid,
-  .benefits-grid,
-  .plans-grid {
+  .benefits-grid {
     grid-template-columns: 1fr;
   }
 

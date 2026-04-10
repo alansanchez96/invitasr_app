@@ -2,24 +2,16 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PlanAcquisitionModal from '@/components/public/PlanAcquisitionModal.vue'
+import PublicPlanCatalogGrid from '@/components/public/PublicPlanCatalogGrid.vue'
+import type { CatalogPlanListItem } from '@/services/catalogs'
 import { useSessionStore } from '@/stores/session'
 import type { PublicOnboardingRegistrationInput } from '@/services/publicOnboarding'
-
-type PlanCard = {
-  id: number
-  name: string
-  description: string
-  price_usd: number
-  billing_type: 'one_time' | 'subscription'
-  points: string[]
-  featured?: boolean
-}
 
 const router = useRouter()
 const route = useRoute()
 const session = useSessionStore()
 const isModalOpen = ref(false)
-const selectedPlan = ref<PlanCard | null>(null)
+const selectedPlan = ref<CatalogPlanListItem | null>(null)
 const DRAFT_KEY = 'public_onboarding_draft'
 
 type PlanBanner = {
@@ -41,38 +33,14 @@ const loadDraft = (): PublicOnboardingRegistrationInput | null => {
   }
 }
 
-const plans: PlanCard[] = [
-  {
-    id: 2,
-    name: 'Basic',
-    description: 'Lo esencial para bodas elegantes.',
-    price_usd: 9.99,
-    billing_type: 'one_time',
-    points: ['2 plantillas', 'Galeria limitada', 'Dominio personalizado'],
-    featured: true,
-  },
-  {
-    id: 3,
-    name: 'Pro',
-    description: 'Experiencia completa y muro de deseos.',
-    price_usd: 19.99,
-    billing_type: 'one_time',
-    points: ['Hasta 8 plantillas', 'RSVP avanzado', 'Musica libre'],
-  },
-  {
-    id: 4,
-    name: 'Premium',
-    description: 'Escala tu operacion con soporte continuo.',
-    price_usd: 29.99,
-    billing_type: 'subscription',
-    points: ['Suscripcion activa', 'Soporte prioritario', 'Mayor capacidad'],
-  },
-]
-
-const subscriptionPlan = computed(() => plans.find((plan) => plan.billing_type === 'subscription') ?? null)
+const plannerPlanQueryId = '4'
 const sessionPlanBilling = computed(
   () => session.user?.client_plan?.plan?.billing_type?.toLowerCase() ?? '',
 )
+const selectedPlanQueryId = computed(() => {
+  const raw = Array.isArray(route.query.plan) ? route.query.plan[0] : route.query.plan
+  return raw ? String(raw).trim() : null
+})
 const reasonFromQuery = computed(() => {
   const raw = Array.isArray(route.query.reason) ? route.query.reason[0] : route.query.reason
   return String(raw ?? '').trim().toLowerCase()
@@ -102,7 +70,7 @@ const planBanner = computed<PlanBanner | null>(() => {
       title: 'Tu plan actual ya esta activo',
       message:
         'Si quieres escalar tu experiencia, puedes suscribirte a Planner o comprar mas creditos desde la administracion de tu cuenta.',
-      ctaPrimary: subscriptionPlan.value ? `Suscribirme a ${subscriptionPlan.value.name}` : undefined,
+      ctaPrimary: 'Ver detalle de Planner',
       ctaSecondary: 'Ir a mi cuenta',
     }
   }
@@ -147,8 +115,12 @@ const visiblePlanBanner = computed(() => {
 })
 
 const handleBannerPrimary = () => {
-  if (!subscriptionPlan.value) return
-  void openPlanModal(subscriptionPlan.value)
+  router.replace({
+    query: {
+      ...route.query,
+      plan: plannerPlanQueryId,
+    },
+  })
 }
 
 const handleBannerSecondary = () => {
@@ -168,7 +140,8 @@ const dismissBanner = () => {
   persistDismissedBanners()
 }
 
-const openPlanModal = async (plan: PlanCard) => {
+const openPlanModal = async (plan: CatalogPlanListItem) => {
+  if (plan.id === undefined || plan.id === null) return
   selectedPlan.value = plan
 
   if (!session.isAuthenticated && !session.isHydrating) {
@@ -202,7 +175,10 @@ const handleRegistered = () => {
   router.push({
     name: 'public-onboarding-flow',
     query: {
-      planId: selectedPlan.value ? String(selectedPlan.value.id) : undefined,
+      planId:
+        selectedPlan.value?.id === undefined || selectedPlan.value?.id === null
+          ? undefined
+          : String(selectedPlan.value.id),
       planName: selectedPlan.value?.name,
     },
   })
@@ -245,24 +221,10 @@ loadDismissedBanners()
       </article>
 
       <div class="plan-grid">
-        <article
-          v-for="plan in plans"
-          :key="plan.id"
-          class="card plan-card"
-          :class="{ featured: plan.featured }">
-          <div>
-            <h3>{{ plan.name }}</h3>
-            <p>{{ plan.description }}</p>
-            <strong class="price">${{ plan.price_usd.toFixed(2) }} USD</strong>
-          </div>
-          <ul>
-            <li v-for="point in plan.points" :key="point">{{ point }}</li>
-          </ul>
-          <div class="card-actions">
-            <BaseButton variant="ghost" disabled>Probar plantilla</BaseButton>
-            <BaseButton variant="primary" @click="openPlanModal(plan)">Obtener plan</BaseButton>
-          </div>
-        </article>
+        <PublicPlanCatalogGrid
+          primary-action-label="Obtener plan"
+          :initial-detail-plan-id="selectedPlanQueryId"
+          @select-plan="openPlanModal" />
       </div>
     </div>
   </section>
@@ -337,42 +299,7 @@ loadDismissedBanners()
 }
 
 .plan-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
   margin-top: 32px;
-}
-
-.plan-card {
-  display: grid;
-  gap: 14px;
-}
-
-.plan-card ul {
-  padding-left: 18px;
-  color: var(--muted);
-  margin: 0;
-}
-
-.plan-card li {
-  margin-bottom: 8px;
-}
-
-.price {
-  display: block;
-  margin-top: 10px;
-  font-size: 20px;
-  color: #7a4fd9;
-}
-
-.card-actions {
-  display: grid;
-  gap: 8px;
-}
-
-.plan-card.featured {
-  border: 2px solid rgba(155, 107, 255, 0.4);
-  box-shadow: var(--shadow-soft);
 }
 
 @media (max-width: 960px) {
@@ -382,10 +309,6 @@ loadDismissedBanners()
 
   .plan-banner-actions {
     justify-content: flex-start;
-  }
-
-  .plan-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>
