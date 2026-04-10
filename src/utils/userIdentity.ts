@@ -33,7 +33,7 @@ export const buildDisplayInitials = (fullName: string, fallback = 'CU'): string 
   const source = meaningfulWords.length ? meaningfulWords : words
 
   if (source.length === 1) {
-    const [word] = source
+    const word = source[0] ?? ''
     return word.slice(0, 2).toUpperCase()
   }
 

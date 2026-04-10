@@ -3,6 +3,10 @@ import WeddingTemplateShell from '@/templates/wedding/shared/WeddingTemplateShel
 import WeddingSectionCard from '@/templates/wedding/shared/WeddingSectionCard.vue'
 import type { InvitationTemplateRendererProps } from '@/templates/types'
 
+defineOptions({
+  name: 'WeddingTemplateFortyThree',
+})
+
 defineProps<InvitationTemplateRendererProps<'wedding'>>()
 </script>
 

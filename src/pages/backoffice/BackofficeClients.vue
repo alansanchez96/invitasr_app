@@ -2,7 +2,6 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { listClients, getClient, updateClientStatus, type ClientDetail, type ClientListItem } from '@/services/clients'
 import { notifyError } from '@/utils/toast'
-import BaseButton from '@/components/ui/BaseButton.vue'
 
 type Filters = {
   status: '' | 'active' | 'inactive'

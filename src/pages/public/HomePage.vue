@@ -105,6 +105,15 @@ const slides: HeroSlide[] = [
   },
 ]
 
+const fallbackHeroSlide: HeroSlide = {
+  image: heroBoda,
+  alt: 'Invitacion digital de boda elegante',
+  tag: 'Bodas',
+  title: 'Haz que tu boda empiece con una invitacion que enamora.',
+  description: 'Personaliza nombres, fecha y estilo en minutos para compartir una experiencia inolvidable.',
+  cta: 'Crear invitacion ahora',
+}
+
 const socialStats: SocialStat[] = [
   { value: '+1,200', label: 'Eventos activos este mes' },
   { value: '97%', label: 'Clientes satisfechos con su primera invitacion' },
@@ -184,7 +193,7 @@ const faqItems: { question: string; answer: string; open?: boolean }[] = [
 const activeIndex = ref(0)
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
 
-const activeSlide = computed(() => slides[activeIndex.value])
+const activeSlide = computed<HeroSlide>(() => slides[activeIndex.value] ?? slides[0] ?? fallbackHeroSlide)
 
 const goToSlide = (index: number) => {
   activeIndex.value = index

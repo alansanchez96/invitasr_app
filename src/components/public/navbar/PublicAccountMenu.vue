@@ -9,7 +9,7 @@ type ClientAccountLink = {
   icon: 'dashboard' | 'invitaciones' | 'configuracion'
 }
 
-const props = defineProps<{
+defineProps<{
   isMaster: boolean
   displayName: string
   initials: string
@@ -219,6 +219,7 @@ watch(
   background: #d7e3fc;
   border: none;
   padding: 9px;
+  display: flex;
 }
 
 .account-dropdown {
@@ -414,4 +415,3 @@ watch(
   height: 100%;
 }
 </style>
-

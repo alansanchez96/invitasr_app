@@ -203,7 +203,8 @@ const hydrateEditForm = (item: PlanFeatureItem) => {
 }
 
 const resetCreateForm = () => {
-  createForm.feature_id = featureOptions.value.length ? String(featureOptions.value[0].id) : ''
+  const firstFeature = featureOptions.value[0]
+  createForm.feature_id = firstFeature ? String(firstFeature.id) : ''
   createForm.status = 'active'
   createForm.limit = ''
   createForm.config = '[]'
@@ -310,8 +311,9 @@ const fetchCatalogs = async () => {
   try {
     await Promise.all([loadPlanOptions(), loadFeatureOptions()])
 
-    if (!filters.plan_id && planOptions.value.length) {
-      filters.plan_id = String(planOptions.value[0].id)
+    const firstPlan = planOptions.value[0]
+    if (!filters.plan_id && firstPlan) {
+      filters.plan_id = String(firstPlan.id)
     }
   } catch {
     notifyError('No pudimos cargar planes y funcionalidades.')
@@ -540,7 +542,8 @@ const scheduleFiltersFetch = (immediate = false) => {
 
 const resetFilters = () => {
   isResettingFilters.value = true
-  filters.plan_id = planOptions.value.length ? String(planOptions.value[0].id) : ''
+  const firstPlan = planOptions.value[0]
+  filters.plan_id = firstPlan ? String(firstPlan.id) : ''
   filters.page = 1
   filters.perPage = 10
   isResettingFilters.value = false

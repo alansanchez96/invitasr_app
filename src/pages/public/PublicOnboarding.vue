@@ -152,6 +152,7 @@ const mockTemplatesByPlan: Record<string, Array<{ name: string; description: str
 const templateFlow = computed(() => {
   const planId = String(context.value?.plan_id ?? '')
   const eventTypes = planEventTypeMap[planId] ?? defaultEventTypes
+  const fallbackEventTypeId = eventTypes[0]?.id ?? 'wedding'
   const apiTemplates = context.value?.templates ?? []
 
   if (apiTemplates.length) {
@@ -159,17 +160,17 @@ const templateFlow = computed(() => {
       id: template.id === undefined || template.id === null ? null : String(template.id),
       name: template.name || `Template ${index + 1}`,
       description: template.description || 'Vista previa disponible para este plan.',
-      event_type_id: eventTypes[index % eventTypes.length]?.id ?? eventTypes[0].id,
+      event_type_id: eventTypes[index % eventTypes.length]?.id ?? fallbackEventTypeId,
     }))
     return { eventTypes, templates }
   }
 
-  const fallbackTemplates = mockTemplatesByPlan[planId] ?? mockTemplatesByPlan['2']
+  const fallbackTemplates = mockTemplatesByPlan[planId] ?? mockTemplatesByPlan['2'] ?? []
   const templates: MockTemplateCard[] = fallbackTemplates.map((template, index) => ({
     id: null,
     name: template.name,
     description: `${template.description} (Mock)`,
-    event_type_id: eventTypes[index % eventTypes.length]?.id ?? eventTypes[0].id,
+    event_type_id: eventTypes[index % eventTypes.length]?.id ?? fallbackEventTypeId,
   }))
 
   return { eventTypes, templates }
@@ -209,8 +210,9 @@ const hydrateTemplateSelection = () => {
 
 const openTemplateExplorer = () => {
   explorerStep.value = form.type_event_id ? 'template' : 'event'
-  if (!form.type_event_id && templateFlow.value.eventTypes.length) {
-    form.type_event_id = templateFlow.value.eventTypes[0].id
+  const firstEventType = templateFlow.value.eventTypes[0]
+  if (!form.type_event_id && firstEventType) {
+    form.type_event_id = firstEventType.id
   }
   isTemplateExplorerOpen.value = true
 }

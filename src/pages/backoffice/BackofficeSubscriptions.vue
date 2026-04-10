@@ -75,7 +75,7 @@ const buildCompactPagination = (totalPages: number, current: number) => {
   return ['…', current, Math.min(totalPages, current + 1), '…']
 }
 
-const formatDate = (value?: string) => {
+const formatDate = (value?: string | null) => {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'

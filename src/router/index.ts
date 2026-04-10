@@ -1,4 +1,4 @@
-﻿import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import PublicLayout from '@/layouts/PublicLayout.vue'
 import PanelLayout from '@/layouts/PanelLayout.vue'
