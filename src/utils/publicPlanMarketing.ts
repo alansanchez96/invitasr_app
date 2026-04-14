@@ -231,12 +231,12 @@ const FEATURE_COPY: Record<
   preview_view_limit: {
     title: 'Vistas de preview',
     priority: 42,
-    summary: (feature) => `${formatLimitCount(feature.limit, 'vista', 'vistas')} para experiencias demo o pruebas.`,
+    summary: (feature) => `${formatLimitCount(feature.limit, 'vista', 'vistas')} para experiencias de previsualizacion controlada.`,
   },
   auto_reset_hours: {
     title: 'Reinicio automatico',
     priority: 40,
-    summary: (feature) => `Reinicio cada ${formatLimitCount(feature.limit, 'hora', 'horas')} para demos autogestionadas.`,
+    summary: (feature) => `Reinicio cada ${formatLimitCount(feature.limit, 'hora', 'horas')} para pruebas temporales o recorridos guiados.`,
   },
   wall_preview_enabled: {
     title: 'Preview del muro',
@@ -295,7 +295,7 @@ const planOrderIndex = (plan: CatalogPlanListItem) => {
 export const selectCommercialPlans = (plans: CatalogPlanListItem[]) => {
   const active = plans.filter((plan) => String(plan.status ?? 'active').toLowerCase() === 'active')
   const paid = active.filter((plan) => Number(plan.price_usd ?? 0) > 0 || slugifyName(plan.name) === 'planner')
-  const source = paid.length >= 3 ? paid : active.filter((plan) => slugifyName(plan.name) !== 'demo')
+  const source = paid.length >= 3 ? paid : active
 
   return [...source]
     .sort((left, right) => {

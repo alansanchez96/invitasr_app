@@ -356,7 +356,7 @@ onMounted(async () => {
           <ul class="benefits-list">
             <li>Tu registro ya fue validado</li>
             <li>Activacion inmediata al confirmar el pago</li>
-            <li>Acceso directo a tu dashboard de cliente</li>
+            <li>Continuidad inmediata en tu flujo de compra</li>
           </ul>
           <div class="actions">
             <RouterLink class="btn btn-ghost" to="/planes">Cambiar plan</RouterLink>

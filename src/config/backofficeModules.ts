@@ -4,7 +4,7 @@ export type BackofficeModule = {
 }
 
 export type BackofficeModuleGroup = {
-  title: 'Gestion' | 'Pagos' | 'Configuracion'
+  title: string
   items: BackofficeModule[]
 }
 

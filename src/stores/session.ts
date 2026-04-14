@@ -10,10 +10,6 @@ type AuthUser = {
   created_at: string
   updated_at: string
   contextEncrypt: boolean
-  tenant?: {
-    id?: number | string
-    status?: string
-  } | null
   client_plan?: {
     has_plan?: boolean
     has_active_plan?: boolean
@@ -84,7 +80,6 @@ export const useSessionStore = defineStore('session', () => {
   const hasClientPlan = computed(() => Boolean(user.value?.client_plan?.has_plan))
   const hasActiveClientPlan = computed(() => Boolean(user.value?.client_plan?.has_active_plan))
   const clientPlanStatus = computed(() => user.value?.client_plan?.plan_status ?? '')
-  const isTenantActive = computed(() => (user.value?.tenant?.status ?? 'active') === 'active')
 
   const persistSession = (newToken: string | null, userData?: AuthUser, remember = false) => {
     token.value = authMode === 'token' ? newToken : null
@@ -232,7 +227,6 @@ export const useSessionStore = defineStore('session', () => {
     hasClientPlan,
     hasActiveClientPlan,
     clientPlanStatus,
-    isTenantActive,
     clearSession,
     login,
     logout,

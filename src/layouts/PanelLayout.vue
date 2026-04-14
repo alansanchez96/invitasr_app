@@ -29,9 +29,10 @@ const accountDisplayName = computed(() => {
 
 const isDesktopSidebarOpen = computed(() => isDesktopSidebarPinned.value || isDesktopSidebarHovered.value)
 const isCollapsedVisual = computed(() => !isMobile.value && !isDesktopSidebarOpen.value)
-const sidebarHomePath = computed(() => (route.path.startsWith('/backoffice') ? '/backoffice' : '/dashboard'))
+const sidebarHomePath = computed(() => '/backoffice')
+const panelModuleGroups = computed(() => backofficeModuleGroups)
 const moduleGroups = computed(() =>
-  backofficeModuleGroups.map((group) => ({
+  panelModuleGroups.value.map((group) => ({
     ...group,
     entryHref: group.items[0]?.href ?? sidebarHomePath.value,
   })),
@@ -50,10 +51,7 @@ const isGroupActive = (group: BackofficeModuleGroup) => group.items.some((item) 
 
 const isDesktopHomeActive = computed(() => {
   const current = normalizePath(route.path)
-  if (route.path.startsWith('/backoffice')) {
-    return current === '/backoffice' || current === '/backoffice/dashboard'
-  }
-  return current === '/dashboard'
+  return current === '/backoffice' || current === '/backoffice/dashboard'
 })
 
 const initializeSectionState = () => {
@@ -358,35 +356,7 @@ onUnmounted(() => {
                   </div>
                 </div>
               </template>
-              <template v-else>
-                <div class="account-item">
-                  <RouterLink class="account-link" to="/dashboard" @click="closeAccountMenu">
-                    <span>Dashboard</span>
-                  </RouterLink>
-                  <div class="account-submenu">
-                    <RouterLink class="submenu-link" to="/dashboard" @click="closeAccountMenu">Resumen general</RouterLink>
-                    <RouterLink class="submenu-link" to="/dashboard" @click="closeAccountMenu">Estadisticas del evento</RouterLink>
-                    <RouterLink class="submenu-link" to="/dashboard" @click="closeAccountMenu">Actividad reciente</RouterLink>
-                  </div>
-                </div>
-                <div class="account-item">
-                  <RouterLink class="account-link" to="/invitaciones" @click="closeAccountMenu">
-                    <span>Mis invitaciones</span>
-                  </RouterLink>
-                  <div class="account-submenu">
-                    <RouterLink class="submenu-link" to="/invitaciones" @click="closeAccountMenu">Crear invitacion</RouterLink>
-                  </div>
-                </div>
-                <div class="account-item">
-                  <RouterLink class="account-link" to="/configuracion" @click="closeAccountMenu">
-                    <span>Configuracion</span>
-                  </RouterLink>
-                  <div class="account-submenu">
-                    <RouterLink class="submenu-link" to="/configuracion" @click="closeAccountMenu">Perfil</RouterLink>
-                    <RouterLink class="submenu-link" to="/configuracion" @click="closeAccountMenu">Seguridad</RouterLink>
-                  </div>
-                </div>
-              </template>
+              <p v-else class="account-note">No hay modulos publicos adicionales disponibles en este panel.</p>
               <button type="button" class="account-logout-main" @click="handleLogout">
                 <span class="logout-label">Cerrar sesion</span>
                 <span class="logout-icon" aria-hidden="true">

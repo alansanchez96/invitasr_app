@@ -183,7 +183,7 @@ const submitRegister = async () => {
 
     <section v-else-if="mode === 'providers'" class="providers-section">
       <h4>Elige como crear tu cuenta</h4>
-      <p>Un solo acceso para tu plan, tus pagos y tu panel de invitaciones.</p>
+      <p>Un solo acceso para tu plan, tus pagos y el flujo de configuracion inicial.</p>
 
       <div class="provider-grid">
         <button type="button" class="provider-btn is-active" @click="handleProviderSelect('email')">

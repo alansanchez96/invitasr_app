@@ -30,11 +30,6 @@ type SocialReview = {
   author: string
 }
 
-type TemplateCard = {
-  name: string
-  tag: string
-}
-
 type FlowStep = {
   title: string
   description: string
@@ -126,15 +121,6 @@ const flowSteps: FlowStep[] = [
   { title: 'Elige estilo', description: 'Selecciona el diseño que mejor representa tu evento.' },
   { title: 'Personaliza datos', description: 'Nombres, fecha, ubicacion y mensaje en una experiencia guiada.' },
   { title: 'Comparte al instante', description: 'Tu invitacion queda lista para WhatsApp, redes o link directo.' },
-]
-
-const templateCards: TemplateCard[] = [
-  { name: 'Elegante Class', tag: 'Bodas' },
-  { name: 'Glow Party', tag: 'Cumpleanos' },
-  { name: 'Golden XV', tag: 'XV Años' },
-  { name: 'Sweet Welcome', tag: 'Baby Shower' },
-  { name: 'Pure Blessing', tag: 'Bautismo' },
-  { name: 'Impact Pro', tag: 'Corporativo' },
 ]
 
 const benefitCards: { title: string; description: string }[] = [
@@ -307,12 +293,13 @@ onUnmounted(() => {
         </ol>
       </div>
 
-      <div class="phone-demo-wrap" aria-label="Ejemplo de invitacion en celular">
+      <div class="phone-preview-wrap" aria-label="Ejemplo de invitacion en celular">
         <div class="phone-frame">
           <div class="phone-notch"></div>
           <div class="phone-screen">
             <div class="phone-scroll-content">
               <span class="phone-chip">Boda · Demo</span>
+              <span class="phone-chip">Boda · Catalogo</span>
               <h3>Ana & Leo</h3>
               <p>Sabado 14 · Noviembre 2026</p>
               <div class="phone-divider"></div>
@@ -336,21 +323,6 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="demo" class="templates-section" aria-labelledby="templates-title">
-    <div class="container">
-      <div class="templates-head">
-        <p class="templates-kicker">Catalogo de plantillas</p>
-        <h2 id="templates-title">Estilos listos para cada tipo de evento</h2>
-      </div>
-      <div class="templates-grid">
-        <article v-for="item in templateCards" :key="item.name" class="template-card">
-          <h3>{{ item.name }}</h3>
-          <span>{{ item.tag }}</span>
-        </article>
       </div>
     </div>
   </section>
@@ -795,7 +767,7 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-.phone-demo-wrap {
+.phone-preview-wrap {
   display: flex;
   justify-content: center;
 }
@@ -913,7 +885,6 @@ onUnmounted(() => {
   background: #fff;
 }
 
-.templates-head,
 .benefits-head,
 .plans-head {
   display: grid;
@@ -921,7 +892,6 @@ onUnmounted(() => {
   margin-bottom: 18px;
 }
 
-.templates-kicker,
 .benefits-kicker,
 .plans-kicker,
 .faq-kicker,
@@ -934,7 +904,6 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.templates-head h2,
 .benefits-head h2,
 .plans-head h2,
 .faq-head h2,
@@ -943,41 +912,6 @@ onUnmounted(() => {
   color: #2b1a44;
   font-size: clamp(26px, 3.2vw, 38px);
   line-height: 1.12;
-}
-
-.templates-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.template-card {
-  border-radius: 16px;
-  border: 1px solid rgba(222, 208, 246, 0.85);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(142, 96, 214, 0.12), transparent 58%),
-    #fff;
-  padding: 16px;
-  display: grid;
-  gap: 8px;
-}
-
-.template-card h3 {
-  margin: 0;
-  color: #33204f;
-  font-size: 19px;
-  font-family: var(--font-display);
-}
-
-.template-card span {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 6px 10px;
-  border: 1px solid rgba(174, 139, 232, 0.42);
-  color: #6a4699;
-  background: rgba(254, 250, 255, 0.9);
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .benefits-section {
@@ -1131,7 +1065,6 @@ onUnmounted(() => {
     max-width: none;
   }
 
-  .templates-grid,
   .benefits-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

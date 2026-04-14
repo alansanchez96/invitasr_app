@@ -6,6 +6,68 @@ import heroXv from '@/assets/img/hero/xv.webp'
 import type { WeddingTemplateData } from '@/templates/types'
 
 export const weddingTemplateMocks: Record<number, WeddingTemplateData> = {
+  2: {
+    couple: {
+      headline: 'Nos casamos',
+      brideName: 'Alan',
+      groomName: 'Andrea',
+    },
+    event: {
+      date: {
+        iso: '2026-08-24T18:00:00-03:00',
+        label: '24 de agosto de 2026 · 18:00 hs',
+      },
+      venue: 'Estancia Romance',
+      city: 'Buenos Aires',
+    },
+    story: [
+      {
+        title: 'Nuestra historia',
+        description: 'Una invitacion elegante, luminosa y clara para compartir el momento mas importante de nuestra vida.',
+      },
+    ],
+    gallery: [
+      { id: 'rl-1', imageUrl: heroBoda, alt: 'Sesion editorial de pareja' },
+      { id: 'rl-2', imageUrl: heroBabyShower, alt: 'Foto luminosa de pareja' },
+      { id: 'rl-3', imageUrl: heroXv, alt: 'Detalle romantico' },
+    ],
+    faq: [
+      { id: 'rl-faq-1', question: 'Hay dress code?', answer: 'Si, elegante sport en tonos claros.' },
+      { id: 'rl-faq-2', question: 'Puedo llevar acompanante?', answer: 'Si figura en tu invitacion, te esperamos con gusto.' },
+    ],
+    schedule: [],
+    location: {
+      name: 'Estancia Romance',
+      address: 'Ruta 2 km 40, Buenos Aires',
+      mapsUrl: 'https://maps.google.com/?q=Estancia+Romance',
+    },
+    music: {
+      title: 'Perfect',
+      artist: 'Ed Sheeran',
+    },
+    rsvp: {
+      endpoint: '/api/public/invitations/romance-light/rsvp',
+      enabled: true,
+      submitLabel: 'Confirmar asistencia',
+    },
+    branding: {
+      visible: false,
+      label: 'InvitaSR',
+    },
+    checkin: {
+      eyebrow: 'Antes de entrar',
+      title: 'Nos encantaria compartir este momento contigo',
+      message: 'Revisa la fecha del evento y continua.',
+      buttonLabel: 'Entrar',
+    },
+    countdown: {
+      eyebrow: 'Cuenta regresiva',
+      title: 'Cada detalle ya esta en marcha',
+      note: 'Una experiencia editorial pensada para bodas elegantes.',
+      daysLabel: '86 dias',
+      hoursLabel: '04 horas',
+    },
+  },
   42: {
     couple: {
       headline: 'Nos casamos',

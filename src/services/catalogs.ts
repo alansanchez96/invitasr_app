@@ -66,6 +66,11 @@ export type CatalogTemplateItem = {
   plan_id?: number | string | null
   type_event_id?: number | string | null
   name?: string
+  slug?: string
+  renderer_key?: string
+  preview_image?: string | null
+  definition_version?: string | null
+  definition?: Record<string, unknown> | null
   status?: string
   created_at?: string
   updated_at?: string
@@ -204,6 +209,11 @@ const normalizeCatalogTemplate = (value: unknown): CatalogTemplateItem => {
     plan_id: (source.plan_id ?? source.planId) as number | string | null | undefined,
     type_event_id: (source.type_event_id ?? source.typeEventId) as number | string | null | undefined,
     name: source.name as string | undefined,
+    slug: source.slug as string | undefined,
+    renderer_key: (source.renderer_key ?? source.rendererKey) as string | undefined,
+    preview_image: (source.preview_image ?? source.previewImage ?? null) as string | null,
+    definition_version: (source.definition_version ?? source.definitionVersion ?? null) as string | null,
+    definition: Object.keys(toRecord(source.definition)).length ? toRecord(source.definition) : null,
     status: source.status as string | undefined,
     created_at: (source.created_at ?? source.createdAt) as string | undefined,
     updated_at: (source.updated_at ?? source.updatedAt) as string | undefined,

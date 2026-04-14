@@ -8,7 +8,6 @@ import NewsPage from '@/pages/public/NewsPage.vue'
 import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
 import PublicCommercialOnboarding from '@/pages/public/PublicCommercialOnboarding.vue'
 import TemplatePreviewPage from '@/pages/public/TemplatePreviewPage.vue'
-import ClientPlaceholder from '@/pages/public/ClientPlaceholder.vue'
 import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
 import BackofficeClients from '@/pages/backoffice/BackofficeClients.vue'
@@ -64,45 +63,6 @@ const router = createRouter({
           name: 'template-preview',
           component: TemplatePreviewPage,
           meta: { title: 'Preview de template' },
-        },
-      ],
-    },
-    {
-      path: '/',
-      component: PanelLayout,
-      children: [
-        {
-          path: 'dashboard',
-          name: 'dashboard',
-          component: ClientPlaceholder,
-          meta: {
-            title: 'Dashboard',
-            requiresAuth: true,
-            requiresClient: true,
-            requiresActivePlan: true,
-          },
-        },
-        {
-          path: 'invitaciones',
-          name: 'invitaciones',
-          component: ClientPlaceholder,
-          meta: {
-            title: 'Mis invitaciones',
-            requiresAuth: true,
-            requiresClient: true,
-            requiresActivePlan: true,
-          },
-        },
-        {
-          path: 'configuracion',
-          name: 'configuracion',
-          component: ClientPlaceholder,
-          meta: {
-            title: 'Configuracion',
-            requiresAuth: true,
-            requiresClient: true,
-            requiresActivePlan: true,
-          },
         },
       ],
     },
@@ -259,23 +219,14 @@ router.beforeEach(async (to) => {
       const refreshed = await session.refreshMe()
       if (!refreshed.ok) return { name: 'home' }
     }
-
-    if (!session.isTenantActive) {
-      session.clearSession()
-      return { name: 'home' }
-    }
   }
 
   if (to.meta.requiresMaster && !session.isMaster) {
-    return session.isClient ? { name: 'dashboard' } : { name: 'home' }
+    return { name: 'home' }
   }
 
   if (to.meta.requiresClient && !session.isClient) {
     return session.isMaster ? { name: 'backoffice-home' } : { name: 'home' }
-  }
-
-  if (to.meta.requiresActivePlan && !session.hasActiveClientPlan) {
-    return { name: 'planes', query: { reason: 'plan_required' } }
   }
 
   return true

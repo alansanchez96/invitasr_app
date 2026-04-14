@@ -3,12 +3,6 @@ import { onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { backofficeModuleGroups } from '@/config/backofficeModules'
 
-type ClientAccountLink = {
-  label: string
-  to: string
-  icon: 'dashboard' | 'invitaciones' | 'configuracion'
-}
-
 defineProps<{
   isMaster: boolean
   displayName: string
@@ -24,12 +18,6 @@ const emit = defineEmits<{
 const route = useRoute()
 const rootRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
-
-const clientAccountLinks: ClientAccountLink[] = [
-  { label: 'Dashboard', to: '/dashboard', icon: 'dashboard' },
-  { label: 'Mis invitaciones', to: '/invitaciones', icon: 'invitaciones' },
-  { label: 'Configuracion', to: '/configuracion', icon: 'configuracion' },
-]
 
 const toggleMenu = () => {
   isOpen.value = !isOpen.value
@@ -131,43 +119,9 @@ watch(
         </div>
       </template>
 
-      <template v-else>
-        <RouterLink
-          v-for="item in clientAccountLinks"
-          :key="item.to"
-          class="account-link"
-          :to="item.to"
-          @click="closeMenu">
-          <span class="account-icon">
-            <svg
-              v-if="item.icon === 'dashboard'"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8">
-              <rect x="3" y="3" width="7" height="7" rx="2" />
-              <rect x="14" y="3" width="7" height="7" rx="2" />
-              <rect x="3" y="14" width="7" height="7" rx="2" />
-              <rect x="14" y="14" width="7" height="7" rx="2" />
-            </svg>
-            <svg
-              v-else-if="item.icon === 'invitaciones'"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8">
-              <path d="M4 6h16v12H4z" />
-              <path d="m4 7 8 6 8-6" />
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.86.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.08a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.86l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.86.34h0A1.7 1.7 0 0 0 10 3.08V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1 1.54h0a1.7 1.7 0 0 0 1.86-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.86v0A1.7 1.7 0 0 0 20.92 10H21a2 2 0 1 1 0 4h-.08a1.7 1.7 0 0 0-1.54 1Z" />
-            </svg>
-          </span>
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </template>
+      <p v-else class="account-note">
+        Tu sesion esta activa en la experiencia publica.
+      </p>
 
       <button type="button" class="account-logout-main" @click="handleLogoutClick">
         <span class="logout-label">Cerrar sesion</span>
@@ -235,6 +189,13 @@ watch(
   display: grid;
   gap: 6px;
   z-index: 10;
+}
+
+.account-note {
+  margin: 0;
+  padding: 10px 12px;
+  color: #6a5a84;
+  line-height: 1.5;
 }
 
 .account-user-header {

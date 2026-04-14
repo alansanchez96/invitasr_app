@@ -68,12 +68,8 @@ const handleLogout = () => emit('logout')
           </BaseButton>
         </template>
         <template v-else>
-          <BaseButton
-            as="RouterLink"
-            :to="props.isMaster ? '/backoffice' : '/dashboard'"
-            variant="primary"
-            @click="handleClose">
-            Ir a dashboard
+          <BaseButton v-if="props.isMaster" as="RouterLink" to="/backoffice" variant="primary" @click="handleClose">
+            Ir a backoffice
           </BaseButton>
           <button type="button" class="mobile-logout-btn" @click="handleLogout">
             <span class="logout-icon" aria-hidden="true">
@@ -288,4 +284,3 @@ const handleLogout = () => emit('logout')
   }
 }
 </style>
-

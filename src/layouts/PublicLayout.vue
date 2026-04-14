@@ -11,8 +11,13 @@ const session = useSessionStore()
 const route = useRoute()
 const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut || session.isHydrating)
 const isHomeRoute = computed(() => route.name === 'home')
+const showNavbar = computed(() => true)
 const showFooter = computed(() => {
-  const hiddenFooterRoutes = new Set(['public-onboarding-flow', 'public-onboarding', 'template-preview'])
+  const hiddenFooterRoutes = new Set([
+    'public-onboarding-flow',
+    'public-onboarding',
+    'template-preview',
+  ])
   return !hiddenFooterRoutes.has(String(route.name ?? ''))
 })
 </script>
@@ -20,7 +25,7 @@ const showFooter = computed(() => {
 <template>
   <div class="public-layout" :class="{ 'is-home': isHomeRoute }">
     <a class="skip-link" href="#main-content">Saltar al contenido</a>
-    <PublicNavbar />
+    <PublicNavbar v-if="showNavbar" />
     <main id="main-content" tabindex="-1" class="with-mobile-cta">
       <RouterView />
     </main>

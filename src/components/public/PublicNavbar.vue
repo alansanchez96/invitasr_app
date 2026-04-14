@@ -45,20 +45,20 @@ const accountDisplayName = computed(() => {
 })
 const accountInitials = computed(() => buildDisplayInitials(accountIdentitySeed.value, 'CU'))
 const accountAvatarStyle = computed(() => buildAvatarPaletteStyle(accountIdentitySeed.value))
-const desktopNavItems: PublicNavItem[] = [
+const defaultDesktopNavItems: PublicNavItem[] = [
     { label: 'Noticias', to: '/noticias' },
     { label: 'Como funciona', href: '/#como-funciona' },
     { label: 'Inspiracion', href: '/#inspiracion' },
     { label: 'Planes', to: '/planes' },
-    { label: 'Demo', href: '/#demo' },
 ]
-const mobileNavItems: PublicNavItem[] = [
+const defaultMobileNavItems: PublicNavItem[] = [
     { label: 'Planes', to: '/planes', subtitle: 'Elige la opcion ideal para tu evento' },
     { label: 'Como funciona', href: '/#como-funciona', subtitle: 'Mira lo facil que es crear y publicar' },
     { label: 'Inspiracion', href: '/#inspiracion', subtitle: 'Descubre estilos para tu tipo de evento' },
-    { label: 'Demo', href: '/#demo', subtitle: 'Explora una vista real de la experiencia' },
     { label: 'Noticias', to: '/noticias', subtitle: 'Novedades y tendencias del momento' },
 ]
+const desktopNavItems = computed(() => defaultDesktopNavItems)
+const mobileNavItems = computed(() => defaultMobileNavItems)
 let homeHeroElement: HTMLElement | null = null
 
 const resetLoginState = () => {
@@ -103,7 +103,7 @@ const handleMobileLoginAction = () => {
 const handleLogout = () => {
     session.logout().finally(() => {
         closeMenu()
-        if (route.path.startsWith('/backoffice') || route.path.startsWith('/dashboard')) {
+        if (route.path.startsWith('/backoffice')) {
             router.push('/')
         }
     })

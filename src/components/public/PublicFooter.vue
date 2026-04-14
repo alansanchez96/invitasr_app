@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useSessionStore } from '@/stores/session'
 
 const currentYear = new Date().getFullYear()
 const route = useRoute()
-const session = useSessionStore()
 const isHomeFooter = computed(() => route.name === 'home')
-const isAuthenticated = computed(() => session.isAuthenticated)
-const isMaster = computed(() => session.isMaster)
 </script>
 
 <template>
@@ -33,25 +29,15 @@ const isMaster = computed(() => session.isMaster)
         <nav class="footer-col" aria-label="Secciones de landing">
           <h3>Secciones</h3>
           <a href="/#como-funciona">Como funciona</a>
-          <a href="/#demo">Plantillas</a>
           <a href="/#inspiracion">Beneficios</a>
           <a href="/#faq">FAQ</a>
         </nav>
 
         <nav class="footer-col" aria-label="Cuenta">
           <h3>Cuenta</h3>
-          <template v-if="!isAuthenticated">
-            <a href="/planes">Iniciar sesion</a>
-            <span class="footer-note">Accede para ver tu panel correspondiente.</span>
-          </template>
-          <template v-else-if="isMaster">
-            <a href="/backoffice">Dashboard master</a>
-            <span class="footer-note">Gestion administrativa y control general.</span>
-          </template>
-          <template v-else>
-            <a href="/dashboard">Dashboard cliente</a>
-            <span class="footer-note">Gestiona tus invitaciones y tu cuenta.</span>
-          </template>
+          <a href="/planes">Explorar planes</a>
+          <a href="/backoffice">Backoffice</a>
+          <span class="footer-note">La experiencia publica se mantiene enfocada en landing y catalogos.</span>
         </nav>
 
         <section class="footer-col" aria-label="Contacto y legal">

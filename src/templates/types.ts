@@ -4,13 +4,17 @@ export type InvitationTemplateEventType = 'wedding'
 
 export type InvitationTemplateFeature =
   | 'hero'
+  | 'checkin'
   | 'countdown'
   | 'story'
   | 'gallery'
+  | 'faq'
   | 'schedule'
   | 'location'
   | 'music'
   | 'rsvp'
+  | 'wall-preview'
+  | 'branding'
 
 export type InvitationTemplateManifest = {
   id: number
@@ -39,6 +43,12 @@ export type InvitationGalleryItem = {
   alt: string
 }
 
+export type InvitationFaqItem = {
+  id: string
+  question: string
+  answer: string
+}
+
 export type InvitationScheduleItem = {
   id: string
   time: string
@@ -64,6 +74,39 @@ export type InvitationRsvpConfig = {
   submitLabel: string
 }
 
+export type InvitationCheckinConfig = {
+  eyebrow: string
+  title: string
+  message: string
+  buttonLabel: string
+  guestLabel?: string
+}
+
+export type InvitationCountdownConfig = {
+  eyebrow: string
+  title: string
+  note: string
+  daysLabel: string
+  hoursLabel: string
+}
+
+export type InvitationWallPreviewMessage = {
+  id: string
+  author: string
+  message: string
+}
+
+export type InvitationWallPreviewConfig = {
+  title: string
+  description: string
+  messages: InvitationWallPreviewMessage[]
+}
+
+export type InvitationBrandingConfig = {
+  visible: boolean
+  label: string
+}
+
 export type WeddingTemplateData = {
   couple: {
     headline: string
@@ -77,10 +120,15 @@ export type WeddingTemplateData = {
   }
   story: InvitationStoryMoment[]
   gallery: InvitationGalleryItem[]
+  faq?: InvitationFaqItem[]
   schedule: InvitationScheduleItem[]
   location: InvitationLocation
   music: InvitationMusic
   rsvp: InvitationRsvpConfig
+  branding?: InvitationBrandingConfig
+  checkin?: InvitationCheckinConfig
+  countdown?: InvitationCountdownConfig
+  wallPreview?: InvitationWallPreviewConfig
 }
 
 export type InvitationTemplateDataMap = {

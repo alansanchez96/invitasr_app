@@ -7,6 +7,7 @@ interface RequestOptions {
     body?: unknown
     token?: string | null
     credentials?: RequestCredentials
+    baseUrl?: string
 }
 
 type ValidationErrorPayload = {
@@ -23,10 +24,15 @@ const getAuthMode = () => {
 }
 
 export const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-    const url = `${getBaseUrl()}${path}`
+    const baseUrl = options.baseUrl === undefined ? getBaseUrl() : options.baseUrl.replace(/\/$/, '')
+    const url = `${baseUrl}${path}`
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
     const headers: Record<string, string> = {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+    }
+
+    if (!isFormData) {
+        headers['Content-Type'] = 'application/json'
     }
 
     if (options.token) {
@@ -36,7 +42,11 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
     const response = await fetch(url, {
         method: options.method ?? 'GET',
         headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        body: options.body
+            ? isFormData
+                ? (options.body as FormData)
+                : JSON.stringify(options.body)
+            : undefined,
         credentials: options.credentials ?? (getAuthMode() === 'cookie' ? 'include' : 'omit'),
     })
 
