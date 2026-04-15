@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
-import { backofficeModuleGroups, type BackofficeModuleGroup } from '@/config/backofficeModules'
+import { getPanelHomePath, getPanelModuleGroups, type PanelModuleGroup } from '@/config/panelModules'
 import ToastStack from '@/components/ui/ToastStack.vue'
 
 const route = useRoute()
@@ -26,11 +26,12 @@ const accountDisplayName = computed(() => {
     .trim()
   return fullName || session.user?.email || 'Mi cuenta'
 })
+const panelLabel = computed(() => (isMaster.value ? 'Dashboard' : 'Mi panel'))
 
 const isDesktopSidebarOpen = computed(() => isDesktopSidebarPinned.value || isDesktopSidebarHovered.value)
 const isCollapsedVisual = computed(() => !isMobile.value && !isDesktopSidebarOpen.value)
-const sidebarHomePath = computed(() => '/backoffice')
-const panelModuleGroups = computed(() => backofficeModuleGroups)
+const sidebarHomePath = computed(() => getPanelHomePath(isMaster.value))
+const panelModuleGroups = computed(() => getPanelModuleGroups(isMaster.value))
 const moduleGroups = computed(() =>
   panelModuleGroups.value.map((group) => ({
     ...group,
@@ -47,11 +48,12 @@ const isPathActive = (href: string) => {
   return current === target || current.startsWith(`${target}/`)
 }
 
-const isGroupActive = (group: BackofficeModuleGroup) => group.items.some((item) => isPathActive(item.href))
+const isGroupActive = (group: PanelModuleGroup) => group.items.some((item) => isPathActive(item.href))
 
 const isDesktopHomeActive = computed(() => {
   const current = normalizePath(route.path)
-  return current === '/backoffice' || current === '/backoffice/dashboard'
+  const home = normalizePath(sidebarHomePath.value)
+  return current === home || current === normalizePath(`${home}/dashboard`)
 })
 
 const initializeSectionState = () => {
@@ -63,15 +65,15 @@ const initializeSectionState = () => {
   sectionOpenState.value = next
 }
 
-const isGroupExpanded = (title: BackofficeModuleGroup['title']) => {
+const isGroupExpanded = (title: PanelModuleGroup['title']) => {
   return sectionOpenState.value[title] ?? defaultSectionsOpen.value
 }
 
-const getGroupId = (title: BackofficeModuleGroup['title']) => {
+const getGroupId = (title: PanelModuleGroup['title']) => {
   return `sidebar-group-${title.toLowerCase().replace(/\s+/g, '-')}`
 }
 
-const toggleGroup = (title: BackofficeModuleGroup['title']) => {
+const toggleGroup = (title: PanelModuleGroup['title']) => {
   sectionOpenState.value = {
     ...sectionOpenState.value,
     [title]: !isGroupExpanded(title),
@@ -340,23 +342,24 @@ onUnmounted(() => {
                 <span class="account-user-label">Sesion activa</span>
                 <p class="account-user-name">{{ accountDisplayName }}</p>
               </div>
-              <template v-if="isMaster">
-                <div class="account-item">
-                  <RouterLink class="account-link" to="/backoffice" @click="closeAccountMenu">
-                    <span>Dashboard</span>
-                  </RouterLink>
-                  <div class="account-submenu">
-                    <div v-for="group in backofficeModuleGroups" :key="group.title" class="submenu-group">
-                      <span class="submenu-title">{{ group.title }}</span>
-                      <RouterLink v-for="module in group.items" :key="module.label" :to="module.href" class="submenu-link"
-                        @click="closeAccountMenu">
-                        <span>{{ module.label }}</span>
-                      </RouterLink>
-                    </div>
+              <div class="account-item">
+                <RouterLink class="account-link" :to="sidebarHomePath" @click="closeAccountMenu">
+                  <span>{{ panelLabel }}</span>
+                </RouterLink>
+                <div class="account-submenu">
+                  <div v-for="group in panelModuleGroups" :key="group.title" class="submenu-group">
+                    <span class="submenu-title">{{ group.title }}</span>
+                    <RouterLink
+                      v-for="module in group.items"
+                      :key="module.label"
+                      :to="module.href"
+                      class="submenu-link"
+                      @click="closeAccountMenu">
+                      <span>{{ module.label }}</span>
+                    </RouterLink>
                   </div>
                 </div>
-              </template>
-              <p v-else class="account-note">No hay modulos publicos adicionales disponibles en este panel.</p>
+              </div>
               <button type="button" class="account-logout-main" @click="handleLogout">
                 <span class="logout-label">Cerrar sesion</span>
                 <span class="logout-icon" aria-hidden="true">

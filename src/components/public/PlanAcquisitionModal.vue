@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onUnmounted, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { registerPublicOnboarding, type PublicOnboardingRegistrationInput } from '@/services/publicOnboarding'
+import { useCatalogStore } from '@/stores/catalogs'
 import { useSessionStore } from '@/stores/session'
 import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
 
@@ -26,6 +28,8 @@ const emit = defineEmits<{
 }>()
 
 const session = useSessionStore()
+const catalogStore = useCatalogStore()
+const { countries } = storeToRefs(catalogStore)
 const mode = ref<'decision' | 'providers' | 'email'>('decision')
 const isSubmitting = ref(false)
 const fieldErrors = ref<FieldErrors>({})
@@ -36,20 +40,6 @@ const form = reactive({
   password: '',
   country_code: 'AR',
 })
-
-const COUNTRIES = [
-  { code: 'AR', label: 'Argentina' },
-  { code: 'BO', label: 'Bolivia' },
-  { code: 'BR', label: 'Brasil' },
-  { code: 'CL', label: 'Chile' },
-  { code: 'CO', label: 'Colombia' },
-  { code: 'EC', label: 'Ecuador' },
-  { code: 'ES', label: 'Espana' },
-  { code: 'MX', label: 'Mexico' },
-  { code: 'PE', label: 'Peru' },
-  { code: 'PY', label: 'Paraguay' },
-  { code: 'UY', label: 'Uruguay' },
-]
 
 const DRAFT_KEY = 'public_onboarding_draft'
 
@@ -70,6 +60,9 @@ watch(
     if (!isOpen) return
     mode.value = 'decision'
     fieldErrors.value = {}
+    void catalogStore.ensureCountries().catch(() => {
+      notifyWarning('No pudimos cargar el catalogo de paises.')
+    })
   },
 )
 
@@ -232,7 +225,9 @@ const submitRegister = async () => {
           <span>Pais de residencia</span>
           <select v-model="form.country_code" :aria-invalid="Boolean(getFieldError('country_code'))">
             <option value="">Selecciona un pais</option>
-            <option v-for="country in COUNTRIES" :key="country.code" :value="country.code">{{ country.label }}</option>
+            <option v-for="country in countries" :key="country.iso ?? country.id" :value="country.iso">
+              {{ country.nicename ?? country.name }}
+            </option>
           </select>
           <small v-if="getFieldError('country_code')" class="field-error">{{ getFieldError('country_code') }}</small>
         </label>

@@ -14,6 +14,8 @@ type ValidationErrorPayload = {
     errors?: Record<string, string[]>
 }
 
+const TOKEN_KEY = 'token'
+
 const getBaseUrl = () => {
     const raw = import.meta.env.VITE_API_BASE_URL as string
     return raw?.replace(/\/$/, '') ?? ''
@@ -23,10 +25,17 @@ const getAuthMode = () => {
     return (import.meta.env.VITE_AUTH_MODE as 'token' | 'cookie' | undefined) ?? 'token'
 }
 
+const getStoredToken = () => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
+}
+
 export const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
     const baseUrl = options.baseUrl === undefined ? getBaseUrl() : options.baseUrl.replace(/\/$/, '')
     const url = `${baseUrl}${path}`
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+    const authMode = getAuthMode()
+    const resolvedToken = options.token ?? (authMode === 'token' ? getStoredToken() : null)
     const headers: Record<string, string> = {
         Accept: 'application/json',
     }
@@ -35,8 +44,8 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
         headers['Content-Type'] = 'application/json'
     }
 
-    if (options.token) {
-        headers.Authorization = `Bearer ${options.token}`
+    if (resolvedToken) {
+        headers.Authorization = `Bearer ${resolvedToken}`
     }
 
     const response = await fetch(url, {
@@ -47,7 +56,7 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
                 ? (options.body as FormData)
                 : JSON.stringify(options.body)
             : undefined,
-        credentials: options.credentials ?? (getAuthMode() === 'cookie' ? 'include' : 'omit'),
+        credentials: options.credentials ?? (authMode === 'cookie' ? 'include' : 'omit'),
     })
 
     const text = await response.text()

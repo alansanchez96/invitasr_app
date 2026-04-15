@@ -10,6 +10,10 @@ type AuthUser = {
   created_at: string
   updated_at: string
   contextEncrypt: boolean
+  tenant?: {
+    id?: number | string
+    status?: string | null
+  } | null
   client_plan?: {
     has_plan?: boolean
     has_active_plan?: boolean
@@ -120,6 +124,12 @@ export const useSessionStore = defineStore('session', () => {
     sessionStorage.removeItem(USER_KEY)
   }
 
+  const patchUser = (patch: Partial<AuthUser>) => {
+    if (!user.value) return
+    const remember = localStorage.getItem(REMEMBER_KEY) === '1'
+    persistSession(token.value, { ...user.value, ...patch }, remember)
+  }
+
   const login = async (email: string, password: string, remember = false) => {
     isLoading.value = true
     try {
@@ -228,6 +238,7 @@ export const useSessionStore = defineStore('session', () => {
     hasActiveClientPlan,
     clientPlanStatus,
     clearSession,
+    patchUser,
     login,
     logout,
     hydrateSession,

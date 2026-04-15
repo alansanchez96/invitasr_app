@@ -103,7 +103,7 @@ const handleMobileLoginAction = () => {
 const handleLogout = () => {
     session.logout().finally(() => {
         closeMenu()
-        if (route.path.startsWith('/backoffice')) {
+        if (route.path.startsWith('/backoffice') || route.path.startsWith('/panel')) {
             router.push('/')
         }
     })
@@ -126,6 +126,7 @@ const handleLoginSubmit = async (payload: { email: string; password: string; rem
         return
     }
     closeLoginMenu()
+    await router.push(session.isMaster ? '/backoffice' : '/panel')
 }
 
 const handleLoginKeydown = (event: KeyboardEvent) => {

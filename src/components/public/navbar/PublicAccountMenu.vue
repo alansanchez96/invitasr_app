@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { backofficeModuleGroups } from '@/config/backofficeModules'
+import { getPanelHomePath, getPanelModuleGroups } from '@/config/panelModules'
 
-defineProps<{
+const props = defineProps<{
   isMaster: boolean
   displayName: string
   initials: string
@@ -18,6 +18,9 @@ const emit = defineEmits<{
 const route = useRoute()
 const rootRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
+const panelHomePath = computed(() => getPanelHomePath(props.isMaster))
+const moduleGroups = computed(() => getPanelModuleGroups(props.isMaster))
+const panelLabel = computed(() => (props.isMaster ? 'Dashboard' : 'Mi panel'))
 
 const toggleMenu = () => {
   isOpen.value = !isOpen.value
@@ -90,38 +93,32 @@ watch(
         <p class="account-user-name">{{ displayName }}</p>
       </div>
 
-      <template v-if="isMaster">
-        <div class="account-item">
-          <RouterLink class="account-link" to="/backoffice" @click="closeMenu">
-            <span class="account-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="3" y="3" width="7" height="7" rx="2" />
-                <rect x="14" y="3" width="7" height="7" rx="2" />
-                <rect x="3" y="14" width="7" height="7" rx="2" />
-                <rect x="14" y="14" width="7" height="7" rx="2" />
-              </svg>
-            </span>
-            <span>Dashboard</span>
-          </RouterLink>
-          <div class="account-submenu">
-            <div v-for="group in backofficeModuleGroups" :key="group.title" class="submenu-group">
-              <span class="submenu-title">{{ group.title }}</span>
-              <RouterLink
-                v-for="module in group.items"
-                :key="module.label"
-                :to="module.href"
-                class="submenu-link"
-                @click="closeMenu">
-                <span>{{ module.label }}</span>
-              </RouterLink>
-            </div>
+      <div class="account-item">
+        <RouterLink class="account-link" :to="panelHomePath" @click="closeMenu">
+          <span class="account-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="3" y="3" width="7" height="7" rx="2" />
+              <rect x="14" y="3" width="7" height="7" rx="2" />
+              <rect x="3" y="14" width="7" height="7" rx="2" />
+              <rect x="14" y="14" width="7" height="7" rx="2" />
+            </svg>
+          </span>
+          <span>{{ panelLabel }}</span>
+        </RouterLink>
+        <div class="account-submenu">
+          <div v-for="group in moduleGroups" :key="group.title" class="submenu-group">
+            <span class="submenu-title">{{ group.title }}</span>
+            <RouterLink
+              v-for="module in group.items"
+              :key="module.label"
+              :to="module.href"
+              class="submenu-link"
+              @click="closeMenu">
+              <span>{{ module.label }}</span>
+            </RouterLink>
           </div>
         </div>
-      </template>
-
-      <p v-else class="account-note">
-        Tu sesion esta activa en la experiencia publica.
-      </p>
+      </div>
 
       <button type="button" class="account-logout-main" @click="handleLogoutClick">
         <span class="logout-label">Cerrar sesion</span>

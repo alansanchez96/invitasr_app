@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import {
@@ -10,6 +11,7 @@ import {
   type PublicOnboardingProfileUpdateInput,
   type PublicOnboardingRegistrationInput,
 } from '@/services/publicOnboarding'
+import { useCatalogStore } from '@/stores/catalogs'
 import { useSessionStore } from '@/stores/session'
 import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
 
@@ -17,6 +19,8 @@ const DRAFT_KEY = 'public_onboarding_draft'
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const catalogStore = useCatalogStore()
+const { countries } = storeToRefs(catalogStore)
 
 const isLoading = ref(true)
 const isPaying = ref(false)
@@ -32,20 +36,6 @@ const editForm = reactive({
   email: '',
   country_code: '',
 })
-
-const COUNTRIES = [
-  { code: 'AR', label: 'Argentina' },
-  { code: 'BO', label: 'Bolivia' },
-  { code: 'BR', label: 'Brasil' },
-  { code: 'CL', label: 'Chile' },
-  { code: 'CO', label: 'Colombia' },
-  { code: 'EC', label: 'Ecuador' },
-  { code: 'ES', label: 'Espana' },
-  { code: 'MX', label: 'Mexico' },
-  { code: 'PE', label: 'Peru' },
-  { code: 'PY', label: 'Paraguay' },
-  { code: 'UY', label: 'Uruguay' },
-]
 
 const planIdFromQuery = computed(() => {
   const raw = Array.isArray(route.query.planId) ? route.query.planId[0] : route.query.planId
@@ -63,9 +53,14 @@ const registrationName = computed(
 const registrationEmail = computed(
   () => draftPayload.value?.email || profile.value?.registration?.email || '-',
 )
-const registrationCountry = computed(
-  () => draftPayload.value?.country_code || profile.value?.registration?.country_code || '-',
+const registrationCountryCode = computed(
+  () => draftPayload.value?.country_code || profile.value?.registration?.country_code || '',
 )
+const registrationCountry = computed(() => {
+  if (!registrationCountryCode.value) return '-'
+  const match = countries.value.find((country) => country.iso === registrationCountryCode.value)
+  return match?.nicename ?? match?.name ?? registrationCountryCode.value
+})
 const registrationPlan = computed(() => {
   if (planNameFromQuery.value) return planNameFromQuery.value
   if (profile.value?.onboarding?.plan?.name) return profile.value.onboarding.plan.name
@@ -208,7 +203,7 @@ const openEditModal = () => {
   editErrors.value = {}
   editForm.full_name = registrationName.value === '-' ? '' : registrationName.value
   editForm.email = registrationEmail.value === '-' ? '' : registrationEmail.value
-  editForm.country_code = registrationCountry.value === '-' ? '' : registrationCountry.value
+  editForm.country_code = registrationCountryCode.value
   isEditModalOpen.value = true
 }
 
@@ -286,6 +281,9 @@ watch(
 )
 
 onMounted(async () => {
+  void catalogStore.ensureCountries().catch(() => {
+    notifyWarning('No pudimos cargar el catalogo de paises.')
+  })
   if (!session.isAuthenticated) {
     const result = await session.refreshMe()
     if (!result.ok) {
@@ -402,7 +400,9 @@ onMounted(async () => {
         <span>Pais de residencia</span>
         <select v-model="editForm.country_code" :aria-invalid="Boolean(getEditError('country_code'))">
           <option value="">Selecciona un pais</option>
-          <option v-for="country in COUNTRIES" :key="country.code" :value="country.code">{{ country.label }}</option>
+          <option v-for="country in countries" :key="country.iso ?? country.id" :value="country.iso">
+            {{ country.nicename ?? country.name }}
+          </option>
         </select>
         <small v-if="getEditError('country_code')" class="field-error">{{ getEditError('country_code') }}</small>
       </label>

@@ -38,6 +38,7 @@ const handleLoginSubmit = async (payload: { email: string; password: string; rem
     return
   }
   closeLogin()
+  await router.push(session.isMaster ? '/backoffice' : '/panel')
 }
 
 const handleLogout = () => {
@@ -61,7 +62,7 @@ const handleLogout = () => {
       </div>
 
       <div v-else class="mobile-cta-inner">
-        <BaseButton as="RouterLink" variant="primary" to="/planes">Ver planes</BaseButton>
+        <BaseButton as="RouterLink" variant="primary" to="/panel">Ir a mi panel</BaseButton>
         <BaseButton variant="ghost" type="button" @click="handleLogout">Cerrar sesion</BaseButton>
       </div>
     </div>

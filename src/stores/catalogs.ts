@@ -2,10 +2,12 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   getCatalogPlan,
+  listCatalogCountries,
   listCatalogPlans,
   listCatalogPlanFeatures,
   listCatalogTemplates,
   listCatalogTypeEvents,
+  type CatalogCountryItem,
   type CatalogPlanFeatureItem,
   type CatalogPlanListItem,
   type CatalogTemplateItem,
@@ -14,10 +16,12 @@ import {
 
 export const useCatalogStore = defineStore('catalogs', () => {
   const plans = ref<CatalogPlanListItem[]>([])
+  const countries = ref<CatalogCountryItem[]>([])
   const templates = ref<CatalogTemplateItem[]>([])
   const typeEvents = ref<CatalogTypeEventItem[]>([])
   const planFeatures = ref<Record<string, CatalogPlanFeatureItem[]>>({})
   const isLoadingPlans = ref(false)
+  const isLoadingCountries = ref(false)
   const isLoadingTemplates = ref(false)
   const isLoadingTypeEvents = ref(false)
 
@@ -30,6 +34,18 @@ export const useCatalogStore = defineStore('catalogs', () => {
       return plans.value
     } finally {
       isLoadingPlans.value = false
+    }
+  }
+
+  const ensureCountries = async () => {
+    if (countries.value.length) return countries.value
+    isLoadingCountries.value = true
+    try {
+      const response = await listCatalogCountries({ page: 1, perPage: 300 })
+      countries.value = response.list
+      return countries.value
+    } finally {
+      isLoadingCountries.value = false
     }
   }
 
@@ -85,13 +101,16 @@ export const useCatalogStore = defineStore('catalogs', () => {
 
   return {
     plans,
+    countries,
     templates,
     typeEvents,
     planFeatures,
     isLoadingPlans,
+    isLoadingCountries,
     isLoadingTemplates,
     isLoadingTypeEvents,
     ensurePlans,
+    ensureCountries,
     ensureTypeEvents,
     loadTemplates,
     ensurePlanFeatures,

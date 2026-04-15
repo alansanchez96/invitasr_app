@@ -20,6 +20,10 @@ import BackofficePlans from '@/pages/backoffice/BackofficePlans.vue'
 import BackofficeFeatures from '@/pages/backoffice/BackofficeFeatures.vue'
 import BackofficePlanFeatures from '@/pages/backoffice/BackofficePlanFeatures.vue'
 import BackofficeEventTypes from '@/pages/backoffice/BackofficeEventTypes.vue'
+import ClientHome from '@/pages/client/ClientHome.vue'
+import ClientStats from '@/pages/client/ClientStats.vue'
+import ClientInvitations from '@/pages/client/ClientInvitations.vue'
+import ClientSettings from '@/pages/client/ClientSettings.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -199,6 +203,42 @@ const router = createRouter({
       ],
     },
     {
+      path: '/panel',
+      component: PanelLayout,
+      children: [
+        {
+          path: '',
+          name: 'client-home',
+          component: ClientHome,
+          meta: { title: 'Mi panel', requiresAuth: true, requiresClient: true },
+        },
+        {
+          path: 'dashboard',
+          name: 'client-dashboard',
+          component: ClientHome,
+          meta: { title: 'Mi panel · Vista general', requiresAuth: true, requiresClient: true },
+        },
+        {
+          path: 'estadisticas',
+          name: 'client-stats',
+          component: ClientStats,
+          meta: { title: 'Mi panel · Estadisticas', requiresAuth: true, requiresClient: true },
+        },
+        {
+          path: 'invitaciones',
+          name: 'client-invitations',
+          component: ClientInvitations,
+          meta: { title: 'Mi panel · Mis invitaciones', requiresAuth: true, requiresClient: true },
+        },
+        {
+          path: 'configuracion',
+          name: 'client-settings',
+          component: ClientSettings,
+          meta: { title: 'Mi panel · Configuracion', requiresAuth: true, requiresClient: true },
+        },
+      ],
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },
@@ -222,7 +262,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresMaster && !session.isMaster) {
-    return { name: 'home' }
+    return session.isClient ? { name: 'client-home' } : { name: 'home' }
   }
 
   if (to.meta.requiresClient && !session.isClient) {

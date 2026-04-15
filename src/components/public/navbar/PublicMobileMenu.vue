@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import { getPanelHomePath } from '@/config/panelModules'
 import type { PublicNavItem } from './types'
 
 const props = defineProps<{
@@ -23,6 +25,8 @@ const resolveNavItemProps = (item: PublicNavItem) => {
 const handleClose = () => emit('close')
 const handleLogin = () => emit('login')
 const handleLogout = () => emit('logout')
+const dashboardPath = computed(() => getPanelHomePath(props.isMaster))
+const dashboardLabel = computed(() => (props.isMaster ? 'Ir a backoffice' : 'Ir a mi panel'))
 </script>
 
 <template>
@@ -68,8 +72,8 @@ const handleLogout = () => emit('logout')
           </BaseButton>
         </template>
         <template v-else>
-          <BaseButton v-if="props.isMaster" as="RouterLink" to="/backoffice" variant="primary" @click="handleClose">
-            Ir a backoffice
+          <BaseButton as="RouterLink" :to="dashboardPath" variant="primary" @click="handleClose">
+            {{ dashboardLabel }}
           </BaseButton>
           <button type="button" class="mobile-logout-btn" @click="handleLogout">
             <span class="logout-icon" aria-hidden="true">

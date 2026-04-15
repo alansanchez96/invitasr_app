@@ -28,6 +28,14 @@ export type CatalogTypeEventListParams = {
   perPage?: number
 }
 
+export type CatalogCountryListParams = {
+  iso?: string
+  name?: string
+  phonecode?: string | number
+  page?: number
+  perPage?: number
+}
+
 export type CatalogPlanFeatureItem = {
   id?: number | string
   key?: string
@@ -78,6 +86,18 @@ export type CatalogTemplateItem = {
   type_event?: CatalogTypeEventItem | null
 }
 
+export type CatalogCountryItem = {
+  id?: number | string
+  iso?: string
+  name?: string
+  nicename?: string
+  iso3?: string | null
+  numcode?: number | null
+  phonecode?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
 type Paginated<T> = {
   data?: T[]
   current_page?: number
@@ -98,6 +118,7 @@ type ListResponse<T> = {
   templates?: T[]
   type_events?: T[]
   typeEvents?: T[]
+  countries?: T[]
   pagination?: Record<string, unknown>
 }
 
@@ -109,6 +130,7 @@ type GetResponse<T> = {
   feature?: T
   template?: T
   type_event?: T
+  country?: T
 }
 
 const CATALOGS_BASE = '/catalogs'
@@ -136,7 +158,7 @@ const extractList = (value: unknown): unknown[] => {
   if (!value || typeof value !== 'object') return []
 
   const source = value as Record<string, unknown>
-  const directKeys = ['data', 'list', 'items', 'rows', 'plans', 'features', 'templates', 'type_events', 'typeEvents']
+  const directKeys = ['data', 'list', 'items', 'rows', 'plans', 'features', 'templates', 'type_events', 'typeEvents', 'countries']
   for (const key of directKeys) {
     if (Array.isArray(source[key])) {
       return source[key] as unknown[]
@@ -219,6 +241,22 @@ const normalizeCatalogTemplate = (value: unknown): CatalogTemplateItem => {
     updated_at: (source.updated_at ?? source.updatedAt) as string | undefined,
     plan: Object.keys(toRecord(source.plan)).length ? normalizeCatalogPlan(source.plan) : null,
     type_event: Object.keys(toRecord(source.type_event)).length ? normalizeCatalogTypeEvent(source.type_event) : null,
+  }
+}
+
+const normalizeCatalogCountry = (value: unknown): CatalogCountryItem => {
+  const source = toRecord(value)
+
+  return {
+    id: source.id as number | string | undefined,
+    iso: source.iso as string | undefined,
+    name: source.name as string | undefined,
+    nicename: source.nicename as string | undefined,
+    iso3: (source.iso3 ?? null) as string | null,
+    numcode: (source.numcode ?? null) as number | null,
+    phonecode: (source.phonecode ?? null) as number | null,
+    created_at: (source.created_at ?? source.createdAt) as string | undefined,
+    updated_at: (source.updated_at ?? source.updatedAt) as string | undefined,
   }
 }
 
@@ -310,6 +348,25 @@ export const listCatalogTypeEvents = async (params: CatalogTypeEventListParams =
   return {
     list,
     ...parsePagination(dataSource, params.page ?? 1, params.perPage ?? 10),
+  }
+}
+
+export const listCatalogCountries = async (params: CatalogCountryListParams = {}) => {
+  const payload = await request<ListResponse<CatalogCountryItem>>(
+    `${CATALOGS_BASE}/countries${buildQuery({
+      iso: params.iso,
+      name: params.name,
+      phonecode: params.phonecode,
+      page: params.page ?? 1,
+      perPage: params.perPage ?? 300,
+    })}`,
+  )
+
+  const dataSource = payload.data ?? payload
+  const list = extractList(dataSource).map(normalizeCatalogCountry)
+  return {
+    list,
+    ...parsePagination(dataSource, params.page ?? 1, params.perPage ?? 300),
   }
 }
 
