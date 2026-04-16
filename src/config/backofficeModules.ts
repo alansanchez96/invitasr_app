@@ -10,6 +10,10 @@ export type BackofficeModuleGroup = {
 
 export const backofficeModuleGroups: BackofficeModuleGroup[] = [
   {
+    title: 'Monitoreo',
+    items: [{ label: 'Observabilidad', href: '/backoffice/dashboard' }],
+  },
+  {
     title: 'Gestion',
     items: [
       { label: 'Clientes', href: '/backoffice/clients' },

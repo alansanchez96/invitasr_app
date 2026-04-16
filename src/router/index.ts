@@ -115,7 +115,13 @@ const router = createRouter({
           path: 'dashboard',
           name: 'backoffice-dashboard',
           component: BackofficeDashboard,
-          meta: { title: 'Dashboard · Vista general', requiresAuth: true, requiresMaster: true },
+          meta: {
+            title: 'Dashboard · Observabilidad',
+            moduleLabel: 'Observabilidad',
+            moduleDescription: 'Salud operativa de acceso, activaciones y cobros.',
+            requiresAuth: true,
+            requiresMaster: true,
+          },
         },
         {
           path: 'clients',

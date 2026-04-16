@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { getFlowHealth, type FlowHealthMetric, type RecentError } from '@/services/observability'
+import { notifyWarning } from '@/utils/toast'
 
 type Kpi = {
   label: string
@@ -13,6 +16,8 @@ type HealthMetric = {
   label: string
   value: number
   hint: string
+  errors24h: number
+  trendLabel: string
 }
 
 type Activity = {
@@ -27,77 +32,110 @@ type Shortcut = {
   to: string
 }
 
-const kpis: Kpi[] = [
-  {
-    label: 'Clientes registrados',
-    value: '248',
-    delta: '+12%',
-    tone: 'up',
-    footnote: 'vs. ultimo mes',
-  },
-  {
-    label: 'Invitaciones creadas',
-    value: '3.420',
-    delta: '+18%',
-    tone: 'up',
-    footnote: 'acumulado del trimestre',
-  },
-  {
-    label: 'Eventos activos',
-    value: '74',
-    delta: '+6%',
-    tone: 'up',
-    footnote: 'con actividad en 7 dias',
-  },
-  {
-    label: 'Tasa de confirmacion RSVP',
-    value: '81%',
-    delta: '-2%',
-    tone: 'down',
-    footnote: 'promedio general',
-  },
-]
+const loading = ref(false)
+const generatedAt = ref<string | null>(null)
+const kpis = ref<Kpi[]>([])
+const healthMetrics = ref<HealthMetric[]>([])
+const recentActivity = ref<Activity[]>([])
 
-const healthMetrics: HealthMetric[] = [
-  {
-    label: 'Onboarding completado',
-    value: 78,
-    hint: '194 de 248 clientes completaron configuracion inicial.',
-  },
-  {
-    label: 'Pagos al dia',
-    value: 86,
-    hint: 'Suscripciones activas sin alertas de cobranza.',
-  },
-  {
-    label: 'Eventos con plantilla activa',
-    value: 64,
-    hint: 'Eventos ya publicados con branding definido.',
-  },
-]
+const hasData = computed(() => kpis.value.length > 0 || healthMetrics.value.length > 0 || recentActivity.value.length > 0)
 
-const recentActivity: Activity[] = [
-  {
-    title: 'Nuevo cliente activado',
-    detail: 'Salon del Lago completo onboarding en plan Planner.',
-    time: 'Hace 14 min',
-  },
-  {
-    title: 'Pico de invitaciones enviadas',
-    detail: 'Campana Boda Abril supero 380 invitaciones en 24h.',
-    time: 'Hace 1 h',
-  },
-  {
-    title: 'Pago aprobado',
-    detail: 'Suscripcion mensual renovada para Estudio Nube.',
-    time: 'Hace 2 h',
-  },
-  {
-    title: 'Nuevo tipo de evento creado',
-    detail: 'Se agrego el tipo "Evento corporativo premium".',
-    time: 'Hoy, 09:12',
-  },
-]
+const formatTrend = (value: number) => {
+  if (!Number.isFinite(value) || value === 0) return { delta: '0%', tone: 'neutral' as const }
+  if (value > 0) return { delta: `+${value}%`, tone: 'up' as const }
+  return { delta: `${value}%`, tone: 'down' as const }
+}
+
+const formatRelative = (isoDate: string | null | undefined) => {
+  if (!isoDate) return 'Sin fecha'
+  const parsed = new Date(isoDate)
+  if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
+
+  const diffMs = Date.now() - parsed.getTime()
+  const diffMinutes = Math.floor(diffMs / 60000)
+  if (diffMinutes < 1) return 'Hace instantes'
+  if (diffMinutes < 60) return `Hace ${diffMinutes} min`
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `Hace ${diffHours} h`
+  const diffDays = Math.floor(diffHours / 24)
+  return `Hace ${diffDays} d`
+}
+
+const toActivity = (entry: RecentError): Activity => {
+  const statusText = entry.status_code ? `HTTP ${entry.status_code}` : 'Sin codigo'
+  return {
+    title: `${entry.method} ${entry.url}`,
+    detail: `${statusText} · ${entry.exception_class || 'Error'} · ${entry.message}`,
+    time: formatRelative(entry.occurred_at),
+  }
+}
+
+const toHealthMetric = (metric: FlowHealthMetric): HealthMetric => {
+  const trend = formatTrend(metric.trend_percent)
+  return {
+    label: metric.label,
+    value: metric.score,
+    hint: metric.hint,
+    errors24h: metric.errors_24h,
+    trendLabel: trend.delta,
+  }
+}
+
+const loadFlowHealth = async () => {
+  loading.value = true
+  try {
+    const payload = await getFlowHealth()
+    const overview = payload.overview ?? {}
+    const errors24h = overview.errors_24h ?? 0
+    const errors7d = overview.errors_7d ?? 0
+    const status401 = overview.status_401_24h ?? 0
+    const status403 = overview.status_403_24h ?? 0
+    const status5xx = overview.status_5xx_24h ?? 0
+
+    kpis.value = [
+      {
+        label: 'Errores ultimas 24h',
+        value: String(errors24h),
+        delta: `${errors7d} en 7 dias`,
+        tone: errors24h === 0 ? 'up' : 'down',
+        footnote: 'incidentes totales registrados',
+      },
+      {
+        label: 'Respuestas 401',
+        value: String(status401),
+        delta: status401 === 0 ? '0 alertas' : `${status401} alertas`,
+        tone: status401 === 0 ? 'up' : 'down',
+        footnote: 'accesos rechazados en 24h',
+      },
+      {
+        label: 'Respuestas 403',
+        value: String(status403),
+        delta: status403 === 0 ? '0 alertas' : `${status403} alertas`,
+        tone: status403 === 0 ? 'up' : 'down',
+        footnote: 'bloqueos por permisos en 24h',
+      },
+      {
+        label: 'Respuestas 5xx',
+        value: String(status5xx),
+        delta: status5xx === 0 ? 'Sin errores server' : `${status5xx} alertas`,
+        tone: status5xx === 0 ? 'up' : 'down',
+        footnote: 'fallas internas en 24h',
+      },
+    ]
+
+    healthMetrics.value = (payload.health ?? []).map(toHealthMetric)
+    recentActivity.value = (payload.recent_errors ?? []).map(toActivity)
+    generatedAt.value = payload.generated_at ?? null
+  } catch {
+    notifyWarning('No se pudo cargar la salud operativa del sistema.')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadFlowHealth()
+})
 
 const shortcuts: Shortcut[] = [
   {
@@ -128,12 +166,22 @@ const shortcuts: Shortcut[] = [
     <header class="dashboard-head">
       <div>
         <h1 id="dashboard-title">Dashboard</h1>
-        <p class="dashboard-lead">Resumen ejecutivo de crecimiento, operacion y conversion comercial.</p>
+        <p class="dashboard-lead">Seguimiento de salud operativa para acceso, registro y cobros.</p>
       </div>
-      <span class="dashboard-badge">Actualizado hace 5 minutos</span>
+      <span class="dashboard-badge">
+        {{ generatedAt ? `Actualizado ${formatRelative(generatedAt)}` : 'Sin sincronizacion reciente' }}
+      </span>
     </header>
 
-    <section class="kpi-grid" aria-label="Indicadores principales">
+    <section v-if="loading" class="bo-card dashboard-state" aria-live="polite">
+      Cargando indicadores operativos...
+    </section>
+
+    <section v-else-if="!hasData" class="bo-card dashboard-state" aria-live="polite">
+      No hay datos suficientes para mostrar observabilidad en este momento.
+    </section>
+
+    <section v-else class="kpi-grid" aria-label="Indicadores principales">
       <article v-for="item in kpis" :key="item.label" class="kpi-card">
         <span class="kpi-label">{{ item.label }}</span>
         <strong class="kpi-value">{{ item.value }}</strong>
@@ -144,7 +192,7 @@ const shortcuts: Shortcut[] = [
       </article>
     </section>
 
-    <section class="dashboard-grid" aria-label="Salud y actividad">
+    <section v-if="hasData" class="dashboard-grid" aria-label="Salud y actividad">
       <article class="bo-card panel-card">
         <header class="panel-head">
           <h2>Salud de negocio</h2>
@@ -159,15 +207,15 @@ const shortcuts: Shortcut[] = [
             <div class="health-track" role="progressbar" :aria-valuemin="0" :aria-valuemax="100" :aria-valuenow="metric.value" :aria-label="metric.label">
               <span class="health-fill" :style="{ width: `${metric.value}%` }"></span>
             </div>
-            <p>{{ metric.hint }}</p>
+            <p>{{ metric.hint }} · {{ metric.errors24h }} alertas en 24h · Tendencia {{ metric.trendLabel }}</p>
           </li>
         </ul>
       </article>
 
       <article class="bo-card panel-card">
         <header class="panel-head">
-          <h2>Actividad reciente</h2>
-          <span class="bo-muted">Tiempo real simulado</span>
+          <h2>Incidentes recientes</h2>
+          <span class="bo-muted">Ultimas 24 horas</span>
         </header>
         <ol class="activity-list">
           <li v-for="entry in recentActivity" :key="entry.title + entry.time" class="activity-item">
@@ -204,6 +252,12 @@ const shortcuts: Shortcut[] = [
   width: 100%;
   max-width: 1320px;
   margin: 0 auto;
+}
+
+.dashboard-state {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .dashboard-head {
