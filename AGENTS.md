@@ -246,6 +246,15 @@ Los textos deben:
 
 Evitar copy exagerado, agresivo o poco creíble.
 
+Regla obligatoria para texto visible:
+
+- nunca mostrar al cliente jerga como `tenant`, `webhook`, `payload`, `middleware`, `master`, `JWT`, `DB` o equivalentes
+- traducir la logica tecnica a lenguaje cotidiano y orientado a accion
+- escribir como piensa una persona comun, no como piensa la arquitectura del sistema
+- mantener claridad, confianza, UX writing, marketing y neuroventas sin volver el mensaje tecnico
+
+Si una persona no tecnica no entiende el mensaje al primer vistazo, el copy no esta listo.
+
 ### Frontend
 Priorizar componentes reutilizables, consistentes y simples de mantener.
 Evitar lógica dispersa o duplicada si puede encapsularse con claridad.

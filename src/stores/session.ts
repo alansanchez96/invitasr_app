@@ -130,6 +130,10 @@ export const useSessionStore = defineStore('session', () => {
     persistSession(token.value, { ...user.value, ...patch }, remember)
   }
 
+  const acceptSession = (sessionToken: string | null, userData: AuthUser, remember = false) => {
+    persistSession(sessionToken, userData, remember)
+  }
+
   const login = async (email: string, password: string, remember = false) => {
     isLoading.value = true
     try {
@@ -189,10 +193,6 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   const refreshMe = async () => {
-    if (authMode !== 'cookie') {
-      return { ok: false as const, user: null as AuthUser | null }
-    }
-
     try {
       const payload = await request<MeResponse>('/auth/me')
       const meUser = extractUser(payload)
@@ -201,7 +201,7 @@ export const useSessionStore = defineStore('session', () => {
         return { ok: false as const, user: null as AuthUser | null }
       }
       const remember = localStorage.getItem(REMEMBER_KEY) === '1'
-      persistSession(null, meUser, remember)
+      persistSession(authMode === 'token' ? token.value : null, meUser, remember)
       return { ok: true as const, user: meUser }
     } catch {
       clearSession()
@@ -239,6 +239,7 @@ export const useSessionStore = defineStore('session', () => {
     clientPlanStatus,
     clearSession,
     patchUser,
+    acceptSession,
     login,
     logout,
     hydrateSession,

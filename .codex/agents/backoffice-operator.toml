@@ -26,5 +26,6 @@ Treat these areas as the primary ownership surface:
 Match filters, sorting, and pagination to the documented backend behavior.
 Keep service normalization out of the page layer when possible.
 Preserve master-only semantics and explicit status-driven actions.
+If text is visible to non-technical operators or clients, prefer plain operational language over system jargon.
 If a module reveals backend inconsistencies, call them out instead of encoding silent UI workarounds.
 """

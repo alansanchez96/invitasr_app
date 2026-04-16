@@ -9,6 +9,7 @@ const props = defineProps<{
   items: PublicNavItem[]
   isAuthenticated: boolean
   isMaster: boolean
+  hasActivePlan?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -25,8 +26,13 @@ const resolveNavItemProps = (item: PublicNavItem) => {
 const handleClose = () => emit('close')
 const handleLogin = () => emit('login')
 const handleLogout = () => emit('logout')
-const dashboardPath = computed(() => getPanelHomePath(props.isMaster))
-const dashboardLabel = computed(() => (props.isMaster ? 'Ir a backoffice' : 'Ir a mi panel'))
+const dashboardPath = computed(() =>
+  props.isMaster ? getPanelHomePath(true) : props.hasActivePlan ? '/panel' : '/onboarding/public',
+)
+const dashboardLabel = computed(() => {
+  if (props.isMaster) return 'Ir a backoffice'
+  return props.hasActivePlan ? 'Ir a mi panel' : 'Finalizar compra'
+})
 </script>
 
 <template>

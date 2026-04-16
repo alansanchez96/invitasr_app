@@ -416,7 +416,7 @@ export const completePublicOnboarding = async (code: string, body: CompletePubli
   })
   const data = toRecord(payload.data)
   return {
-    message: payload.message ?? 'Onboarding completado.',
+    message: payload.message ?? 'Tu cuenta se completo correctamente.',
     next_step: data.next_step as string | undefined,
     onboarding: Object.keys(toRecord(data.onboarding)).length
       ? normalizeOnboardingItem(data.onboarding)

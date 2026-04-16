@@ -14,7 +14,7 @@ import {
   getPublicOnboarding,
   type PublicOnboardingContext,
 } from '@/services/onboardings'
-import { checkoutPayment } from '@/services/payments'
+import { checkoutPublicOnboarding } from '@/services/publicOnboarding'
 import { useCatalogStore } from '@/stores/catalogs'
 import { useSessionStore } from '@/stores/session'
 import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
@@ -125,7 +125,7 @@ const describeEventType = (value?: string) => {
 
 const parseErrorMessage = (error: unknown) => {
   const payload = error as { message?: string }
-  return payload?.message?.trim() || 'No pudimos validar el codigo de onboarding.'
+  return payload?.message?.trim() || 'No pudimos validar este acceso.'
 }
 
 const defaultEventTypes: MockEventType[] = [
@@ -198,7 +198,7 @@ const loadTemplateCatalogs = async () => {
     catalogEventTypes.value = []
     catalogTemplates.value = []
     notifyWarning(
-      'No pudimos cargar el catalogo publico de plantillas. Usaremos la referencia disponible del onboarding.',
+      'No pudimos cargar los estilos disponibles en este momento. Usaremos la referencia disponible para continuar.',
     )
   } finally {
     isTemplateCatalogLoading.value = false
@@ -381,7 +381,7 @@ const prepareCheckout = async () => {
     const isAuthenticated = await ensureAuthenticatedForCheckout()
     if (!isAuthenticated) return
 
-    const response = await checkoutPayment(checkoutPlanId.value)
+    const response = await checkoutPublicOnboarding()
     checkoutUrl.value = response.checkout_url ?? null
     if (!checkoutUrl.value) {
       notifyWarning('No recibimos la URL de pago. Puedes intentarlo nuevamente.')
@@ -390,7 +390,7 @@ const prepareCheckout = async () => {
     startCheckoutCountdown()
   } catch (error) {
     const payload = error as { message?: string }
-    notifyError(payload?.message ?? 'No pudimos iniciar el checkout de pago.')
+    notifyError(payload?.message ?? 'No pudimos iniciar el pago.')
   } finally {
     isCheckoutLoading.value = false
   }
@@ -424,7 +424,7 @@ const loadOnboarding = async () => {
   fieldErrors.value = {}
 
   if (!onboardingCode.value) {
-    loadError.value = 'El codigo de onboarding no es valido.'
+    loadError.value = 'Este acceso no es valido.'
     isLoading.value = false
     return
   }
@@ -468,12 +468,12 @@ const submitOnboarding = async () => {
 
     const nextStepMessage =
       response.next_step === 'payment'
-        ? 'Tu cuenta ya quedo lista. El siguiente paso es completar el pago.'
+        ? 'Tu cuenta ya quedo creada. Solo falta completar el pago para activar tu plan.'
         : response.next_step === 'login'
           ? 'Tu acceso ya quedo activo. Ahora puedes iniciar sesion.'
           : ''
 
-    successMessage.value = [response.message ?? 'Onboarding completado correctamente.', nextStepMessage]
+    successMessage.value = [response.message ?? 'Tu cuenta se completo correctamente.', nextStepMessage]
       .filter(Boolean)
       .join(' ')
     notifySuccess(successMessage.value)
@@ -489,7 +489,7 @@ const submitOnboarding = async () => {
       notifyWarning('Hay datos para corregir antes de continuar.')
       return
     }
-    notifyError(payload?.message ?? 'No pudimos completar el onboarding.')
+    notifyError(payload?.message ?? 'No pudimos completar tu registro.')
   } finally {
     isSubmitting.value = false
   }
@@ -512,17 +512,17 @@ onUnmounted(() => {
     <div class="container onboarding-container">
       <header class="onboarding-headline">
         <span class="headline-kicker">InvitaSR</span>
-        <h1>Activa tu onboarding en menos de 2 minutos</h1>
+        <h1>Activa tu cuenta en menos de 2 minutos</h1>
         <p>Confirma tus datos y deja lista tu cuenta para continuar con la experiencia del plan.</p>
       </header>
 
       <article v-if="isLoading" class="onboarding-card onboarding-state" role="status" aria-live="polite">
         <span class="spinner" aria-hidden="true"></span>
-        <p>Cargando onboarding...</p>
+        <p>Cargando tu acceso...</p>
       </article>
 
       <article v-else-if="loadError" class="onboarding-card onboarding-state error-state" role="alert">
-        <h1>Onboarding no disponible</h1>
+        <h1>Este acceso no esta disponible</h1>
         <p>{{ loadError }}</p>
         <RouterLink class="btn btn-ghost" to="/">Volver al inicio</RouterLink>
       </article>
@@ -531,7 +531,7 @@ onUnmounted(() => {
         <aside class="onboarding-card onboarding-summary">
           <h2>Resumen</h2>
           <div class="summary-row">
-            <span>Codigo</span>
+            <span>Codigo de acceso</span>
             <strong>{{ context?.token_short_code ?? onboardingCode }}</strong>
           </div>
           <div class="summary-row">
@@ -554,7 +554,7 @@ onUnmounted(() => {
 
         <article class="onboarding-card onboarding-form-card">
           <h1>Completa tu registro</h1>
-          <p class="onboarding-lead">Configura el usuario administrador para activar tu cuenta.</p>
+          <p class="onboarding-lead">Completa tus datos para dejar lista tu cuenta y seguir con tu plan.</p>
 
           <div v-if="successMessage" class="state-banner success">
             <strong>Cuenta creada</strong>
@@ -571,17 +571,17 @@ onUnmounted(() => {
                 Seras redirigido automaticamente en {{ checkoutCountdown }} segundos.
               </small>
               <small v-else-if="!isCheckoutLoading">
-                No pudimos preparar el pago automaticamente. Pulsa el boton para reintentar.
+                No pudimos abrir el pago automaticamente. Pulsa el boton para volver a intentarlo.
               </small>
             </div>
           </div>
           <div v-else-if="isCompleted" class="state-banner neutral">
-            <strong>Onboarding finalizado</strong>
-            <p>Este enlace ya fue utilizado previamente.</p>
+            <strong>Proceso finalizado</strong>
+            <p>Este acceso ya fue usado anteriormente.</p>
           </div>
           <div v-else-if="isCanceled" class="state-banner warning">
-            <strong>Onboarding cancelado</strong>
-            <p>Solicita un nuevo acceso desde el panel de backoffice.</p>
+            <strong>Acceso cancelado</strong>
+            <p>Pide un nuevo acceso para continuar.</p>
           </div>
 
           <form v-if="canSubmit" class="onboarding-form" @submit.prevent="submitOnboarding">
@@ -667,7 +667,7 @@ onUnmounted(() => {
 
             <button class="btn btn-primary submit-btn" type="submit" :disabled="isSubmitting" :aria-busy="isSubmitting">
               <span v-if="isSubmitting" class="spinner" aria-hidden="true"></span>
-              <span>{{ isSubmitting ? 'Creando cuenta...' : 'Completar onboarding' }}</span>
+              <span>{{ isSubmitting ? 'Creando cuenta...' : 'Completar registro' }}</span>
             </button>
           </form>
 

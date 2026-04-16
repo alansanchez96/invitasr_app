@@ -11,10 +11,17 @@ const router = useRouter()
 const session = useSessionStore()
 const isAuthenticated = computed(() => session.isAuthenticated)
 const isMaster = computed(() => session.isMaster)
+const hasActiveClientPlan = computed(() => session.hasActiveClientPlan)
 const isLoginLoading = computed(() => session.isLoading)
 const isLoginOpen = ref(false)
 const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
+const clientEntryPath = computed(() =>
+  session.isMaster ? '/backoffice' : session.hasActiveClientPlan ? '/panel' : '/onboarding/public',
+)
+const clientEntryLabel = computed(() =>
+  hasActiveClientPlan.value ? 'Ir a mi panel' : 'Finalizar compra',
+)
 
 const openLogin = () => {
   loginError.value = null
@@ -38,7 +45,7 @@ const handleLoginSubmit = async (payload: { email: string; password: string; rem
     return
   }
   closeLogin()
-  await router.push(session.isMaster ? '/backoffice' : '/panel')
+  await router.push(clientEntryPath.value)
 }
 
 const handleLogout = () => {
@@ -62,7 +69,7 @@ const handleLogout = () => {
       </div>
 
       <div v-else class="mobile-cta-inner">
-        <BaseButton as="RouterLink" variant="primary" to="/panel">Ir a mi panel</BaseButton>
+        <BaseButton as="RouterLink" variant="primary" :to="clientEntryPath">{{ clientEntryLabel }}</BaseButton>
         <BaseButton variant="ghost" type="button" @click="handleLogout">Cerrar sesion</BaseButton>
       </div>
     </div>

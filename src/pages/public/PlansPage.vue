@@ -1,15 +1,42 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PlanAcquisitionModal from '@/components/public/PlanAcquisitionModal.vue'
 import PublicPlanCatalogGrid from '@/components/public/PublicPlanCatalogGrid.vue'
 import type { CatalogPlanListItem } from '@/services/catalogs'
+import { useSessionStore } from '@/stores/session'
 
+const router = useRouter()
+const session = useSessionStore()
 const isModalOpen = ref(false)
 const selectedPlan = ref<CatalogPlanListItem | null>(null)
 
+const continueWithPlan = async (plan: CatalogPlanListItem) => {
+  await router.push({
+    name: 'public-onboarding-flow',
+    query: {
+      planId: plan?.id ? String(plan.id) : undefined,
+      planName: plan?.name ?? undefined,
+    },
+  })
+}
+
 const openPlanModal = (plan: CatalogPlanListItem) => {
   selectedPlan.value = plan
+
+  if (session.isAuthenticated && session.isClient) {
+    void continueWithPlan(plan)
+    return
+  }
+
   isModalOpen.value = true
+}
+
+const handleRegistered = async () => {
+  isModalOpen.value = false
+  if (selectedPlan.value) {
+    await continueWithPlan(selectedPlan.value)
+  }
 }
 </script>
 
@@ -29,7 +56,8 @@ const openPlanModal = (plan: CatalogPlanListItem) => {
 
   <PlanAcquisitionModal
     v-model="isModalOpen"
-    :plan="selectedPlan" />
+    :plan="selectedPlan"
+    @registered="handleRegistered" />
 </template>
 
 <style scoped>

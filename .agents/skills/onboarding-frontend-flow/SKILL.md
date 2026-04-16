@@ -16,6 +16,7 @@ This skill protects:
 - checkout readiness
 - post-auth routing clarity
 - visible value before payment
+- visible language that normal people can understand
 
 ---
 
@@ -130,6 +131,24 @@ Check:
 - route redirection when the user loses the required state
 
 Conversion flows fail in edge cases more often than in the happy path.
+
+### 6. Translate technical flow language before it becomes UI copy
+
+This flow is especially sensitive because users are deciding whether to continue, pay, or trust the product.
+
+Never leave visible wording that sounds like system internals, for example:
+
+- `tenant`
+- `webhook`
+- `payload`
+- `middleware`
+- `token valido/invalido` when a simpler explanation is possible
+
+Prefer language that explains:
+
+- what is happening
+- what the person should do now
+- why the next step is safe and simple
 
 ---
 

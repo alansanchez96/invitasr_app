@@ -26,11 +26,11 @@ const checklist = computed(() => [
     status: getClientPlanStatusLabel(session.user),
   },
   {
-    title: 'Confirmar onboarding',
+    title: 'Confirmar tu cuenta',
     status: getOnboardingStatusLabel(profile.value),
   },
   {
-    title: 'Validar template base',
+    title: 'Revisar estilo elegido',
     status: selectedTemplateName.value,
   },
   {
@@ -66,7 +66,7 @@ onMounted(() => {
         <p class="client-kicker">Operacion del evento</p>
         <h1 id="client-invitations-title">Mis invitaciones</h1>
         <p class="client-lead">
-          Este modulo centralizara borradores, publicadas y proximas acciones del tenant. En esta etapa deja lista la base operativa.
+          Aqui veras tus borradores, tus invitaciones publicadas y los siguientes pasos para seguir avanzando.
         </p>
       </div>
 
@@ -83,14 +83,14 @@ onMounted(() => {
     </header>
 
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
-    <p v-else-if="isLoading" class="client-inline-note">Cargando resumen del tenant...</p>
+    <p v-else-if="isLoading" class="client-inline-note">Cargando el resumen de tus invitaciones...</p>
 
     <section class="bo-card invitation-empty-state">
       <div class="empty-copy">
-        <span class="empty-badge">Sin listado sincronizado</span>
-        <h2>Aun no encontramos invitaciones del tenant en esta vista.</h2>
+        <span class="empty-badge">Aun no tienes invitaciones aqui</span>
+        <h2>Todavia no vemos invitaciones en esta seccion.</h2>
         <p>
-          El panel ya esta preparado para la operacion del cliente. El siguiente paso natural es conectar el listado real de invitaciones desde la capa tenant de la API.
+          Tu espacio ya esta listo para empezar. El siguiente paso es conectar tu primer listado de invitaciones para que puedas gestionarlas desde aqui.
         </p>
       </div>
 
@@ -103,8 +103,8 @@ onMounted(() => {
     <section class="bo-card invitation-readiness">
       <header class="section-head">
         <div>
-          <h2>Checklist de readiness</h2>
-          <p>Lo que hoy sostiene la futura gestion de invitaciones del tenant.</p>
+          <h2>Checklist de preparacion</h2>
+          <p>Lo que hoy ya esta listo para que empieces a trabajar en tus invitaciones.</p>
         </div>
       </header>
 

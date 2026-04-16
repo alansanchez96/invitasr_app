@@ -19,5 +19,6 @@ Treat these areas as the primary ownership surface:
 Compare Postman, current service normalization, and UI assumptions together.
 Treat client_plan, tenant status, cookie mode, filters, pagination, and checkout payloads as contract-sensitive.
 Prefer explicit compatibility decisions over silent assumptions.
+Keep those technical concepts internal when the UI copy is customer-facing.
 Mention backend repo impact whenever request or response semantics change.
 """

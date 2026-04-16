@@ -20,5 +20,6 @@ Start from the user journey: discover, trust, compare, and continue to onboardin
 Prioritize CTA clarity, value framing, mobile conversion, and trust signals.
 Keep copy credible and benefits-first.
 Avoid generic SaaS language or cold enterprise framing.
+Never let internal system terms leak into visible copy if a normal person would not understand them quickly.
 If the requested change depends on plan or onboarding rules, coordinate with frontend-builder or integration-guardian.
 """

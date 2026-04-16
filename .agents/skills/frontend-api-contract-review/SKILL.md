@@ -135,7 +135,26 @@ Treat auth/session shape as contract-sensitive frontend data, not just implement
 
 ---
 
-### 6. Classify compatibility
+### 6. Keep internal contract language out of visible UI
+
+This skill may work with technical concepts internally, but if the task also affects user-facing messages:
+
+- keep technical terms inside services, mappers, guards, and routing logic
+- do not expose backend vocabulary directly in the UI
+- prefer wording that explains the moment and next step in human language
+
+Terms that should usually stay internal:
+
+- `tenant`
+- `payload`
+- `webhook`
+- `middleware`
+- `JWT`
+- `master`
+
+---
+
+### 7. Classify compatibility
 
 Be explicit about the outcome:
 
@@ -168,6 +187,7 @@ When using this skill, prefer:
 3. compatibility decision
 4. frontend change needed
 5. backend repo impact if any
+6. visible-language impact if customer text is involved
 
 Keep it concrete.
 

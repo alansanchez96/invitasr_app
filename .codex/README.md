@@ -9,6 +9,7 @@ La automatizacion no depende de adivinar. Depende de una ruta explicita de conte
 ### Contexto de producto y negocio
 
 - `AGENTS.md`
+- `../docs/customer-language-policy.md`
 - `AI_CONTEXT.md`
 - `CLAUDE.md`
 
@@ -46,10 +47,11 @@ Eso significa que el prompt ya no tiene que decir usa tal skill. Tiene que descr
 Para una tarea no trivial en InvitaSR, el orden correcto de contexto es:
 
 1. `AGENTS.md`
-2. `.codex/ROUTING.md`
-3. `AI_CONTEXT.md`
-4. `CLAUDE.md`
-5. `InvitaSR.postman_collection.json` si la tarea toca API, auth, filtros, pagos o checkout
+2. `../docs/customer-language-policy.md` si la tarea toca texto visible o UX para clientes
+3. `.codex/ROUTING.md`
+4. `AI_CONTEXT.md`
+5. `CLAUDE.md`
+6. `InvitaSR.postman_collection.json` si la tarea toca API, auth, filtros, pagos o checkout
 
 Ese orden ya queda reforzado en:
 
@@ -245,3 +247,8 @@ El objetivo es que, con un prompt bien planteado, Codex pueda:
 - decidir si necesita orquestacion multi-superficie
 - señalar impacto con backend cuando corresponda
 - desarrollar features de forma incremental sin reabrir cada vez la discusion sobre como enrutar el trabajo
+
+Y ademas:
+
+- mantener invisible la jerga interna del SaaS en cualquier texto que vea un cliente
+- traducir conceptos tecnicos a mensajes claros, confiables y faciles de accionar

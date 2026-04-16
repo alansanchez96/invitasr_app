@@ -18,6 +18,7 @@ const isMenuOpen = ref(false)
 const isMobile = ref(false)
 const isAuthenticated = computed(() => session.isAuthenticated)
 const isMaster = computed(() => session.isMaster)
+const hasActiveClientPlan = computed(() => session.hasActiveClientPlan)
 const isLoginLoading = computed(() => session.isLoading)
 const isHomeRoute = computed(() => route.name === 'home')
 const isHomeHeroZone = ref(false)
@@ -45,6 +46,9 @@ const accountDisplayName = computed(() => {
 })
 const accountInitials = computed(() => buildDisplayInitials(accountIdentitySeed.value, 'CU'))
 const accountAvatarStyle = computed(() => buildAvatarPaletteStyle(accountIdentitySeed.value))
+const clientEntryPath = computed(() =>
+    session.isMaster ? '/backoffice' : session.hasActiveClientPlan ? '/panel' : '/onboarding/public',
+)
 const defaultDesktopNavItems: PublicNavItem[] = [
     { label: 'Noticias', to: '/noticias' },
     { label: 'Como funciona', href: '/#como-funciona' },
@@ -126,7 +130,7 @@ const handleLoginSubmit = async (payload: { email: string; password: string; rem
         return
     }
     closeLoginMenu()
-    await router.push(session.isMaster ? '/backoffice' : '/panel')
+    await router.push(clientEntryPath.value)
 }
 
 const handleLoginKeydown = (event: KeyboardEvent) => {
@@ -262,6 +266,7 @@ watch(
                     <PublicAccountMenu
                         v-else
                         :is-master="isMaster"
+                        :has-active-plan="hasActiveClientPlan"
                         :display-name="accountDisplayName"
                         :initials="accountInitials"
                         :avatar-style="accountAvatarStyle"
@@ -285,6 +290,7 @@ watch(
                 :items="mobileNavItems"
                 :is-authenticated="isAuthenticated"
                 :is-master="isMaster"
+                :has-active-plan="hasActiveClientPlan"
                 @close="closeMenu"
                 @login="handleMobileLoginAction"
                 @logout="handleLogout" />

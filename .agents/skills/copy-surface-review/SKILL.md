@@ -16,6 +16,7 @@ This skill protects:
 - plan differentiation
 - lower user friction
 - conversion support without hype
+- removal of internal SaaS jargon from visible product text
 
 ---
 
@@ -112,6 +113,24 @@ For helper text, validation, and toasts:
 - explain the next action
 - avoid blame-heavy tone
 - avoid generic error phrases when a clearer guidance exists
+
+### 5. Translate internal language before it reaches the customer
+
+Never let visible product text expose internal system concepts if a normal person would not understand them quickly.
+
+Do not surface words like:
+- `tenant`
+- `webhook`
+- `payload`
+- `middleware`
+- `master`
+- `JWT`
+- `DB`
+
+Translate them into:
+- what happened
+- what the person can do now
+- why they can trust the next step
 
 ---
 

@@ -13,6 +13,9 @@ const STATUS_LABELS: Record<string, string> = {
   review: 'En revision',
   complete: 'Completado',
   completed: 'Completado',
+  checkout: 'Completar pago',
+  payment: 'Completar pago',
+  login: 'Entrar a tu cuenta',
 }
 
 type SessionLikeUser = {
@@ -55,19 +58,19 @@ export const getClientPlanStatusLabel = (user?: SessionLikeUser) => {
 }
 
 export const getTenantStatusLabel = (user?: SessionLikeUser) => {
-  return formatStatusLabel(user?.tenant?.status, 'Sin tenant')
+  return formatStatusLabel(user?.tenant?.status, 'En preparacion')
 }
 
 export const getSelectedTemplateName = (profile?: PublicOnboardingProfile | null) => {
-  return profile?.onboarding?.template?.name ?? 'Sin template asociada'
+  return profile?.onboarding?.template?.name ?? 'Sin estilo seleccionado'
 }
 
 export const getOnboardingStatusLabel = (profile?: PublicOnboardingProfile | null) => {
-  return formatStatusLabel(profile?.onboarding?.status, 'Sin onboarding')
+  return formatStatusLabel(profile?.onboarding?.status, 'Sin proceso activo')
 }
 
 export const getNextStepLabel = (profile?: PublicOnboardingProfile | null) => {
-  return formatStatusLabel(profile?.next_step, 'Sin siguiente paso')
+  return formatStatusLabel(profile?.next_step, 'Sin pasos pendientes')
 }
 
 export const getRegistrationName = (profile?: PublicOnboardingProfile | null) => {

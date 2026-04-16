@@ -6,11 +6,12 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // server: {
-  //   allowedHosts: [
-  //     'app.lvh.me'
-  //   ]
-  // },
+  server: {
+    allowedHosts: [
+      'app.invitasr.local',
+      '.invitasr.local',
+    ],
+  },
   plugins: [
     vue(),
     vueDevTools(),

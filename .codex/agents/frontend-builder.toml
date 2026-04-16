@@ -26,6 +26,7 @@ Inspect the existing route, service, and page flow before editing.
 Keep backend payload normalization inside src/services whenever possible.
 Make plan, auth, and route-access decisions explicit.
 Prefer the smallest coherent implementation that improves UX, conversion, or maintainability.
+If the task affects user-facing text, translate internal SaaS language into everyday language before shipping.
 Mention backend repo impact when request or response assumptions change.
 When the change warrants it, validate with npm run type-check, npm run lint, and npm run build.
 """

@@ -38,15 +38,15 @@ const summaryCards = computed(() => [
   {
     label: 'Estado del plan',
     value: getClientPlanStatusLabel(session.user),
-    hint: session.hasActiveClientPlan ? 'Tu acceso principal esta habilitado.' : 'Revisa pagos o activacion.',
+    hint: session.hasActiveClientPlan ? 'Ya puedes usar las funciones principales de tu cuenta.' : 'Revisa el pago o el paso pendiente para seguir.',
   },
   {
-    label: 'Tenant',
+    label: 'Estado de tu cuenta',
     value: getTenantStatusLabel(session.user),
-    hint: session.user?.tenant?.id ? `Tenant #${session.user.tenant.id}` : 'Aun no se resolvio un tenant activo.',
+    hint: session.user?.tenant?.id ? 'Tu espacio ya esta preparado.' : 'Estamos terminando de preparar tu espacio.',
   },
   {
-    label: 'Onboarding',
+    label: 'Proceso actual',
     value: getOnboardingStatusLabel(profile.value),
     hint: `Siguiente paso: ${getNextStepLabel(profile.value)}`,
   },
@@ -55,36 +55,36 @@ const summaryCards = computed(() => [
 const workspaces = computed(() => [
   {
     title: 'Mis invitaciones',
-    description: 'Controla el estado de tus invitaciones, revisa la template asociada y prepara el siguiente paso de publicacion.',
+    description: 'Revisa el estado de tus invitaciones, el estilo elegido y el siguiente paso para publicarlas.',
     to: '/panel/invitaciones',
   },
   {
     title: 'Estadisticas',
-    description: 'Consulta el estado actual del tenant y deja lista la base para metricas reales cuando integremos analitica.',
+    description: 'Consulta el estado de tu cuenta y deja todo listo para ver metricas reales en cuanto se activen.',
     to: '/panel/estadisticas',
   },
   {
     title: 'Configuracion',
-    description: 'Ajusta datos de perfil, revisa plan, onboarding y la configuracion base que sostiene tu dashboard.',
+    description: 'Actualiza tus datos, revisa tu plan y deja lista la informacion clave de tu cuenta.',
     to: '/panel/configuracion',
   },
 ])
 
 const setupCards = computed(() => [
   {
-    title: 'Template seleccionada',
+    title: 'Estilo seleccionado',
     value: getSelectedTemplateName(profile.value),
-    hint: 'Base visual actual para tu primera invitacion.',
+    hint: 'Es la base visual de tu primera invitacion.',
   },
   {
-    title: 'Acceso comercial',
+    title: 'Estado del plan',
     value: getClientPlanStatusLabel(session.user),
-    hint: 'Depende del estado del plan resuelto por la API.',
+    hint: 'Te indica si tu acceso ya esta listo o si aun falta un paso.',
   },
   {
-    title: 'Preparacion inicial',
+    title: 'Siguiente paso',
     value: getNextStepLabel(profile.value),
-    hint: 'Te indica el paso mas cercano dentro del flujo actual.',
+    hint: 'Te muestra lo mas importante para continuar sin perder tiempo.',
   },
 ])
 
@@ -97,7 +97,7 @@ const loadProfile = async () => {
     profile.value = response.profile
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar el resumen de tu onboarding.'
+    loadError.value = payload?.message ?? 'No pudimos cargar el resumen de tu cuenta.'
   } finally {
     isLoading.value = false
   }
@@ -112,10 +112,10 @@ onMounted(() => {
   <section class="client-dashboard container" aria-labelledby="client-dashboard-title">
     <header class="client-hero bo-card">
       <div>
-        <p class="client-kicker">Dashboard tenant</p>
+        <p class="client-kicker">Tu panel</p>
         <h1 id="client-dashboard-title">Hola, {{ customerName }}</h1>
         <p class="client-lead">
-          Este panel concentra el estado de tu cuenta, tu acceso por plan y los accesos principales para operar tu invitacion.
+          Aqui puedes ver el estado de tu cuenta, tu plan y los accesos principales para empezar a trabajar en tu invitacion.
         </p>
       </div>
 
@@ -126,7 +126,7 @@ onMounted(() => {
     </header>
 
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
-    <p v-else-if="isLoading" class="client-inline-note">Cargando resumen del tenant...</p>
+    <p v-else-if="isLoading" class="client-inline-note">Cargando el resumen de tu cuenta...</p>
 
     <section class="client-kpis" aria-label="Resumen de acceso y estado">
       <article v-for="item in summaryCards" :key="item.label" class="client-kpi-card bo-card">
@@ -141,7 +141,7 @@ onMounted(() => {
         <header class="section-head">
           <div>
             <h2>Tu espacio de trabajo</h2>
-            <p>Accesos principales del dashboard cliente.</p>
+            <p>Los accesos principales para avanzar con tu evento.</p>
           </div>
         </header>
 

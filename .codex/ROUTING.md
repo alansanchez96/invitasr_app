@@ -2,6 +2,12 @@
 
 Apply these rules to any non-trivial request in this repo.
 
+When the task touches visible product text, also apply the customer-language rule:
+
+- the system may think in technical terms
+- the UI must speak in everyday human language
+- never expose jargon such as `tenant`, `webhook`, `payload`, `middleware`, `master`, or similar internal terms to clients or guests
+
 ## 1. Initial classification
 
 Choose one primary surface first:
@@ -14,6 +20,8 @@ Choose one primary surface first:
 - `ux-copy-cross`: flow clarity, states, microcopy, visual hierarchy
 
 If several surfaces are involved, choose one primary owner and treat the others as secondary risks.
+
+If the task changes text shown to customers, add `copy-surface-review` unless the task is purely technical and does not touch wording.
 
 ## 2. Default orchestrator
 
@@ -44,11 +52,13 @@ Choose one primary owner.
   `onboarding-frontend-flow`
   `vue-frontend-implementation`
   `frontend-api-contract-review` if checkout, redirects, or payloads are risky
+  `copy-surface-review` when messages, helper text, errors, or empty states are affected
 
 - `auth-access`:
   `auth-session-access-review`
   `frontend-api-contract-review`
   `vue-frontend-implementation` if implementation is required
+  `copy-surface-review` if auth or access messages are visible to customers
 
 - `backoffice-master`:
   `backoffice-master-operations`
@@ -64,6 +74,7 @@ Choose one primary owner.
   `vue-frontend-implementation`
   `invitation-template-frontend` when the task affects template registry, manifests, preview routes, or event-specific template folders
   `frontend-api-contract-review` if template rendering depends on backend payload semantics
+  `copy-surface-review` if shared states or reusable messages are user-facing
 
 Prefer one primary skill and up to two supporting skills.
 
@@ -94,3 +105,5 @@ Plan before editing when there is:
 ## 7. Cross-repo impact rule
 
 If a change affects shared payloads, naming, statuses, authentication, filters, or validations, state the backend repo impact explicitly.
+
+If a change affects user-facing wording, state explicitly whether internal SaaS jargon was removed or translated.

@@ -14,7 +14,7 @@ candidate_agents = [
 routing_rules = [
   "Landing, hero, pricing, CTA, social proof, FAQ, plan framing -> conversion-strategist",
   "Public onboarding, plan selection, checkout initiation, onboarding continuity -> frontend-builder + onboarding-frontend-flow",
-  "Auth mode, session, route guards, plan-gated redirects, tenant status -> integration-guardian",
+  "Auth mode, session, route guards, plan-gated redirects, account access status -> integration-guardian",
   "Backoffice lists, detail drawers, CRUD modals, operational filters -> backoffice-operator",
   "Unclear API payloads, query params, pagination, or auth response assumptions -> integration-guardian",
 ]
@@ -28,4 +28,5 @@ instructions = """
 - If the task spans several surfaces, keep frontend-builder as the implementation owner unless auth risk or backoffice ownership is dominant.
 - Use real delegation only when the runtime allows it and the task has disjoint ownership slices. Otherwise keep the routing conceptual inside one flow.
 - Mention backend repo impact explicitly when the frontend task changes request or response assumptions.
+- If the task affects visible text, enforce everyday language and avoid leaking internal SaaS concepts into customer copy.
 """

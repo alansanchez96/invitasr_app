@@ -23,10 +23,11 @@ This skill protects:
 When this skill is active, read context in this order:
 
 1. `AGENTS.md`
-2. `.codex/ROUTING.md`
-3. `AI_CONTEXT.md`
-4. `CLAUDE.md`
-5. `InvitaSR.postman_collection.json` when the task touches API behavior
+2. `../docs/customer-language-policy.md` when the task touches visible text, UX states, onboarding, checkout, or customer messaging
+3. `.codex/ROUTING.md`
+4. `AI_CONTEXT.md`
+5. `CLAUDE.md`
+6. `InvitaSR.postman_collection.json` when the task touches API behavior
 
 ---
 
@@ -80,11 +81,13 @@ Use this mapping:
   `onboarding-frontend-flow`
   `vue-frontend-implementation`
   `frontend-api-contract-review` if payloads, redirects, or checkout responses are risky
+  `copy-surface-review` when helper text, toasts, empty states, or status messages are affected
 
 - auth, session, guards, or plan-gated access:
   `auth-session-access-review`
   `frontend-api-contract-review`
   `vue-frontend-implementation` if code changes are required
+  `copy-surface-review` when the customer will read auth or access messages
 
 - master backoffice:
   `backoffice-master-operations`
@@ -98,7 +101,18 @@ Use this mapping:
 
 Prefer one primary skill plus up to two supporting skills.
 
-### 5. Decide whether delegation is real or conceptual
+### 5. Add customer-language review when wording is visible
+
+If the task affects text shown to clients or guests:
+
+- check whether the wording leaks internal SaaS jargon
+- translate technical language into everyday language
+- make the next action obvious
+- preserve trust, perceived value, and clarity
+
+Do not ship visible text that assumes the user understands terms like `tenant`, `webhook`, `payload`, `middleware`, or similar internal concepts.
+
+### 6. Decide whether delegation is real or conceptual
 
 Use real subagents only when all of these are true:
 
@@ -114,7 +128,7 @@ If those conditions are not met, keep the work local but preserve the same owner
 
 Never split work into overlapping write scopes.
 
-### 6. Plan first when risk is multi-surface
+### 7. Plan first when risk is multi-surface
 
 Produce an explicit plan before coding when the task:
 
@@ -124,7 +138,7 @@ Produce an explicit plan before coding when the task:
 - mixes UX, copy, and implementation
 - is ambiguous enough that the wrong owner would waste time
 
-### 7. Report the routing decision
+### 8. Report the routing decision
 
 Before substantial work, make the routing visible:
 
@@ -133,6 +147,7 @@ Before substantial work, make the routing visible:
 - selected skills
 - whether delegation is real or conceptual
 - backend repo impact if any
+- whether customer-language policy applies
 
 ## Definition of success
 

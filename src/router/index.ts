@@ -7,6 +7,7 @@ import PlansPage from '@/pages/public/PlansPage.vue'
 import NewsPage from '@/pages/public/NewsPage.vue'
 import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
 import PublicCommercialOnboarding from '@/pages/public/PublicCommercialOnboarding.vue'
+import PaymentReturnPage from '@/pages/public/PaymentReturnPage.vue'
 import TemplatePreviewPage from '@/pages/public/TemplatePreviewPage.vue'
 import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
@@ -67,6 +68,36 @@ const router = createRouter({
           name: 'template-preview',
           component: TemplatePreviewPage,
           meta: { title: 'Preview de template' },
+        },
+        {
+          path: 'payment/success',
+          name: 'payment-success',
+          component: PaymentReturnPage,
+          meta: { title: 'Pago confirmado', paymentReturnStatus: 'success' },
+        },
+        {
+          path: 'payment/cancel',
+          name: 'payment-cancel',
+          component: PaymentReturnPage,
+          meta: { title: 'Pago cancelado', paymentReturnStatus: 'cancel' },
+        },
+        {
+          path: 'billing/success',
+          name: 'billing-success',
+          component: PaymentReturnPage,
+          meta: { title: 'Pago confirmado', paymentReturnStatus: 'success' },
+        },
+        {
+          path: 'billing/failure',
+          name: 'billing-failure',
+          component: PaymentReturnPage,
+          meta: { title: 'Pago rechazado', paymentReturnStatus: 'failure' },
+        },
+        {
+          path: 'billing/pending',
+          name: 'billing-pending',
+          component: PaymentReturnPage,
+          meta: { title: 'Pago pendiente', paymentReturnStatus: 'pending' },
         },
       ],
     },
@@ -210,31 +241,51 @@ const router = createRouter({
           path: '',
           name: 'client-home',
           component: ClientHome,
-          meta: { title: 'Mi panel', requiresAuth: true, requiresClient: true },
+          meta: { title: 'Mi panel', requiresAuth: true, requiresClient: true, requiresActiveClientPlan: true },
         },
         {
           path: 'dashboard',
           name: 'client-dashboard',
           component: ClientHome,
-          meta: { title: 'Mi panel · Vista general', requiresAuth: true, requiresClient: true },
+          meta: {
+            title: 'Mi panel · Vista general',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
         },
         {
           path: 'estadisticas',
           name: 'client-stats',
           component: ClientStats,
-          meta: { title: 'Mi panel · Estadisticas', requiresAuth: true, requiresClient: true },
+          meta: {
+            title: 'Mi panel · Estadisticas',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
         },
         {
           path: 'invitaciones',
           name: 'client-invitations',
           component: ClientInvitations,
-          meta: { title: 'Mi panel · Mis invitaciones', requiresAuth: true, requiresClient: true },
+          meta: {
+            title: 'Mi panel · Mis invitaciones',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
         },
         {
           path: 'configuracion',
           name: 'client-settings',
           component: ClientSettings,
-          meta: { title: 'Mi panel · Configuracion', requiresAuth: true, requiresClient: true },
+          meta: {
+            title: 'Mi panel · Configuracion',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
         },
       ],
     },
@@ -267,6 +318,16 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresClient && !session.isClient) {
     return session.isMaster ? { name: 'backoffice-home' } : { name: 'home' }
+  }
+
+  if (to.meta.requiresActiveClientPlan && session.isClient && !session.hasActiveClientPlan) {
+    return {
+      name: 'public-onboarding-flow',
+      query: {
+        reason: session.hasClientPlan ? 'checkout_required' : 'plan_required',
+        next: typeof to.fullPath === 'string' ? to.fullPath : '/panel',
+      },
+    }
   }
 
   return true

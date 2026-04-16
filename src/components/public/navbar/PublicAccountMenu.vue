@@ -5,6 +5,7 @@ import { getPanelHomePath, getPanelModuleGroups } from '@/config/panelModules'
 
 const props = defineProps<{
   isMaster: boolean
+  hasActivePlan?: boolean
   displayName: string
   initials: string
   avatarStyle: CSSProperties
@@ -18,9 +19,21 @@ const emit = defineEmits<{
 const route = useRoute()
 const rootRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
-const panelHomePath = computed(() => getPanelHomePath(props.isMaster))
-const moduleGroups = computed(() => getPanelModuleGroups(props.isMaster))
-const panelLabel = computed(() => (props.isMaster ? 'Dashboard' : 'Mi panel'))
+const panelHomePath = computed(() =>
+  props.isMaster ? getPanelHomePath(true) : props.hasActivePlan ? '/panel' : '/onboarding/public',
+)
+const moduleGroups = computed(() => {
+  if (!props.isMaster && !props.hasActivePlan) {
+    return []
+  }
+
+  return getPanelModuleGroups(props.isMaster)
+})
+const panelLabel = computed(() => {
+  if (props.isMaster) return 'Dashboard'
+  return props.hasActivePlan ? 'Mi panel' : 'Finalizar compra'
+})
+const hasSubmenu = computed(() => moduleGroups.value.length > 0)
 
 const toggleMenu = () => {
   isOpen.value = !isOpen.value
@@ -75,7 +88,7 @@ watch(
       aria-haspopup="menu"
       aria-controls="account-dropdown"
       aria-label="Abrir menu de cuenta">
-      <img v-if="isMaster" class="account-logo" src="/brand/logo_icon.png" alt="Cuenta master" />
+      <img v-if="isMaster" class="account-logo" src="/brand/logo_icon.png" alt="Cuenta administrativa" />
       <span v-else class="account-initials" :style="avatarStyle" aria-hidden="true">
         {{ initials }}
       </span>
@@ -93,7 +106,7 @@ watch(
         <p class="account-user-name">{{ displayName }}</p>
       </div>
 
-      <div class="account-item">
+      <div class="account-item" :class="{ 'has-submenu': hasSubmenu }">
         <RouterLink class="account-link" :to="panelHomePath" @click="closeMenu">
           <span class="account-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -105,7 +118,7 @@ watch(
           </span>
           <span>{{ panelLabel }}</span>
         </RouterLink>
-        <div class="account-submenu">
+        <div v-if="hasSubmenu" class="account-submenu">
           <div v-for="group in moduleGroups" :key="group.title" class="submenu-group">
             <span class="submenu-title">{{ group.title }}</span>
             <RouterLink
@@ -222,6 +235,9 @@ watch(
 
 .account-item {
   position: relative;
+}
+
+.account-item.has-submenu {
   padding-right: 12px;
 }
 

@@ -58,6 +58,36 @@ export type PublicOnboardingProfile = {
   next_step?: string
 }
 
+export type PublicAuthSession = {
+  token?: string
+  expire?: number
+}
+
+export type PublicAuthUser = {
+  id?: number | string
+  name: string
+  last_name: string
+  email: string
+  created_at: string
+  updated_at: string
+  contextEncrypt: boolean
+  tenant?: {
+    id?: number | string
+    status?: string | null
+  } | null
+  client_plan?: {
+    has_plan?: boolean
+    has_active_plan?: boolean
+    plan_status?: string
+    source?: string
+    plan?: {
+      id?: number | string
+      name?: string
+      billing_type?: string
+    } | null
+  } | null
+}
+
 type PublicPayloadResponse = {
   message?: string
   status?: number | boolean
@@ -67,6 +97,8 @@ type PublicPayloadResponse = {
 export type PublicRegisterResult = {
   message: string
   profile: PublicOnboardingProfile
+  session?: PublicAuthSession
+  user?: PublicAuthUser
 }
 
 export type PublicCheckoutResult = {
@@ -126,16 +158,20 @@ export const registerPublicOnboarding = async (body: PublicOnboardingRegistratio
     body,
   })
 
+  const data = toRecord(payload.data)
+
   return {
-    message: payload.message ?? 'Registro completado.',
+    message: payload.message ?? 'Tu cuenta ya esta lista para continuar.',
     profile: parseProfilePayload(payload),
+    session: Object.keys(toRecord(data.session)).length ? (toRecord(data.session) as PublicAuthSession) : undefined,
+    user: Object.keys(toRecord(data.user)).length ? (toRecord(data.user) as PublicAuthUser) : undefined,
   }
 }
 
 export const getPublicOnboardingProfile = async (): Promise<PublicRegisterResult> => {
   const payload = await request<PublicPayloadResponse>(`${PUBLIC_ONBOARDING_BASE}/profile`)
   return {
-    message: payload.message ?? 'Resumen del onboarding.',
+    message: payload.message ?? 'Resumen de tu proceso actual.',
     profile: parseProfilePayload(payload),
   }
 }
@@ -149,22 +185,22 @@ export const updatePublicOnboardingProfile = async (
   })
 
   return {
-    message: payload.message ?? 'Perfil actualizado.',
+    message: payload.message ?? 'Tus datos se actualizaron correctamente.',
     profile: parseProfilePayload(payload),
   }
 }
 
 export const checkoutPublicOnboarding = async (
-  body: PublicOnboardingRegistrationInput,
+  body?: Partial<PublicOnboardingRegistrationInput>,
 ): Promise<PublicCheckoutResult> => {
   const payload = await request<PublicPayloadResponse>(`${PUBLIC_ONBOARDING_BASE}/checkout`, {
     method: 'POST',
-    body,
+    body: body ?? {},
   })
 
   const data = toRecord(payload.data)
   return {
-    message: payload.message ?? 'Checkout inicializado.',
+    message: payload.message ?? 'Ya puedes continuar al pago.',
     checkout_url: (data.checkout_url ?? data.url) as string | undefined,
     provider: data.provider as string | undefined,
     payment_id: (data.payment_id ?? data.id) as number | string | undefined,

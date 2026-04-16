@@ -122,7 +122,11 @@ const submitRegister = async () => {
   try {
     const response = await registerPublicOnboarding(payload)
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
-    await session.refreshMe()
+    if (response.user) {
+      session.acceptSession(response.session?.token ?? null, response.user, false)
+    } else {
+      await session.refreshMe()
+    }
     notifySuccess(response.message)
     emit('registered')
     close()

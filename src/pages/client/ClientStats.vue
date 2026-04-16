@@ -20,8 +20,8 @@ const loadError = ref<string | null>(null)
 const stateCards = computed(() => [
   { label: 'Plan', value: getClientPlanName(session.user) },
   { label: 'Estado comercial', value: getClientPlanStatusLabel(session.user) },
-  { label: 'Tenant', value: getTenantStatusLabel(session.user) },
-  { label: 'Template base', value: getSelectedTemplateName(profile.value) },
+  { label: 'Estado de tu cuenta', value: getTenantStatusLabel(session.user) },
+  { label: 'Estilo elegido', value: getSelectedTemplateName(profile.value) },
 ])
 
 const loadProfile = async () => {
@@ -33,7 +33,7 @@ const loadProfile = async () => {
     profile.value = response.profile
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar el estado inicial del tenant.'
+    loadError.value = payload?.message ?? 'No pudimos cargar el estado inicial de tu cuenta.'
   } finally {
     isLoading.value = false
   }
@@ -51,7 +51,7 @@ onMounted(() => {
         <p class="client-kicker">Analitica inicial</p>
         <h1 id="client-stats-title">Estadisticas</h1>
         <p class="client-lead">
-          Esta vista deja preparado el tablero de metricas del tenant. Hoy muestra el estado base del acceso y la preparacion del evento.
+          Esta vista deja todo listo para tus futuras metricas. Por ahora te muestra el estado de tu cuenta y la preparacion del evento.
         </p>
       </div>
 
@@ -64,7 +64,7 @@ onMounted(() => {
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
     <p v-else-if="isLoading" class="client-inline-note">Cargando estado de analitica...</p>
 
-    <section class="state-grid" aria-label="Estado base del tenant">
+    <section class="state-grid" aria-label="Estado base de la cuenta">
       <article v-for="item in stateCards" :key="item.label" class="bo-card state-card">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
@@ -75,22 +75,22 @@ onMounted(() => {
       <header class="section-head">
         <div>
           <h2>Panel de metricas</h2>
-          <p>Las metricas de visitas, RSVP e interaccion se conectaran cuando exista la capa tenant dedicada para dashboard.</p>
+          <p>Las metricas de visitas, confirmaciones e interaccion apareceran aqui cuando la informacion del evento ya este conectada.</p>
         </div>
       </header>
 
       <div class="empty-metric-grid">
         <article class="empty-metric">
           <strong>Visitas a la invitacion</strong>
-          <p>Se habilitara cuando la invitacion este publicada y la API exponga analitica de consumo real.</p>
+          <p>Se mostrara cuando tu invitacion este publicada y comience a recibir visitas reales.</p>
         </article>
         <article class="empty-metric">
           <strong>Confirmaciones RSVP</strong>
-          <p>Se mostrara cuando el flujo RSVP este conectado al tenant y la invitacion tenga actividad real.</p>
+          <p>Se mostrara cuando tus invitados comiencen a confirmar asistencia.</p>
         </article>
         <article class="empty-metric">
           <strong>Interaccion de invitados</strong>
-          <p>Permitira leer engagement sobre galeria, mapa, muro y acciones principales del evento.</p>
+          <p>Te ayudara a entender como interactuan tus invitados con la galeria, el mapa y otras secciones importantes.</p>
         </article>
       </div>
     </section>
@@ -98,22 +98,22 @@ onMounted(() => {
     <section class="bo-card readiness-card">
       <header class="section-head">
         <div>
-          <h2>Readiness del dashboard</h2>
-          <p>Estado actual del setup para pasar a metricas reales.</p>
+          <h2>Estado de preparacion</h2>
+          <p>Lo que hoy ya esta listo para mostrar metricas reales mas adelante.</p>
         </div>
       </header>
 
       <ul class="readiness-list">
         <li>
-          <strong>Plan resuelto</strong>
+          <strong>Plan confirmado</strong>
           <span>{{ getClientPlanStatusLabel(session.user) }}</span>
         </li>
         <li>
-          <strong>Onboarding</strong>
+          <strong>Proceso actual</strong>
           <span>{{ getOnboardingStatusLabel(profile) }}</span>
         </li>
         <li>
-          <strong>Template asociada</strong>
+          <strong>Estilo elegido</strong>
           <span>{{ getSelectedTemplateName(profile) }}</span>
         </li>
       </ul>

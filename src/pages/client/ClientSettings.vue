@@ -58,17 +58,17 @@ const summaryCards = computed(() => [
   {
     label: 'Estado comercial',
     value: getClientPlanStatusLabel(session.user),
-    hint: 'Se resuelve en la API segun pagos o suscripcion.',
+    hint: 'Te muestra si tu plan ya esta listo o si aun queda un paso pendiente.',
   },
   {
-    label: 'Template asociada',
+    label: 'Estilo elegido',
     value: getSelectedTemplateName(profile.value),
-    hint: 'Base visual definida hasta ahora.',
+    hint: 'Es la base visual que elegiste hasta ahora.',
   },
   {
     label: 'Siguiente paso',
     value: getNextStepLabel(profile.value),
-    hint: 'Lectura actual del flujo de onboarding.',
+    hint: 'Te indica lo siguiente que conviene hacer.',
   },
 ])
 
@@ -82,7 +82,7 @@ const loadProfile = async () => {
     syncForm(response.profile)
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar tu configuracion.'
+    loadError.value = payload?.message ?? 'No pudimos cargar la configuracion de tu cuenta.'
   } finally {
     isLoading.value = false
   }
@@ -91,7 +91,7 @@ const loadProfile = async () => {
 const saveProfile = async () => {
   const onboarding = profile.value?.onboarding
   if (!onboarding?.plan_id) {
-    notifyError('No encontramos un plan asociado para actualizar tu configuracion.')
+    notifyError('No encontramos la informacion necesaria para actualizar tu cuenta.')
     return
   }
 
@@ -110,10 +110,10 @@ const saveProfile = async () => {
     profile.value = response.profile
     syncForm(response.profile)
     patchSessionName(form.full_name, form.email)
-    notifySuccess(response.message ?? 'Configuracion actualizada.')
+    notifySuccess(response.message ?? 'Tus cambios se guardaron correctamente.')
   } catch (error) {
     const payload = error as { message?: string }
-    notifyError(payload?.message ?? 'No pudimos guardar la configuracion.')
+    notifyError(payload?.message ?? 'No pudimos guardar tus cambios.')
   } finally {
     isSaving.value = false
   }
@@ -132,7 +132,7 @@ onMounted(() => {
         <p class="client-kicker">Cuenta y setup</p>
         <h1 id="client-settings-title">Configuracion</h1>
         <p class="client-lead">
-          Aqui concentras los datos minimos del dashboard cliente: perfil, resumen comercial, template asociada y estado del onboarding.
+          Aqui puedes revisar tus datos, el estado de tu plan y la informacion clave para seguir avanzando con tu evento.
         </p>
       </div>
 
@@ -157,7 +157,7 @@ onMounted(() => {
         <header class="section-head">
           <div>
             <h2>Datos de la cuenta</h2>
-            <p>Informacion base que reutiliza el flujo publico de onboarding.</p>
+            <p>Informacion principal de tu cuenta.</p>
           </div>
         </header>
 
@@ -193,26 +193,26 @@ onMounted(() => {
       <article class="bo-card settings-card">
         <header class="section-head">
           <div>
-            <h2>Configuracion estructural</h2>
-            <p>Lectura operativa del tenant y del onboarding actual.</p>
+            <h2>Resumen de tu cuenta</h2>
+            <p>Informacion general sobre tu acceso y el estado actual de tu proceso.</p>
           </div>
         </header>
 
         <ul class="structure-list">
           <li>
-            <strong>Tenant ID</strong>
-            <span>{{ session.user?.tenant?.id ?? '-' }}</span>
+            <strong>Estado del espacio</strong>
+            <span>{{ session.user?.tenant?.status ? 'Listo' : 'En preparacion' }}</span>
           </li>
           <li>
-            <strong>Template actual</strong>
+            <strong>Estilo elegido</strong>
             <span>{{ getSelectedTemplateName(profile) }}</span>
           </li>
           <li>
-            <strong>Plan resuelto</strong>
+            <strong>Plan actual</strong>
             <span>{{ getClientPlanName(session.user) }}</span>
           </li>
           <li>
-            <strong>Billing</strong>
+            <strong>Tipo de cobro</strong>
             <span>{{ getClientBillingLabel(session.user) }}</span>
           </li>
         </ul>

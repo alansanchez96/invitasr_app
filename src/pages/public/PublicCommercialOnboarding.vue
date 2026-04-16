@@ -61,10 +61,21 @@ const registrationCountry = computed(() => {
   const match = countries.value.find((country) => country.iso === registrationCountryCode.value)
   return match?.nicename ?? match?.name ?? registrationCountryCode.value
 })
+const selectedPlanId = computed(() => {
+  if (planIdFromQuery.value) return planIdFromQuery.value
+  if (profile.value?.onboarding?.plan_id) return String(profile.value.onboarding.plan_id)
+  if (draftPayload.value?.plan_id) return String(draftPayload.value.plan_id)
+  return ''
+})
+const selectedPlanNameFromCatalog = computed(() => {
+  if (!selectedPlanId.value) return ''
+  const match = catalogStore.plans.find((plan) => String(plan.id) === selectedPlanId.value)
+  return match?.name?.trim() ?? ''
+})
 const registrationPlan = computed(() => {
   if (planNameFromQuery.value) return planNameFromQuery.value
   if (profile.value?.onboarding?.plan?.name) return profile.value.onboarding.plan.name
-  if (draftPayload.value?.plan_id) return `Plan ${draftPayload.value.plan_id}`
+  if (selectedPlanNameFromCatalog.value) return selectedPlanNameFromCatalog.value
   return '-'
 })
 
@@ -125,6 +136,33 @@ const syncDraftWithPlan = (draft: PublicOnboardingRegistrationInput) => {
   return draft
 }
 
+const syncSelectedPlanWithProfile = async () => {
+  if (!planIdFromQuery.value || !profile.value) return
+
+  const currentPlanId = profile.value.onboarding?.plan_id ? String(profile.value.onboarding.plan_id) : ''
+  if (currentPlanId === planIdFromQuery.value) return
+
+  const currentDraft = draftPayload.value ?? buildDraftFromProfile(profile.value)
+  if (!currentDraft) return
+
+  const response = await updatePublicOnboardingProfile({
+    plan_id: planIdFromQuery.value,
+    template_id: null,
+    register_method: currentDraft.register_method ?? 'email',
+    full_name: currentDraft.full_name,
+    email: currentDraft.email,
+    country_code: currentDraft.country_code,
+  })
+
+  profile.value = response.profile
+  draftPayload.value = {
+    ...currentDraft,
+    plan_id: planIdFromQuery.value,
+    template_id: null,
+  }
+  saveDraft(draftPayload.value)
+}
+
 const loadProfile = async () => {
   isLoading.value = true
   loadError.value = null
@@ -133,17 +171,25 @@ const loadProfile = async () => {
   try {
     const response = await getPublicOnboardingProfile()
     profile.value = response.profile
+    await syncSelectedPlanWithProfile()
   } catch (error) {
     const payload = error as { message?: string; error?: { message?: string } }
     const backendMessage = payload?.error?.message ?? payload?.message ?? ''
     if (backendMessage.toLowerCase().includes('no existe un onboarding publico pendiente')) {
-      notifyWarning('No tienes un onboarding pendiente. Selecciona un plan para iniciar una nueva compra.')
+      if (session.hasActiveClientPlan) {
+        notifySuccess('Tu plan ya esta activo. Te redirigimos al panel cliente.')
+        isLoading.value = false
+        await router.replace({ name: 'client-home' })
+        return
+      }
+
+      notifyWarning('No encontramos un proceso pendiente para continuar. Elige un plan para empezar de nuevo.')
       isLoading.value = false
       await router.replace({ name: 'planes', query: { reason: 'new_onboarding' } })
       return
     }
     if (!draftPayload.value) {
-      loadError.value = payload?.message ?? 'No encontramos una sesion de onboarding activa.'
+      loadError.value = payload?.message ?? 'No encontramos una sesion activa para continuar.'
     }
   }
 
@@ -172,15 +218,16 @@ const startCheckout = async () => {
   }
 
   if (!isDraftReady.value) {
-    notifyWarning('Faltan datos de registro para habilitar el checkout.')
+    notifyWarning('Faltan algunos datos para continuar al pago.')
     return
   }
 
   isPaying.value = true
   try {
+    await syncSelectedPlanWithProfile()
     const response = await checkoutPublicOnboarding(draftPayload.value)
     if (!response.checkout_url) {
-      notifyError('No recibimos la URL de checkout.')
+      notifyError('No pudimos abrir el pago en este momento.')
       return
     }
 
@@ -193,7 +240,7 @@ const startCheckout = async () => {
       notifyWarning('Detectamos datos por corregir antes de pagar.')
       return
     }
-    notifyError(payload?.message ?? 'No pudimos iniciar el checkout.')
+    notifyError(payload?.message ?? 'No pudimos iniciar el pago.')
   } finally {
     isPaying.value = false
   }
@@ -281,6 +328,9 @@ watch(
 )
 
 onMounted(async () => {
+  void catalogStore.ensurePlans().catch(() => {
+    notifyWarning('No pudimos cargar los planes en este momento.')
+  })
   void catalogStore.ensureCountries().catch(() => {
     notifyWarning('No pudimos cargar el catalogo de paises.')
   })
@@ -302,14 +352,14 @@ onMounted(async () => {
         <span class="kicker">Ultimo paso antes de activar</span>
         <h1>Revisa tus datos y finaliza el pago de {{ registrationPlan }}.</h1>
         <p>
-          Ya tienes casi todo listo. Confirmamos tus datos para mostrarte la pasarela correcta
-          segun tu pais y llevarte a un checkout seguro.
+          Ya tienes casi todo listo. Confirmamos tus datos para mostrarte la opcion de pago correcta
+          segun tu pais y ayudarte a terminar la compra de forma segura.
         </p>
       </header>
 
       <article v-if="isLoading" class="confirm-card state-card" role="status" aria-live="polite">
         <span class="spinner" aria-hidden="true"></span>
-        <p>Cargando resumen de onboarding...</p>
+        <p>Cargando el resumen de tu cuenta...</p>
       </article>
 
       <article v-else-if="loadError" class="confirm-card state-card" role="alert">
