@@ -70,6 +70,7 @@ type EditorSnapshot = {
 type PendingGalleryImage = {
   id: string
   file: File
+  previewUrl: string
   name: string
   shortName: string
   extension: string
@@ -537,7 +538,6 @@ const resolvedSectionVisibility = computed(() => {
 
 const previewSectionVisibility = computed<Record<string, boolean>>(() => ({
   ...resolvedSectionVisibility.value,
-  gallery: false,
 }))
 
 const selectedTemplate = computed(() =>
@@ -573,6 +573,69 @@ const galleryCounterLabel = computed(() => {
     return `${galleryUsedCount.value} imágenes`
   }
   return `${galleryUsedCount.value} / ${galleryLimit.value} imágenes`
+})
+
+const resolveGalleryVariantUrl = (
+  image: TenantInvitationGalleryImage,
+  keys: string[],
+): string => {
+  const variants = image.variant_urls ?? null
+  for (const key of keys) {
+    const candidate = typeof variants?.[key] === 'string' ? variants[key] : ''
+    if (candidate.trim()) return candidate
+  }
+  return String(image.public_url ?? '').trim()
+}
+
+const liveGalleryItems = computed<WeddingTemplateData['gallery']>(() => {
+  const persisted: WeddingTemplateData['gallery'] = []
+  activeGalleryImages.value.forEach((image, index) => {
+    const galleryUrl = resolveGalleryVariantUrl(image, [
+      'gallery_medium',
+      'hero_banner',
+      'product_image',
+      'lightbox_max',
+      'thumbnail_large',
+    ])
+    if (!galleryUrl.trim()) return
+
+    const thumbnailUrl = resolveGalleryVariantUrl(image, [
+      'thumbnail_small',
+      'thumbnail_medium',
+      'thumbnail_large',
+      'gallery_medium',
+    ])
+    const lightboxUrl = resolveGalleryVariantUrl(image, [
+      'lightbox_max',
+      'hero_banner',
+      'product_image',
+      'gallery_medium',
+    ])
+
+    persisted.push({
+      id: `gallery-db-${image.id}`,
+      imageUrl: galleryUrl,
+      galleryUrl,
+      thumbnailUrl,
+      lightboxUrl,
+      alt: asText(image.original_name, `Foto ${index + 1}`),
+    })
+  })
+
+  const queued: WeddingTemplateData['gallery'] = []
+  pendingGalleryImages.value.forEach((image, index) => {
+    if (!image.previewUrl.trim()) return
+    queued.push({
+      id: image.id,
+      imageUrl: image.previewUrl,
+      galleryUrl: image.previewUrl,
+      thumbnailUrl: image.previewUrl,
+      lightboxUrl: image.previewUrl,
+      alt: asText(image.name, `Foto ${persisted.length + index + 1}`),
+    })
+  })
+
+  return [...persisted, ...queued]
 })
 const galleryVisualItems = computed<GalleryVisualItem[]>(() => {
   const persisted: GalleryVisualItem[] = activeGalleryImages.value.map((image): GalleryVisualItem => {
@@ -645,6 +708,10 @@ const getGalleryItemStatusTitle = (item: GalleryVisualItem): string => {
 
 const removeGalleryVisualItem = (item: GalleryVisualItem) => {
   if (item.kind === 'pending') {
+    const pendingRow = pendingGalleryImages.value.find((row) => row.id === item.id)
+    if (pendingRow?.previewUrl) {
+      URL.revokeObjectURL(pendingRow.previewUrl)
+    }
     pendingGalleryImages.value = pendingGalleryImages.value.filter((row) => row.id !== item.id)
     return
   }
@@ -656,6 +723,11 @@ const removeGalleryVisualItem = (item: GalleryVisualItem) => {
 }
 
 const clearGalleryPendingChanges = () => {
+  for (const image of pendingGalleryImages.value) {
+    if (image.previewUrl) {
+      URL.revokeObjectURL(image.previewUrl)
+    }
+  }
   pendingGalleryImages.value = []
   removedGalleryImageIds.value = []
 }
@@ -761,7 +833,7 @@ const applySnapshot = async (snapshot: EditorSnapshot) => {
   activeTextField.value = snapshot.activeTextField
   showCheckinPreview.value = snapshot.showCheckinPreview
   if ((snapshot.pendingGallerySignature ?? []).length === 0) {
-    pendingGalleryImages.value = []
+    clearGalleryPendingChanges()
   }
   removedGalleryImageIds.value = Array.isArray(snapshot.removedGalleryImageIds)
     ? snapshot.removedGalleryImageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
@@ -1020,6 +1092,10 @@ const normalizeStory = (value: unknown): WeddingTemplateData['story'] => {
 }
 
 const normalizeGallery = (value: unknown): WeddingTemplateData['gallery'] => {
+  if (liveGalleryItems.value.length) {
+    return liveGalleryItems.value
+  }
+
   if (!Array.isArray(value) || !value.length) {
     return [
       {
@@ -1032,9 +1108,16 @@ const normalizeGallery = (value: unknown): WeddingTemplateData['gallery'] => {
 
   return value.map((item, index) => {
     const source = toRecord(item)
+    const imageUrl = asText(
+      source.galleryUrl ?? source.imageUrl,
+      'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1000&q=80',
+    )
     return {
       id: asText(source.id, `gallery-${index + 1}`),
-      imageUrl: asText(source.imageUrl, 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1000&q=80'),
+      imageUrl,
+      galleryUrl: imageUrl,
+      thumbnailUrl: asText(source.thumbnailUrl, imageUrl),
+      lightboxUrl: asText(source.lightboxUrl, imageUrl),
       alt: asText(source.alt, `Foto ${index + 1}`),
     }
   })
@@ -1296,7 +1379,6 @@ const persistPendingGalleryImages = async () => {
     const response = await syncTenantInvitationGalleryImages(invitation.value.id, {
       files: pendingGalleryImages.value.map((item) => item.file),
       removeImageIds: removedGalleryImageIds.value,
-      method: 'PUT',
     })
 
     gallerySummary.value = response.gallery
@@ -1442,6 +1524,7 @@ const onGalleryFilesSelected = (event: Event) => {
     return {
       id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       file,
+      previewUrl: URL.createObjectURL(file),
       name: file.name,
       shortName: truncateGalleryFileName(file.name),
       extension,
@@ -1814,6 +1897,11 @@ onBeforeUnmount(() => {
   if (galleryProcessingRefreshTimer) {
     clearTimeout(galleryProcessingRefreshTimer)
     galleryProcessingRefreshTimer = null
+  }
+  for (const image of pendingGalleryImages.value) {
+    if (image.previewUrl) {
+      URL.revokeObjectURL(image.previewUrl)
+    }
   }
   document.body.style.overflow = ''
 })

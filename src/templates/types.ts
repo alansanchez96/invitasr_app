@@ -42,6 +42,9 @@ export type InvitationStoryMoment = {
 export type InvitationGalleryItem = {
   id: string
   imageUrl: string
+  galleryUrl?: string
+  thumbnailUrl?: string
+  lightboxUrl?: string
   alt: string
 }
 

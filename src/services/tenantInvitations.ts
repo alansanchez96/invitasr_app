@@ -399,7 +399,6 @@ export const syncTenantInvitationGalleryImages = async (
   options: {
     files?: File[]
     removeImageIds?: Array<number | string>
-    method?: 'POST' | 'PUT'
   },
 ) => {
   const files = Array.isArray(options.files) ? options.files : []
@@ -408,8 +407,6 @@ export const syncTenantInvitationGalleryImages = async (
         .map((value) => Number(value))
         .filter((value, index, collection) => Number.isFinite(value) && value > 0 && collection.indexOf(value) === index)
     : []
-  const method = options.method ?? 'PUT'
-
   const body = new FormData()
   files.forEach((file) => body.append('images[]', file))
   removeImageIds.forEach((id) => body.append('remove_image_ids[]', String(id)))
@@ -417,7 +414,7 @@ export const syncTenantInvitationGalleryImages = async (
   const payload = await request<TenantApiResponse<Record<string, unknown>>>(
     `${TENANT_BASE}/invitations/${invitationId}/gallery`,
     {
-      method,
+      method: 'POST',
       body,
     },
   )
@@ -437,7 +434,6 @@ export const uploadTenantInvitationGalleryImages = async (
   syncTenantInvitationGalleryImages(invitationId, {
     files,
     removeImageIds: [],
-    method: 'POST',
   })
 
 export const checkTenantInvitationSubdomainAvailability = async (params: {

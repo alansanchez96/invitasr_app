@@ -29,7 +29,20 @@ const musicMuted = ref(Boolean(props.data.music?.muted ?? true))
 const countdownNow = ref(Date.now())
 const checkinOverlayVisible = ref(false)
 const audioRef = ref<HTMLAudioElement | null>(null)
+const galleryCarouselIndex = ref(0)
+const galleryLightboxOpen = ref(false)
+const galleryLightboxIndex = ref(0)
+const isMobileGalleryViewport = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
+const MOBILE_GALLERY_BREAKPOINT = 640
+
+type GalleryDisplaySlideRole = 'left' | 'center' | 'right'
+
+type GalleryDisplaySlide = {
+  index: number
+  item: (typeof props.data.gallery)[number]
+  role: GalleryDisplaySlideRole
+}
 
 const resolveText = (value: unknown, fallback: string): string => {
   if (typeof value !== 'string') return fallback
@@ -213,6 +226,98 @@ const galleryItems = computed(() => {
   ]
 })
 
+const normalizeGalleryIndex = (index: number, total: number): number => {
+  if (total <= 0) return 0
+  return ((index % total) + total) % total
+}
+
+const resolveGalleryDisplayUrl = (item: (typeof props.data.gallery)[number]): string =>
+  resolveText(item.galleryUrl, resolveText(item.imageUrl, ''))
+
+const resolveGalleryThumbnailUrl = (item: (typeof props.data.gallery)[number]): string =>
+  resolveText(item.thumbnailUrl, resolveGalleryDisplayUrl(item))
+
+const resolveGalleryLightboxUrl = (item: (typeof props.data.gallery)[number]): string =>
+  resolveText(item.lightboxUrl, resolveText(item.imageUrl, resolveGalleryDisplayUrl(item)))
+
+const normalizedGalleryCarouselIndex = computed(() =>
+  normalizeGalleryIndex(galleryCarouselIndex.value, galleryItems.value.length),
+)
+
+const normalizedGalleryLightboxIndex = computed(() =>
+  normalizeGalleryIndex(galleryLightboxIndex.value, galleryItems.value.length),
+)
+
+const galleryHasMultipleItems = computed(() => galleryItems.value.length > 1)
+const galleryIsCompactSet = computed(() => galleryItems.value.length <= 2)
+const galleryIsSingleItem = computed(() => galleryItems.value.length === 1)
+const galleryDesktopSlides = computed<GalleryDisplaySlide[]>(() => {
+  const total = galleryItems.value.length
+  if (total <= 0) return []
+
+  const centerIndex = normalizedGalleryCarouselIndex.value
+
+  if (isMobileGalleryViewport.value) {
+    return [{ index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'center' }]
+  }
+
+  if (total === 1) {
+    return [{ index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'center' }]
+  }
+
+  if (total === 2) {
+    const nextIndex = normalizeGalleryIndex(centerIndex + 1, total)
+    return [
+      { index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'left' },
+      { index: nextIndex, item: galleryItems.value[nextIndex]!, role: 'right' },
+    ]
+  }
+
+  const leftIndex = normalizeGalleryIndex(centerIndex - 1, total)
+  const rightIndex = normalizeGalleryIndex(centerIndex + 1, total)
+
+  return [
+    { index: leftIndex, item: galleryItems.value[leftIndex]!, role: 'left' },
+    { index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'center' },
+    { index: rightIndex, item: galleryItems.value[rightIndex]!, role: 'right' },
+  ]
+})
+
+const activeLightboxItem = computed(() => {
+  if (!galleryItems.value.length) return null
+  return galleryItems.value[normalizedGalleryLightboxIndex.value] ?? null
+})
+
+const galleryCounterLabel = computed(() => {
+  const total = galleryItems.value.length
+  if (!total) return '0 / 0'
+  return `${normalizedGalleryCarouselIndex.value + 1} / ${total}`
+})
+
+const galleryLightboxCounterLabel = computed(() => {
+  const total = galleryItems.value.length
+  if (!total) return '0 / 0'
+  return `${normalizedGalleryLightboxIndex.value + 1} / ${total}`
+})
+
+const galleryLightboxStyle = computed<Record<string, string>>(() => {
+  if (props.editable || props.constrainedOverlay) {
+    return {
+      position: 'absolute',
+      inset: '0',
+      height: '100%',
+      minHeight: '100%',
+    }
+  }
+
+  return {
+    position: 'fixed',
+    inset: '0',
+    height: '100dvh',
+    minHeight: '100dvh',
+  }
+})
+
 const musicAudioUrl = computed(() => {
   const configured = resolveText(props.data.music?.audioUrl, '')
   if (configured) return configured
@@ -286,6 +391,49 @@ const finishEdit = () => {
   emit('finish-edit')
 }
 
+const selectGallerySlide = (index: number) => {
+  const total = galleryItems.value.length
+  if (!total) return
+  galleryCarouselIndex.value = normalizeGalleryIndex(index, total)
+}
+
+const goToPreviousGallerySlide = () => {
+  if (!galleryHasMultipleItems.value) return
+  selectGallerySlide(normalizedGalleryCarouselIndex.value - 1)
+}
+
+const goToNextGallerySlide = () => {
+  if (!galleryHasMultipleItems.value) return
+  selectGallerySlide(normalizedGalleryCarouselIndex.value + 1)
+}
+
+const openGalleryLightbox = (index = normalizedGalleryCarouselIndex.value) => {
+  const total = galleryItems.value.length
+  if (!total) return
+  galleryLightboxIndex.value = normalizeGalleryIndex(index, total)
+  galleryLightboxOpen.value = true
+}
+
+const closeGalleryLightbox = () => {
+  galleryLightboxOpen.value = false
+}
+
+const selectLightboxSlide = (index: number) => {
+  const total = galleryItems.value.length
+  if (!total) return
+  galleryLightboxIndex.value = normalizeGalleryIndex(index, total)
+}
+
+const goToPreviousLightboxSlide = () => {
+  if (!galleryHasMultipleItems.value) return
+  selectLightboxSlide(normalizedGalleryLightboxIndex.value - 1)
+}
+
+const goToNextLightboxSlide = () => {
+  if (!galleryHasMultipleItems.value) return
+  selectLightboxSlide(normalizedGalleryLightboxIndex.value + 1)
+}
+
 const toggleMute = () => {
   musicMuted.value = !musicMuted.value
   if (!musicMuted.value) {
@@ -307,6 +455,31 @@ const openCheckinOverlay = () => {
 
 const closeCheckinOverlay = () => {
   checkinOverlayVisible.value = false
+}
+
+const handleWindowKeydown = (event: KeyboardEvent) => {
+  if (!galleryLightboxOpen.value) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeGalleryLightbox()
+    return
+  }
+
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    goToPreviousLightboxSlide()
+    return
+  }
+
+  if (event.key === 'ArrowRight') {
+    event.preventDefault()
+    goToNextLightboxSlide()
+  }
+}
+
+const syncGalleryViewportMode = () => {
+  isMobileGalleryViewport.value = window.innerWidth <= MOBILE_GALLERY_BREAKPOINT
 }
 
 const startBackgroundMusic = async () => {
@@ -347,9 +520,12 @@ const syncMusicState = async () => {
 }
 
 onMounted(() => {
+  syncGalleryViewportMode()
   timerId = setInterval(() => {
     countdownNow.value = Date.now()
   }, 1000)
+  window.addEventListener('keydown', handleWindowKeydown)
+  window.addEventListener('resize', syncGalleryViewportMode, { passive: true })
 
   if (!props.editable && isSectionVisible('checkin')) {
     checkinOverlayVisible.value = true
@@ -360,7 +536,29 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (timerId) clearInterval(timerId)
+  window.removeEventListener('keydown', handleWindowKeydown)
+  window.removeEventListener('resize', syncGalleryViewportMode)
   pauseBackgroundMusic()
+  if (!props.editable && !props.constrainedOverlay) {
+    document.body.style.overflow = ''
+  }
+})
+
+watch(galleryItems, (items) => {
+  if (!items.length) {
+    galleryCarouselIndex.value = 0
+    galleryLightboxIndex.value = 0
+    galleryLightboxOpen.value = false
+    return
+  }
+
+  galleryCarouselIndex.value = normalizedGalleryCarouselIndex.value
+  galleryLightboxIndex.value = normalizedGalleryLightboxIndex.value
+})
+
+watch(galleryLightboxOpen, (isOpen) => {
+  if (props.editable || props.constrainedOverlay) return
+  document.body.style.overflow = isOpen ? 'hidden' : ''
 })
 
 watch(
@@ -557,10 +755,58 @@ watch(musicMuted, () => {
 
     <section v-if="isSectionVisible('gallery')" class="snow-card">
       <p class="section-kicker">Galería</p>
-      <div class="snow-gallery">
-        <figure v-for="item in galleryItems" :key="item.id">
-          <img :src="item.imageUrl" :alt="item.alt" loading="lazy" />
-        </figure>
+      <div class="snow-gallery-carousel">
+        <div class="snow-gallery-carousel__stage">
+          <button
+            v-if="galleryHasMultipleItems"
+            type="button"
+            class="snow-gallery-nav snow-gallery-nav--prev"
+            aria-label="Imagen anterior"
+            @click="goToPreviousGallerySlide">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m14 6-6 6 6 6" />
+            </svg>
+          </button>
+
+          <button
+            v-if="galleryHasMultipleItems"
+            type="button"
+            class="snow-gallery-nav snow-gallery-nav--next"
+            aria-label="Imagen siguiente"
+            @click="goToNextGallerySlide">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m10 6 6 6-6 6" />
+            </svg>
+          </button>
+
+          <div
+            class="snow-gallery-strip"
+            :class="{
+              'snow-gallery-strip--compact': galleryIsCompactSet,
+              'snow-gallery-strip--single': galleryIsSingleItem,
+            }">
+            <button
+              v-for="slide in galleryDesktopSlides"
+              :key="`gallery-slide-${slide.item.id}-${slide.role}-${slide.index}`"
+              type="button"
+              class="snow-gallery-card"
+              :class="`snow-gallery-card--${slide.role}`"
+              :aria-label="`Abrir imagen ${slide.index + 1}`"
+              @click="openGalleryLightbox(slide.index)">
+              <img
+                :src="resolveGalleryDisplayUrl(slide.item)"
+                :alt="slide.item.alt"
+                loading="lazy" />
+            </button>
+          </div>
+        </div>
+
+        <div class="snow-gallery-carousel__meta">
+          <span>{{ galleryCounterLabel }}</span>
+          <button type="button" class="snow-gallery-carousel__open" @click="openGalleryLightbox()">
+            Ver en pantalla completa
+          </button>
+        </div>
       </div>
     </section>
 
@@ -674,6 +920,65 @@ watch(musicMuted, () => {
     </div>
 
     <div
+      v-if="galleryLightboxOpen"
+      class="snow-gallery-lightbox"
+      :style="galleryLightboxStyle"
+      @click.self="closeGalleryLightbox">
+      <div class="snow-gallery-lightbox__panel">
+        <header class="snow-gallery-lightbox__head">
+          <p>Galería · {{ galleryLightboxCounterLabel }}</p>
+          <button type="button" aria-label="Salir de galería" title="Salir" @click="closeGalleryLightbox">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 6-12 12" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="snow-gallery-lightbox__stage">
+          <button
+            v-if="galleryHasMultipleItems"
+            type="button"
+            class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--prev"
+            aria-label="Imagen anterior"
+            @click="goToPreviousLightboxSlide">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m14 6-6 6 6 6" />
+            </svg>
+          </button>
+
+          <figure v-if="activeLightboxItem">
+            <img :src="resolveGalleryLightboxUrl(activeLightboxItem)" :alt="activeLightboxItem.alt" loading="eager" />
+          </figure>
+
+          <button
+            v-if="galleryHasMultipleItems"
+            type="button"
+            class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--next"
+            aria-label="Imagen siguiente"
+            @click="goToNextLightboxSlide">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m10 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="snow-gallery-lightbox__thumbs" role="tablist" aria-label="Miniaturas en visor">
+          <button
+            v-for="(item, index) in galleryItems"
+            :key="`lightbox-${item.id}`"
+            type="button"
+            class="snow-gallery-lightbox__thumb"
+            :class="{ 'is-active': index === normalizedGalleryLightboxIndex }"
+            :aria-label="`Ir a imagen ${index + 1}`"
+            @click="selectLightboxSlide(index)">
+            <img :src="resolveGalleryThumbnailUrl(item)" :alt="item.alt" loading="lazy" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
       v-if="checkinOverlayVisible"
       class="snow-checkin-overlay"
       :style="checkinOverlayStyle"
@@ -695,6 +1000,8 @@ watch(musicMuted, () => {
 
 <style scoped>
 .snow-template {
+  --snow-thumb-size: 64px;
+  --snow-thumb-gap: 8px;
   display: grid;
   gap: 14px;
   padding: 14px;
@@ -838,23 +1145,375 @@ watch(musicMuted, () => {
   padding-bottom: 0.26rem;
 }
 
-.snow-gallery {
+.snow-gallery-carousel {
+  display: grid;
+  gap: 0.78rem;
+}
+
+.snow-gallery-carousel__stage {
+  position: relative;
+  display: grid;
+  gap: 0.65rem;
+  overflow: visible;
+}
+
+.snow-gallery-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 54px;
 }
 
-.snow-gallery figure {
+.snow-gallery-strip--single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 620px;
+}
+
+.snow-gallery-strip--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 820px;
+}
+
+.snow-gallery-card {
+  border: 0;
   margin: 0;
+  padding: 0;
+  position: relative;
   overflow: hidden;
-  border-radius: 12px;
-  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+  cursor: zoom-in;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
+  aspect-ratio: 3 / 4;
+  filter: saturate(0.92);
 }
 
-.snow-gallery img {
+.snow-gallery-card::after {
+  content: '';
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: 6px;
+  height: 14px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.3) 0%, rgba(15, 23, 42, 0) 75%);
+  filter: blur(5px);
+  opacity: 0.45;
+  transform: translateY(8px) scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.snow-gallery-card img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.snow-gallery-card:hover img {
+  transform: scale(1.06);
+}
+
+.snow-gallery-card:hover::after {
+  opacity: 0.62;
+  transform: translateY(10px) scale(1);
+}
+
+.snow-gallery-card--left,
+.snow-gallery-card--right {
+  opacity: 0.82;
+  transform: translateY(22px) scale(0.88);
+}
+
+.snow-gallery-card--center {
+  z-index: 2;
+  transform: translateY(-12px) scale(1.04);
+  filter: saturate(1.03);
+  box-shadow: 0 26px 44px rgba(15, 23, 42, 0.3);
+}
+
+.snow-gallery-card--center:hover {
+  transform: translateY(-14px) scale(1.06);
+}
+
+.snow-gallery-strip--compact .snow-gallery-card,
+.snow-gallery-strip--single .snow-gallery-card {
+  opacity: 1;
+  transform: none;
+  aspect-ratio: 3 / 4;
+  filter: saturate(1);
+}
+
+.snow-gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.72);
+  background: rgba(15, 23, 42, 0.76);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    transform 0.3s ease,
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    opacity 0.3s ease,
+    visibility 0.3s ease;
+  z-index: 4;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.snow-gallery-nav svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.snow-gallery-nav:hover {
+  transform: translateY(-50%) scale(1.05);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.35);
+}
+
+.snow-gallery-nav--prev {
+  left: 8px;
+}
+
+.snow-gallery-nav--next {
+  right: 8px;
+}
+
+.snow-gallery-carousel__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.snow-gallery-carousel__meta span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.snow-gallery-carousel__open {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.72rem;
+  cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(4px);
+}
+
+.snow-gallery-carousel:hover .snow-gallery-nav,
+.snow-gallery-carousel:focus-within .snow-gallery-nav {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.snow-gallery-carousel:hover .snow-gallery-carousel__open,
+.snow-gallery-carousel:focus-within .snow-gallery-carousel__open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.snow-gallery-lightbox {
+  z-index: 130;
+  background: rgba(2, 6, 23, 0.84);
+  display: grid;
+  place-items: center;
+  padding: 0.9rem;
+}
+
+.snow-gallery-lightbox__panel {
+  width: min(1080px, calc(100vw - 1.6rem));
+  max-height: calc(100dvh - 1.6rem);
+  height: min(900px, calc(100dvh - 1.6rem));
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.snow-gallery-lightbox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.snow-gallery-lightbox__head p {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.95);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.snow-gallery-lightbox__head button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.7);
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.snow-gallery-lightbox__head button svg,
+.snow-gallery-lightbox__nav svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.snow-gallery-lightbox__stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  min-height: 0;
+}
+
+.snow-gallery-lightbox__stage figure {
+  position: relative;
+  margin: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  min-height: 0;
+  display: block;
+  box-shadow: 0 24px 44px rgba(2, 6, 23, 0.44);
+}
+
+.snow-gallery-lightbox__stage figure::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 10px;
+  height: 18px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.34) 0%, rgba(15, 23, 42, 0) 74%);
+  filter: blur(7px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.snow-gallery-lightbox__stage img {
+  width: 100%;
+  max-height: min(70vh, 760px);
+  object-fit: contain;
+  background: rgba(2, 6, 23, 0.85);
+  display: block;
+}
+
+.snow-gallery-lightbox__nav {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.snow-gallery-lightbox__thumbs {
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 0.7rem 0.8rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: var(--snow-thumb-gap);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.snow-gallery-lightbox__thumb {
+  position: relative;
+  inline-size: var(--snow-thumb-size);
+  block-size: var(--snow-thumb-size);
+  flex: 0 0 var(--snow-thumb-size);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.56);
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.snow-gallery-lightbox__thumb::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -8px;
+  height: 12px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.35) 0%, rgba(15, 23, 42, 0) 74%);
+  filter: blur(5px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.snow-gallery-lightbox__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.snow-gallery-lightbox__thumb.is-active {
+  border-color: #60a5fa;
+  box-shadow: 0 14px 26px rgba(96, 165, 250, 0.3);
+}
+
+.snow-gallery-lightbox__thumb:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px rgba(2, 6, 23, 0.4);
 }
 
 .snow-location strong {
@@ -1222,8 +1881,109 @@ watch(musicMuted, () => {
 }
 
 @media (max-width: 900px) {
-  .snow-gallery {
+  .snow-template {
+    --snow-thumb-size: 56px;
+  }
+
+  .snow-gallery-strip {
     grid-template-columns: 1fr;
+    max-width: none;
+    padding: 0 40px;
+  }
+
+  .snow-gallery-strip:not(.snow-gallery-strip--compact) .snow-gallery-card--left,
+  .snow-gallery-strip:not(.snow-gallery-strip--compact) .snow-gallery-card--right {
+    display: none;
+  }
+
+  .snow-gallery-strip--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 12px;
+  }
+
+  .snow-gallery-strip--single {
+    grid-template-columns: 1fr;
+    padding: 0 12px;
+  }
+
+  .snow-gallery-card {
+    aspect-ratio: 3 / 4;
+  }
+
+  .snow-gallery-card--left,
+  .snow-gallery-card--right,
+  .snow-gallery-card--center {
+    transform: none;
+    opacity: 1;
+    filter: saturate(1);
+  }
+
+  .snow-gallery-nav {
+    width: 34px;
+    height: 34px;
+  }
+
+  .snow-gallery-nav--prev {
+    left: 2px;
+  }
+
+  .snow-gallery-nav--next {
+    right: 2px;
+  }
+
+  .snow-gallery-lightbox {
+    padding: 0.45rem;
+  }
+
+  .snow-gallery-lightbox__panel {
+    width: min(100vw, calc(100vw - 0.4rem));
+    max-height: calc(100dvh - 0.4rem);
+    height: calc(100dvh - 0.4rem);
+    border-radius: 12px;
+  }
+
+  .snow-gallery-lightbox__stage {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    padding: 0.55rem;
+  }
+
+  .snow-gallery-lightbox__stage figure {
+    border-radius: 10px;
+    padding-inline: 2rem;
+  }
+
+  .snow-gallery-lightbox__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    z-index: 2;
+  }
+
+  .snow-gallery-nav,
+  .snow-gallery-carousel__open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .snow-gallery-lightbox__nav--prev {
+    left: 0.45rem;
+  }
+
+  .snow-gallery-lightbox__nav--next {
+    right: 0.45rem;
+  }
+
+  .snow-gallery-lightbox__stage img {
+    max-height: min(62vh, 520px);
+    border-radius: 10px;
+  }
+
+  .snow-gallery-lightbox__thumbs {
+    padding: 0.58rem 0.62rem 0.65rem;
   }
 
   .snow-countdown {
@@ -1277,6 +2037,72 @@ watch(musicMuted, () => {
 
   .snow-checkin-overlay__card h3 {
     font-size: clamp(1.3rem, 5.4vw, 1.9rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .snow-template {
+    --snow-thumb-size: 52px;
+  }
+
+  .snow-gallery-strip,
+  .snow-gallery-strip--compact,
+  .snow-gallery-strip--single {
+    grid-template-columns: 1fr;
+    padding: 0 4px;
+  }
+
+  .snow-gallery-nav {
+    width: 32px;
+    height: 32px;
+  }
+
+  .snow-gallery-lightbox {
+    padding: 0;
+  }
+
+  .snow-gallery-lightbox__panel {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .snow-gallery-lightbox__head {
+    padding: 0.62rem;
+  }
+
+  .snow-gallery-lightbox__stage {
+    padding: 0.5rem;
+    gap: 0.45rem;
+  }
+
+  .snow-gallery-lightbox__stage figure {
+    padding-inline: 1.75rem;
+  }
+
+  .snow-gallery-lightbox__stage img {
+    max-height: min(64vh, 460px);
+  }
+
+  .snow-gallery-lightbox__nav {
+    width: 32px;
+    height: 32px;
+  }
+
+  .snow-gallery-lightbox__nav--prev {
+    left: 0.3rem;
+  }
+
+  .snow-gallery-lightbox__nav--next {
+    right: 0.3rem;
+  }
+
+  .snow-gallery-lightbox__thumbs {
+    padding: 0.5rem;
+    gap: 6px;
   }
 }
 </style>
