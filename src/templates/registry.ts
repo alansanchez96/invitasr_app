@@ -3,6 +3,14 @@ import type { InvitationTemplateManifest, InvitationTemplateModule } from '@/tem
 type InvitationTemplateLoader = () => Promise<InvitationTemplateModule>
 
 export const templateRegistry: Record<number, InvitationTemplateLoader> = {
+  1001: async () => {
+    const [{ default: component }, { weddingSnowManifest: manifest }] = await Promise.all([
+      import('@/templates/basic/boda/wedding-snow/WeddingSnowTemplate.vue'),
+      import('@/templates/basic/boda/wedding-snow/manifest'),
+    ])
+
+    return { component, manifest }
+  },
   2: async () => {
     const [{ default: component }, { romanceLightManifest: manifest }] = await Promise.all([
       import('@/templates/wedding/romance-light/RomanceLightTemplate.vue'),
@@ -30,9 +38,19 @@ export const templateRegistry: Record<number, InvitationTemplateLoader> = {
 }
 
 const loadRomanceLightTemplate: InvitationTemplateLoader = async () => templateRegistry[2]!()
+const loadTemplate42: InvitationTemplateLoader = async () => templateRegistry[42]!()
+const loadTemplate43: InvitationTemplateLoader = async () => templateRegistry[43]!()
+const loadWeddingSnowTemplate: InvitationTemplateLoader = async () => templateRegistry[1001]!()
 
 export const templateRendererRegistry: Record<string, InvitationTemplateLoader> = {
+  wedding_snow: loadWeddingSnowTemplate,
   wedding_romance_light: loadRomanceLightTemplate,
+  wedding_template_42: loadTemplate42,
+  wedding_template_43: loadTemplate43,
+  wedding_base_demo: loadRomanceLightTemplate,
+  wedding_base_basic: loadWeddingSnowTemplate,
+  wedding_base_pro: loadTemplate43,
+  wedding_base_planner: loadTemplate43,
 }
 
 export const listRegisteredTemplateIds = () => Object.keys(templateRegistry).map((value) => Number(value))
@@ -52,6 +70,9 @@ export const loadTemplateModuleByRendererKey = async (rendererKey: string): Prom
   const normalized = rendererKey.trim()
   if (!normalized) return null
   const loader = templateRendererRegistry[normalized]
-  if (!loader) return null
+  if (!loader) {
+    const fallback = templateRegistry[1001] ?? templateRegistry[42] ?? templateRegistry[2]
+    return fallback ? fallback() : null
+  }
   return loader()
 }

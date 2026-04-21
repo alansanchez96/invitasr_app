@@ -50,6 +50,10 @@ export const clientModuleGroups: PanelModuleGroup[] = [
     items: [{ label: 'Estadisticas', href: '/panel/estadisticas' }],
   },
   {
+    title: 'Pagos',
+    items: [{ label: 'Mis facturaciones', href: '/panel/facturaciones' }],
+  },
+  {
     title: 'Configuracion',
     items: [{ label: 'Configuracion', href: '/panel/configuracion' }],
   },

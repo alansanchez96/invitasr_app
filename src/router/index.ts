@@ -24,7 +24,9 @@ import BackofficeEventTypes from '@/pages/backoffice/BackofficeEventTypes.vue'
 import ClientHome from '@/pages/client/ClientHome.vue'
 import ClientStats from '@/pages/client/ClientStats.vue'
 import ClientInvitations from '@/pages/client/ClientInvitations.vue'
+import ClientInvitationEditor from '@/pages/client/ClientInvitationEditor.vue'
 import ClientSettings from '@/pages/client/ClientSettings.vue'
+import ClientBilling from '@/pages/client/ClientBilling.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -283,11 +285,33 @@ const router = createRouter({
           },
         },
         {
+          path: 'invitaciones/:invitationId/editor',
+          name: 'client-invitation-editor',
+          component: ClientInvitationEditor,
+          meta: {
+            title: 'Mi panel · Editor de invitacion',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
           path: 'configuracion',
           name: 'client-settings',
           component: ClientSettings,
           meta: {
             title: 'Mi panel · Configuracion',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'facturaciones',
+          name: 'client-billing',
+          component: ClientBilling,
+          meta: {
+            title: 'Mi panel · Mis facturaciones',
             requiresAuth: true,
             requiresClient: true,
             requiresActiveClientPlan: true,

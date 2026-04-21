@@ -11,6 +11,8 @@ export type InvitationTemplateFeature =
   | 'faq'
   | 'schedule'
   | 'location'
+  | 'save-date'
+  | 'dress-code'
   | 'music'
   | 'rsvp'
   | 'wall-preview'
@@ -60,18 +62,26 @@ export type InvitationLocation = {
   name: string
   address: string
   mapsUrl: string
+  uberUrl?: string
 }
 
 export type InvitationMusic = {
   title: string
   artist: string
   audioUrl?: string
+  youtubeUrl?: string
+  muted?: boolean
 }
 
 export type InvitationRsvpConfig = {
   endpoint: string
   enabled: boolean
   submitLabel: string
+  formLabels?: {
+    firstName?: string
+    lastName?: string
+    dietaryRestrictions?: string
+  }
 }
 
 export type InvitationCheckinConfig = {
@@ -88,6 +98,7 @@ export type InvitationCountdownConfig = {
   note: string
   daysLabel: string
   hoursLabel: string
+  targetDateIso?: string
 }
 
 export type InvitationWallPreviewMessage = {
@@ -105,6 +116,18 @@ export type InvitationWallPreviewConfig = {
 export type InvitationBrandingConfig = {
   visible: boolean
   label: string
+}
+
+export type InvitationSaveDateConfig = {
+  enabled: boolean
+  label: string
+}
+
+export type InvitationDressCodeConfig = {
+  enabled: boolean
+  code?: string
+  title: string
+  description: string
 }
 
 export type WeddingTemplateData = {
@@ -128,6 +151,8 @@ export type WeddingTemplateData = {
   branding?: InvitationBrandingConfig
   checkin?: InvitationCheckinConfig
   countdown?: InvitationCountdownConfig
+  saveDate?: InvitationSaveDateConfig
+  dressCode?: InvitationDressCodeConfig
   wallPreview?: InvitationWallPreviewConfig
 }
 

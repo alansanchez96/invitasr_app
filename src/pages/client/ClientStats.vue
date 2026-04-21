@@ -1,46 +1,54 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import { getTenantDashboardSummary, listTenantInvitations } from '@/services/tenantInvitations'
+import { formatStatusLabel, getClientPlanName } from '@/utils/clientPanel'
 import { useSessionStore } from '@/stores/session'
-import { getPublicOnboardingProfile, type PublicOnboardingProfile } from '@/services/publicOnboarding'
-import {
-  getClientPlanName,
-  getClientPlanStatusLabel,
-  getOnboardingStatusLabel,
-  getSelectedTemplateName,
-  getTenantStatusLabel,
-} from '@/utils/clientPanel'
 
 const session = useSessionStore()
-
-const profile = ref<PublicOnboardingProfile | null>(null)
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
+const dashboard = ref({
+  total_invitations: 0,
+  draft_invitations: 0,
+  published_invitations: 0,
+  last_updated_at: null as string | null,
+})
+const latestStatuses = ref<string[]>([])
+
+const publicationRate = computed(() => {
+  if (dashboard.value.total_invitations <= 0) return 0
+  return Math.round((dashboard.value.published_invitations / dashboard.value.total_invitations) * 100)
+})
 
 const stateCards = computed(() => [
   { label: 'Plan', value: getClientPlanName(session.user) },
-  { label: 'Estado comercial', value: getClientPlanStatusLabel(session.user) },
-  { label: 'Estado de tu cuenta', value: getTenantStatusLabel(session.user) },
-  { label: 'Estilo elegido', value: getSelectedTemplateName(profile.value) },
+  { label: 'Total de invitaciones', value: String(dashboard.value.total_invitations) },
+  { label: 'Borradores', value: String(dashboard.value.draft_invitations) },
+  { label: 'Publicadas', value: String(dashboard.value.published_invitations) },
 ])
 
-const loadProfile = async () => {
+const loadData = async () => {
   isLoading.value = true
   loadError.value = null
 
   try {
-    const response = await getPublicOnboardingProfile()
-    profile.value = response.profile
+    const [summary, invitations] = await Promise.all([
+      getTenantDashboardSummary(),
+      listTenantInvitations({ page: 1, perPage: 5 }),
+    ])
+    dashboard.value = summary
+    latestStatuses.value = invitations.list.map((invitation) => formatStatusLabel(invitation.status, 'Sin estado'))
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar el estado inicial de tu cuenta.'
+    loadError.value = payload?.message ?? 'No pudimos cargar las estadisticas de tu cuenta.'
   } finally {
     isLoading.value = false
   }
 }
 
 onMounted(() => {
-  void loadProfile()
+  void loadData()
 })
 </script>
 
@@ -48,10 +56,10 @@ onMounted(() => {
   <section class="client-page container" aria-labelledby="client-stats-title">
     <header class="client-page-head bo-card">
       <div>
-        <p class="client-kicker">Analitica inicial</p>
+        <p class="client-kicker">Analitica real</p>
         <h1 id="client-stats-title">Estadisticas</h1>
         <p class="client-lead">
-          Esta vista deja todo listo para tus futuras metricas. Por ahora te muestra el estado de tu cuenta y la preparacion del evento.
+          Estas metricas se calculan con tus invitaciones reales creadas en tu cuenta.
         </p>
       </div>
 
@@ -62,7 +70,7 @@ onMounted(() => {
     </header>
 
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
-    <p v-else-if="isLoading" class="client-inline-note">Cargando estado de analitica...</p>
+    <p v-else-if="isLoading" class="client-inline-note">Cargando estadisticas...</p>
 
     <section class="state-grid" aria-label="Estado base de la cuenta">
       <article v-for="item in stateCards" :key="item.label" class="bo-card state-card">
@@ -74,49 +82,31 @@ onMounted(() => {
     <section class="bo-card analytics-panel">
       <header class="section-head">
         <div>
-          <h2>Panel de metricas</h2>
-          <p>Las metricas de visitas, confirmaciones e interaccion apareceran aqui cuando la informacion del evento ya este conectada.</p>
+          <h2>Indicadores de publicacion</h2>
+          <p>Medicion directa del avance de tus invitaciones.</p>
         </div>
       </header>
 
       <div class="empty-metric-grid">
         <article class="empty-metric">
-          <strong>Visitas a la invitacion</strong>
-          <p>Se mostrara cuando tu invitacion este publicada y comience a recibir visitas reales.</p>
+          <strong>Tasa de publicacion</strong>
+          <p>{{ publicationRate }}% de tus invitaciones ya estan publicadas.</p>
         </article>
         <article class="empty-metric">
-          <strong>Confirmaciones RSVP</strong>
-          <p>Se mostrara cuando tus invitados comiencen a confirmar asistencia.</p>
+          <strong>Ultima actividad</strong>
+          <p>
+            {{
+              dashboard.last_updated_at
+                ? new Date(dashboard.last_updated_at).toLocaleString()
+                : 'Aun no hay actividad registrada.'
+            }}
+          </p>
         </article>
         <article class="empty-metric">
-          <strong>Interaccion de invitados</strong>
-          <p>Te ayudara a entender como interactuan tus invitados con la galeria, el mapa y otras secciones importantes.</p>
+          <strong>Estados recientes</strong>
+          <p>{{ latestStatuses.length ? latestStatuses.join(', ') : 'Sin invitaciones recientes.' }}</p>
         </article>
       </div>
-    </section>
-
-    <section class="bo-card readiness-card">
-      <header class="section-head">
-        <div>
-          <h2>Estado de preparacion</h2>
-          <p>Lo que hoy ya esta listo para mostrar metricas reales mas adelante.</p>
-        </div>
-      </header>
-
-      <ul class="readiness-list">
-        <li>
-          <strong>Plan confirmado</strong>
-          <span>{{ getClientPlanStatusLabel(session.user) }}</span>
-        </li>
-        <li>
-          <strong>Proceso actual</strong>
-          <span>{{ getOnboardingStatusLabel(profile) }}</span>
-        </li>
-        <li>
-          <strong>Estilo elegido</strong>
-          <span>{{ getSelectedTemplateName(profile) }}</span>
-        </li>
-      </ul>
     </section>
   </section>
 </template>
@@ -132,7 +122,6 @@ onMounted(() => {
 
 .client-page-head,
 .analytics-panel,
-.readiness-card,
 .state-card {
   padding: 22px;
 }
@@ -192,8 +181,7 @@ onMounted(() => {
 }
 
 .state-card strong,
-.empty-metric strong,
-.readiness-list strong {
+.empty-metric strong {
   color: var(--brand-ink);
 }
 
@@ -216,30 +204,6 @@ onMounted(() => {
   border: 1px dashed rgba(155, 107, 255, 0.26);
 }
 
-.readiness-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 10px;
-}
-
-.readiness-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(248, 243, 255, 0.88);
-  border: 1px solid rgba(155, 107, 255, 0.14);
-}
-
-.readiness-list span {
-  font-weight: 700;
-  color: #5a308c;
-  text-align: right;
-}
-
 @media (max-width: 1100px) {
   .state-grid,
   .empty-metric-grid {
@@ -260,14 +224,6 @@ onMounted(() => {
   .state-grid,
   .empty-metric-grid {
     grid-template-columns: 1fr;
-  }
-
-  .readiness-list li {
-    flex-direction: column;
-  }
-
-  .readiness-list span {
-    text-align: left;
   }
 }
 </style>

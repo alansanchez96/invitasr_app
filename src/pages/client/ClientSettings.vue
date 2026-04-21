@@ -9,6 +9,7 @@ import {
   updatePublicOnboardingProfile,
   type PublicOnboardingProfile,
 } from '@/services/publicOnboarding'
+import { getTenantDashboardSummary, listTenantInvitations } from '@/services/tenantInvitations'
 import {
   getClientBillingLabel,
   getClientPlanName,
@@ -16,13 +17,20 @@ import {
   getNextStepLabel,
   getSelectedTemplateName,
 } from '@/utils/clientPanel'
-import { notifyError, notifySuccess } from '@/utils/toast'
+import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
 
 const session = useSessionStore()
 const catalogStore = useCatalogStore()
 const { countries } = storeToRefs(catalogStore)
 
 const profile = ref<PublicOnboardingProfile | null>(null)
+const tenantSummary = ref({
+  total_invitations: 0,
+  draft_invitations: 0,
+  published_invitations: 0,
+  last_updated_at: null as string | null,
+})
+const lastInvitationTitle = ref('Sin invitaciones creadas')
 const isLoading = ref(false)
 const isSaving = ref(false)
 const loadError = ref<string | null>(null)
@@ -32,6 +40,13 @@ const form = reactive({
   email: '',
   country_code: '',
 })
+
+const securityForm = reactive({
+  current_password: '',
+  new_password: '',
+  confirm_password: '',
+})
+const isTwoFactorEnabled = ref(false)
 
 const patchSessionName = (fullName: string, email: string) => {
   const normalized = fullName.trim().replace(/\s+/g, ' ')
@@ -44,7 +59,12 @@ const patchSessionName = (fullName: string, email: string) => {
 }
 
 const syncForm = (nextProfile: PublicOnboardingProfile | null) => {
-  form.full_name = nextProfile?.registration?.full_name ?? ''
+  const sessionFullName = [session.user?.name, session.user?.last_name]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(' ')
+    .trim()
+
+  form.full_name = nextProfile?.registration?.full_name ?? sessionFullName
   form.email = nextProfile?.registration?.email ?? session.user?.email ?? ''
   form.country_code = nextProfile?.registration?.country_code ?? ''
 }
@@ -70,6 +90,11 @@ const summaryCards = computed(() => [
     value: getNextStepLabel(profile.value),
     hint: 'Te indica lo siguiente que conviene hacer.',
   },
+  {
+    label: 'Invitaciones activas',
+    value: String(tenantSummary.value.total_invitations),
+    hint: `Borradores: ${tenantSummary.value.draft_invitations} · Publicadas: ${tenantSummary.value.published_invitations}`,
+  },
 ])
 
 const loadProfile = async () => {
@@ -77,12 +102,37 @@ const loadProfile = async () => {
   loadError.value = null
 
   try {
-    const response = await getPublicOnboardingProfile()
-    profile.value = response.profile
-    syncForm(response.profile)
-  } catch (error) {
-    const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar la configuracion de tu cuenta.'
+    const [profileResult, summaryResult, invitationResult] = await Promise.allSettled([
+      getPublicOnboardingProfile(),
+      getTenantDashboardSummary(),
+      listTenantInvitations({ page: 1, perPage: 1 }),
+    ])
+
+    if (profileResult.status === 'fulfilled') {
+      profile.value = profileResult.value.profile
+      syncForm(profileResult.value.profile)
+    } else {
+      profile.value = null
+      syncForm(null)
+    }
+
+    if (summaryResult.status === 'fulfilled') {
+      tenantSummary.value = summaryResult.value
+    }
+
+    if (invitationResult.status === 'fulfilled') {
+      lastInvitationTitle.value = invitationResult.value.list[0]?.title ?? 'Sin invitaciones creadas'
+    }
+
+    if (
+      profileResult.status === 'rejected' &&
+      summaryResult.status === 'rejected' &&
+      invitationResult.status === 'rejected'
+    ) {
+      loadError.value = 'No pudimos cargar la configuración de tu cuenta.'
+    }
+  } catch {
+    loadError.value = 'No pudimos cargar la configuración de tu cuenta.'
   } finally {
     isLoading.value = false
   }
@@ -90,7 +140,9 @@ const loadProfile = async () => {
 
 const saveProfile = async () => {
   const onboarding = profile.value?.onboarding
-  if (!onboarding?.plan_id) {
+  const planId = onboarding?.plan_id ?? session.user?.client_plan?.plan?.id
+
+  if (!planId) {
     notifyError('No encontramos la informacion necesaria para actualizar tu cuenta.')
     return
   }
@@ -98,8 +150,8 @@ const saveProfile = async () => {
   isSaving.value = true
   try {
     const response = await updatePublicOnboardingProfile({
-      plan_id: onboarding.plan_id,
-      template_id: onboarding.template_id ?? null,
+      plan_id: planId,
+      template_id: onboarding?.template_id ?? null,
       full_name: form.full_name.trim(),
       email: form.email.trim(),
       country_code: form.country_code.trim().toUpperCase(),
@@ -117,6 +169,29 @@ const saveProfile = async () => {
   } finally {
     isSaving.value = false
   }
+}
+
+const requestPasswordReset = () => {
+  if (
+    !securityForm.current_password.trim() ||
+    !securityForm.new_password.trim() ||
+    !securityForm.confirm_password.trim()
+  ) {
+    notifyWarning('Completa los tres campos para continuar.')
+    return
+  }
+
+  if (securityForm.new_password !== securityForm.confirm_password) {
+    notifyWarning('La nueva contraseña y la confirmación deben coincidir.')
+    return
+  }
+
+  notifyWarning('Estamos terminando esta función. Muy pronto podrás cambiar tu contraseña desde aquí.')
+}
+
+const toggleTwoFactor = () => {
+  isTwoFactorEnabled.value = !isTwoFactorEnabled.value
+  notifyWarning('La verificación en dos pasos estará disponible próximamente.')
 }
 
 onMounted(() => {
@@ -204,18 +279,73 @@ onMounted(() => {
             <span>{{ session.user?.tenant?.status ? 'Listo' : 'En preparacion' }}</span>
           </li>
           <li>
-            <strong>Estilo elegido</strong>
-            <span>{{ getSelectedTemplateName(profile) }}</span>
+            <strong>Ultima invitacion detectada</strong>
+            <span>{{ lastInvitationTitle }}</span>
           </li>
           <li>
-            <strong>Plan actual</strong>
-            <span>{{ getClientPlanName(session.user) }}</span>
+            <strong>Invitaciones publicadas</strong>
+            <span>{{ tenantSummary.published_invitations }}</span>
           </li>
           <li>
-            <strong>Tipo de cobro</strong>
-            <span>{{ getClientBillingLabel(session.user) }}</span>
+            <strong>Ultima actualizacion</strong>
+            <span>{{ tenantSummary.last_updated_at ? new Date(tenantSummary.last_updated_at).toLocaleString() : 'Sin actividad' }}</span>
           </li>
         </ul>
+      </article>
+
+      <article class="bo-card settings-card">
+        <header class="section-head">
+          <div>
+            <h2>Seguridad de acceso</h2>
+            <p>Administra la contraseña de tu cuenta y la protección adicional.</p>
+          </div>
+        </header>
+
+        <form class="settings-form" @submit.prevent="requestPasswordReset">
+          <label class="field">
+            <span>Contraseña actual</span>
+            <input
+              v-model="securityForm.current_password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Ingresa tu contraseña actual" />
+          </label>
+
+          <label class="field">
+            <span>Nueva contraseña</span>
+            <input
+              v-model="securityForm.new_password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Crea una nueva contraseña" />
+          </label>
+
+          <label class="field">
+            <span>Confirmar nueva contraseña</span>
+            <input
+              v-model="securityForm.confirm_password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Repite la nueva contraseña" />
+          </label>
+
+          <div class="form-actions">
+            <BaseButton type="submit" variant="ghost">Actualizar contraseña</BaseButton>
+          </div>
+        </form>
+
+        <div class="security-two-factor">
+          <div class="security-two-factor__head">
+            <div>
+              <h3>Verificación en dos pasos</h3>
+              <p>Opción de seguridad adicional para proteger tu cuenta. Próximamente.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" :checked="isTwoFactorEnabled" @change="toggleTwoFactor" />
+              <span class="switch-track"></span>
+            </label>
+          </div>
+        </div>
       </article>
     </section>
   </section>
@@ -272,7 +402,7 @@ onMounted(() => {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
@@ -296,7 +426,7 @@ onMounted(() => {
 
 .settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -379,6 +509,74 @@ onMounted(() => {
   font-weight: 700;
 }
 
+.security-two-factor {
+  margin-top: 8px;
+  border-top: 1px solid rgba(155, 107, 255, 0.16);
+  padding-top: 12px;
+}
+
+.security-two-factor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.security-two-factor h3 {
+  margin: 0;
+  color: var(--brand-ink);
+  font-size: 1rem;
+}
+
+.security-two-factor p {
+  margin: 0;
+  color: #6a5a84;
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 46px;
+  height: 28px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.65);
+  transition: background 0.2s ease;
+}
+
+.switch-track::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.switch input:checked + .switch-track {
+  background: #2563eb;
+}
+
+.switch input:checked + .switch-track::before {
+  transform: translateX(18px);
+}
+
 @media (max-width: 1100px) {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -411,6 +609,10 @@ onMounted(() => {
 
   .structure-list span {
     text-align: left;
+  }
+
+  .security-two-factor__head {
+    align-items: flex-start;
   }
 }
 </style>

@@ -323,9 +323,11 @@ onUnmounted(() => {
             <span></span>
             <span></span>
           </button>
+          <div id="panel-topbar-left-slot" class="topbar-slot topbar-slot-left"></div>
         </div>
 
         <div class="topbar-right">
+          <div id="panel-topbar-right-slot" class="topbar-slot topbar-slot-right"></div>
           <div v-if="isAuthenticated" class="account-menu" ref="accountMenuRef">
             <button
               class="account-trigger"
@@ -676,6 +678,28 @@ onUnmounted(() => {
 
 .topbar-left {
   min-width: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.topbar-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.topbar-slot:empty {
+  display: none;
 }
 
 .mobile-sidebar-toggle {
