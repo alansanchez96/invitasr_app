@@ -9,6 +9,8 @@ export type TenantInvitationItem = {
   title?: string
   slug?: string
   status?: string
+  public_host?: string | null
+  public_url?: string | null
   content?: Record<string, unknown> | null
   text_overrides?: Record<string, string> | null
   settings?: Record<string, unknown> | null
@@ -202,6 +204,8 @@ const normalizeInvitation = (value: unknown): TenantInvitationItem => {
     title: source.title as string | undefined,
     slug: source.slug as string | undefined,
     status: source.status as string | undefined,
+    public_host: source.public_host ? String(source.public_host) : null,
+    public_url: source.public_url ? String(source.public_url) : null,
     content: (source.content ?? null) as Record<string, unknown> | null,
     text_overrides: normalizeTextOverrides(source.text_overrides),
     settings: (source.settings ?? null) as Record<string, unknown> | null,

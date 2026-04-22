@@ -288,12 +288,41 @@ const createInvitation = async () => {
   }
 }
 
+const openInvitationPublicUrl = (url: string): boolean => {
+  if (typeof window === 'undefined') return false
+  const openedWindow = window.open(url, '_blank', 'noopener,noreferrer')
+  return Boolean(openedWindow)
+}
+
+const openPublishedInvitation = (item: TenantInvitationItem) => {
+  const publicUrl = String(item.public_url ?? '').trim()
+  if (!publicUrl) {
+    notifyError('Esta invitación todavía no tiene un enlace público disponible.')
+    return
+  }
+
+  const wasOpened = openInvitationPublicUrl(publicUrl)
+  if (!wasOpened) {
+    notifyError('Tu navegador bloqueó la nueva pestaña. Abre el enlace desde la acción de copiar o permite popups.')
+  }
+}
+
 const publishInvitation = async (item: TenantInvitationItem) => {
   if (!item.id) return
 
   try {
     const response = await publishTenantInvitation(item.id)
-    notifySuccess(response.message ?? 'Invitacion publicada.')
+    const publicUrl = String(response.invitation.public_url ?? '').trim()
+    if (publicUrl) {
+      const wasOpened = openInvitationPublicUrl(publicUrl)
+      notifySuccess(
+        wasOpened
+          ? 'Invitación publicada. Abrimos tu enlace en una pestaña nueva.'
+          : 'Invitación publicada. El enlace público ya quedó activo.',
+      )
+    } else {
+      notifySuccess(response.message ?? 'Invitacion publicada.')
+    }
     await loadData()
   } catch (error) {
     const payload = error as { message?: string }
@@ -599,6 +628,21 @@ watch(showDeletePrompt, (isOpen) => {
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 12.5 20 4l-5.8 16-2.5-6L4 12.5Z" />
                     <path d="m20 4-8.3 9.8" />
+                  </svg>
+                </BaseButton>
+                <BaseButton
+                  v-if="String(item.status ?? '').toLowerCase() === 'published'"
+                  type="button"
+                  variant="ghost"
+                  class="table-icon-btn"
+                  aria-label="Abrir invitación publicada"
+                  title="Abrir invitación"
+                  data-tooltip="Abrir invitación"
+                  @click="openPublishedInvitation(item)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 4h6v6" />
+                    <path d="M20 4 11 13" />
+                    <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
                   </svg>
                 </BaseButton>
                 <BaseButton

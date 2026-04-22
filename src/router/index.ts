@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import PublicLayout from '@/layouts/PublicLayout.vue'
 import PanelLayout from '@/layouts/PanelLayout.vue'
-import HomePage from '@/pages/public/HomePage.vue'
+import PublicEntryPage from '@/pages/public/PublicEntryPage.vue'
 import PlansPage from '@/pages/public/PlansPage.vue'
 import NewsPage from '@/pages/public/NewsPage.vue'
 import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
@@ -38,7 +38,7 @@ const router = createRouter({
         {
           path: '',
           name: 'home',
-          component: HomePage,
+          component: PublicEntryPage,
           meta: { title: 'Inicio' },
         },
         {

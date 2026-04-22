@@ -10,6 +10,8 @@ export default defineConfig({
     allowedHosts: [
       'app.invitasr.local',
       '.invitasr.local',
+      'app.invitasr.localhost',
+      '.invitasr.localhost',
     ],
   },
   plugins: [

@@ -786,7 +786,11 @@ const slugAvailabilityMessage = computed(() => {
 
   if (slugAvailabilityState.value === 'checking') return 'Verificando disponibilidad...'
   if (slugAvailabilityState.value === 'available') return 'Subdominio disponible.'
-  if (slugAvailabilityState.value === 'unavailable') return 'Ese subdominio ya está en uso.'
+  if (slugAvailabilityState.value === 'unavailable') {
+    return slugAvailabilityReason.value === 'reserved'
+      ? 'Ese subdominio está reservado. Elige otro nombre.'
+      : 'Ese subdominio ya está en uso.'
+  }
   if (slugAvailabilityState.value === 'invalid') {
     return 'Solo se permiten letras minúsculas, números y guiones.'
   }
@@ -1605,7 +1609,9 @@ const validateSlugBeforeSave = async (): Promise<string | null> => {
 
   const available = await checkSlugAvailability(slug.value.trim())
   if (available === false) {
-    return 'Ese subdominio ya está en uso. Elige otro.'
+    return slugAvailabilityReason.value === 'reserved'
+      ? 'Ese subdominio está reservado. Elige otro nombre.'
+      : 'Ese subdominio ya está en uso. Elige otro.'
   }
   if (available === null) {
     return 'No pudimos validar el subdominio. Intenta nuevamente.'

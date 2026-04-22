@@ -6,13 +6,18 @@ import PublicFooter from '@/components/public/PublicFooter.vue'
 import MobileCtaBar from '@/components/public/MobileCtaBar.vue'
 import ToastStack from '@/components/ui/ToastStack.vue'
 import { useSessionStore } from '@/stores/session'
+import { isInvitationSubdomainHost } from '@/utils/host'
 
 const session = useSessionStore()
 const route = useRoute()
-const showAuthLoader = computed(() => session.isLoading || session.isLoggingOut || session.isHydrating)
 const isHomeRoute = computed(() => route.name === 'home')
-const showNavbar = computed(() => true)
+const isInvitationHome = computed(() => isHomeRoute.value && isInvitationSubdomainHost())
+const showAuthLoader = computed(() =>
+  !isInvitationHome.value && (session.isLoading || session.isLoggingOut || session.isHydrating),
+)
+const showNavbar = computed(() => !isInvitationHome.value)
 const showFooter = computed(() => {
+  if (isInvitationHome.value) return false
   const hiddenFooterRoutes = new Set([
     'public-onboarding-flow',
     'public-onboarding',
@@ -20,17 +25,18 @@ const showFooter = computed(() => {
   ])
   return !hiddenFooterRoutes.has(String(route.name ?? ''))
 })
+const showMobileCta = computed(() => !isInvitationHome.value)
 </script>
 
 <template>
   <div class="public-layout" :class="{ 'is-home': isHomeRoute }">
     <a class="skip-link" href="#main-content">Saltar al contenido</a>
     <PublicNavbar v-if="showNavbar" />
-    <main id="main-content" tabindex="-1" class="with-mobile-cta">
+    <main id="main-content" tabindex="-1" :class="{ 'with-mobile-cta': showMobileCta }">
       <RouterView />
     </main>
     <ToastStack />
-    <MobileCtaBar />
+    <MobileCtaBar v-if="showMobileCta" />
     <PublicFooter v-if="showFooter" />
     <div v-if="showAuthLoader" class="auth-loading-overlay" role="status" aria-live="polite">
       <span class="spinner auth-loading-spinner" aria-hidden="true"></span>
