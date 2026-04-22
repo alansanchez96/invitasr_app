@@ -1095,36 +1095,12 @@ const normalizeStory = (value: unknown): WeddingTemplateData['story'] => {
   })
 }
 
-const normalizeGallery = (value: unknown): WeddingTemplateData['gallery'] => {
+const normalizeGallery = (): WeddingTemplateData['gallery'] => {
   if (liveGalleryItems.value.length) {
     return liveGalleryItems.value
   }
 
-  if (!Array.isArray(value) || !value.length) {
-    return [
-      {
-        id: 'gallery-1',
-        imageUrl: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1000&q=80',
-        alt: 'Foto 1',
-      },
-    ]
-  }
-
-  return value.map((item, index) => {
-    const source = toRecord(item)
-    const imageUrl = asText(
-      source.galleryUrl ?? source.imageUrl,
-      'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1000&q=80',
-    )
-    return {
-      id: asText(source.id, `gallery-${index + 1}`),
-      imageUrl,
-      galleryUrl: imageUrl,
-      thumbnailUrl: asText(source.thumbnailUrl, imageUrl),
-      lightboxUrl: asText(source.lightboxUrl, imageUrl),
-      alt: asText(source.alt, `Foto ${index + 1}`),
-    }
-  })
+  return []
 }
 
 const normalizeSchedule = (value: unknown): WeddingTemplateData['schedule'] => {
@@ -1145,7 +1121,7 @@ const normalizeSchedule = (value: unknown): WeddingTemplateData['schedule'] => {
 
 const previewData = computed<WeddingTemplateData>(() => {
   const story = normalizeStory(getByPath(contentDraft.value, 'story'))
-  const gallery = normalizeGallery(getByPath(contentDraft.value, 'gallery'))
+  const gallery = normalizeGallery()
   const schedule = normalizeSchedule(getByPath(contentDraft.value, 'schedule'))
 
   return {

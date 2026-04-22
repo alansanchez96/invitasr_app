@@ -207,23 +207,7 @@ const galleryItems = computed(() => {
     return props.data.gallery
   }
 
-  return [
-    {
-      id: 'placeholder-1',
-      imageUrl: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1000&q=80',
-      alt: 'Foto de muestra 1',
-    },
-    {
-      id: 'placeholder-2',
-      imageUrl: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=1000&q=80',
-      alt: 'Foto de muestra 2',
-    },
-    {
-      id: 'placeholder-3',
-      imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1000&q=80',
-      alt: 'Foto de muestra 3',
-    },
-  ]
+  return []
 })
 
 const normalizeGalleryIndex = (index: number, total: number): number => {
@@ -305,6 +289,7 @@ const galleryLightboxStyle = computed<Record<string, string>>(() => {
     return {
       position: 'absolute',
       inset: '0',
+      width: '100%',
       height: '100%',
       minHeight: '100%',
     }
@@ -313,8 +298,9 @@ const galleryLightboxStyle = computed<Record<string, string>>(() => {
   return {
     position: 'fixed',
     inset: '0',
-    height: '100dvh',
-    minHeight: '100dvh',
+    width: '100vw',
+    height: '100vh',
+    minHeight: '100vh',
   }
 })
 
@@ -357,6 +343,7 @@ const checkinOverlayStyle = computed<Record<string, string>>(() => {
     return {
       position: 'absolute',
       inset: '0',
+      width: '100%',
       height: '100%',
       minHeight: '100%',
     }
@@ -365,8 +352,9 @@ const checkinOverlayStyle = computed<Record<string, string>>(() => {
   return {
     position: 'fixed',
     inset: '0',
-    height: '100dvh',
-    minHeight: '100dvh',
+    width: '100vw',
+    height: '100vh',
+    minHeight: '100vh',
   }
 })
 
@@ -681,13 +669,6 @@ watch(musicMuted, () => {
       </div>
     </header>
 
-    <section v-if="isSectionVisible('checkin')" class="snow-card">
-      <p class="section-kicker">Bienvenida interactiva</p>
-      <h2>{{ checkinTitle }}</h2>
-      <p>{{ checkinMessage }}</p>
-      <button class="snow-action" type="button" @click="openCheckinOverlay">{{ checkinButton }}</button>
-    </section>
-
     <section v-if="isSectionVisible('countdown')" class="snow-card">
       <h2>{{ countdown.title }}</h2>
       <p v-if="!isEditing('countdown_note')" class="editable" @dblclick="startEdit('countdown_note')">
@@ -753,7 +734,7 @@ watch(musicMuted, () => {
         @keydown.esc.prevent="finishEdit" />
     </section>
 
-    <section v-if="isSectionVisible('gallery')" class="snow-card">
+    <section v-if="isSectionVisible('gallery') && galleryItems.length > 0" class="snow-card">
       <p class="section-kicker">Galería</p>
       <div class="snow-gallery-carousel">
         <div class="snow-gallery-carousel__stage">
@@ -1013,7 +994,6 @@ watch(musicMuted, () => {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  transform: translateZ(0);
   min-height: auto;
 }
 
@@ -1234,13 +1214,13 @@ watch(musicMuted, () => {
 
 .snow-gallery-card--center {
   z-index: 2;
-  transform: translateY(-12px) scale(1.04);
+  transform: translateY(12px) scale(1.04);
   filter: saturate(1.03);
   box-shadow: 0 26px 44px rgba(15, 23, 42, 0.3);
 }
 
 .snow-gallery-card--center:hover {
-  transform: translateY(-14px) scale(1.06);
+  transform: translateY(8px) scale(1.06);
 }
 
 .snow-gallery-strip--compact .snow-gallery-card,
@@ -1585,6 +1565,13 @@ watch(musicMuted, () => {
 .editable:hover {
   outline: 1px dashed rgba(15, 23, 42, 0.3);
   outline-offset: 3px;
+}
+
+.snow-template--public .editable,
+.snow-template--public .editable:hover,
+.snow-template--public .editable:focus-visible {
+  cursor: inherit;
+  outline: none;
 }
 
 .inline-input {

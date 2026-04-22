@@ -9,6 +9,7 @@ const isLoading = ref(true)
 const loadError = ref<string | null>(null)
 const templateModule = ref<InvitationTemplateModule<'wedding'> | null>(null)
 const templateData = ref<WeddingTemplateData | null>(null)
+const sectionVisibility = ref<Record<string, boolean>>({})
 const templateId = ref<number>(1)
 
 const invitationSubdomain = computed(() => resolveInvitationSubdomainFromHost())
@@ -45,9 +46,20 @@ const loadInvitation = async () => {
       return
     }
 
+    const rawSectionVisibility = payload.settings?.section_visibility
+    const nextSectionVisibility: Record<string, boolean> = {}
+    if (rawSectionVisibility && typeof rawSectionVisibility === 'object') {
+      Object.entries(rawSectionVisibility).forEach(([key, value]) => {
+        const normalizedKey = String(key ?? '').trim()
+        if (!normalizedKey) return
+        nextSectionVisibility[normalizedKey] = Boolean(value)
+      })
+    }
+
     templateId.value = Number(payload.template?.id ?? loadedModule.manifest.id ?? 1)
     templateModule.value = loadedModule
     templateData.value = payload.content
+    sectionVisibility.value = nextSectionVisibility
   } catch (error) {
     const source = error as { message?: string; status?: number; statusCode?: number }
     const statusCode = Number(source?.statusCode ?? source?.status ?? 500)
@@ -79,7 +91,8 @@ onMounted(() => {
       v-else-if="templateModule && templateData"
       :template-id="templateId"
       :manifest="templateModule.manifest"
-      :data="templateData" />
+      :data="templateData"
+      :section-visibility="sectionVisibility" />
   </section>
 </template>
 
@@ -105,4 +118,3 @@ onMounted(() => {
   color: #9f1239;
 }
 </style>
-
