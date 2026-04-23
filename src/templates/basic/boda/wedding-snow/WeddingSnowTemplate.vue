@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { createPublicInvitationWallMessage } from '@/services/publicInvitations'
 import type { InvitationTemplateRendererProps } from '@/templates/types'
+import { notifyError, notifySuccess } from '@/utils/toast'
 
 type TemplateProps = InvitationTemplateRendererProps<'wedding'> & {
   editable?: boolean
@@ -8,6 +10,8 @@ type TemplateProps = InvitationTemplateRendererProps<'wedding'> & {
   sectionVisibility?: Record<string, boolean>
   checkinPreview?: boolean
   constrainedOverlay?: boolean
+  invitationTitle?: string
+  typeEventName?: string
 }
 
 const props = withDefaults(defineProps<TemplateProps>(), {
@@ -22,6 +26,7 @@ const emit = defineEmits<{
   (event: 'start-edit', field: string): void
   (event: 'update-field', payload: { field: string; value: string }): void
   (event: 'finish-edit'): void
+  (event: 'checkin-preview-closed'): void
 }>()
 
 const faqModalOpen = ref(false)
@@ -33,6 +38,11 @@ const galleryCarouselIndex = ref(0)
 const galleryLightboxOpen = ref(false)
 const galleryLightboxIndex = ref(0)
 const isMobileGalleryViewport = ref(false)
+const wallComposerOpen = ref(false)
+const wallSubmitting = ref(false)
+const wallGuestName = ref('')
+const wallGuestMessage = ref('')
+const wallReceivedCount = ref(0)
 let timerId: ReturnType<typeof setInterval> | null = null
 const MOBILE_GALLERY_BREAKPOINT = 640
 
@@ -42,6 +52,15 @@ type GalleryDisplaySlide = {
   index: number
   item: (typeof props.data.gallery)[number]
   role: GalleryDisplaySlideRole
+}
+
+type WallMessage = {
+  id: string
+  guestName: string
+  message: string
+  status?: string
+  isVisible?: boolean
+  postedAt?: string | null
 }
 
 const resolveText = (value: unknown, fallback: string): string => {
@@ -118,10 +137,94 @@ const extractYoutubeVideoId = (url: string): string | null => {
   return null
 }
 
+const normalizeExternalUrl = (rawValue: string): string => {
+  const value = rawValue.trim()
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.includes('.') && !/\s/.test(value)) {
+    return `https://${value}`
+  }
+  return value
+}
+
+const isValidHttpUrl = (rawValue: string): boolean => {
+  try {
+    const parsed = new URL(rawValue)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+const toFiniteNumber = (value: unknown): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const buildUberUrl = (input: {
+  mapsUrl: string
+  name: string
+  address: string
+  latitude?: number | null
+  longitude?: number | null
+}): string => {
+  const payload: Record<string, unknown> = {}
+
+  const latitude = toFiniteNumber(input.latitude)
+  const longitude = toFiniteNumber(input.longitude)
+  if (latitude !== null && longitude !== null) {
+    payload.latitude = latitude
+    payload.longitude = longitude
+  }
+
+  if (input.name.trim()) {
+    payload.addressLine1 = input.name.trim()
+  }
+  if (input.address.trim()) {
+    payload.addressLine2 = input.address.trim()
+  }
+
+  if (!Object.keys(payload).length) {
+    const mapsUrl = normalizeExternalUrl(input.mapsUrl)
+    if (!mapsUrl || !isValidHttpUrl(mapsUrl)) {
+      return 'https://m.uber.com/ul/?action=setPickup'
+    }
+
+    try {
+      const parsedMapsUrl = new URL(mapsUrl)
+      const queryValue = parsedMapsUrl.searchParams.get('q')
+        || parsedMapsUrl.searchParams.get('query')
+        || parsedMapsUrl.searchParams.get('destination')
+        || parsedMapsUrl.searchParams.get('daddr')
+        || ''
+
+      if (queryValue.trim()) {
+        payload.addressLine1 = queryValue.trim()
+      } else {
+        payload.addressLine1 = mapsUrl
+      }
+    } catch {
+      return 'https://m.uber.com/ul/?action=setPickup'
+    }
+  }
+
+  return `https://m.uber.com/looking?drop[0]=${encodeURIComponent(JSON.stringify(payload))}`
+}
+
 const toCalendarFormat = (date: Date): string => {
   const iso = date.toISOString()
   return iso.replace(/[-:]/g, '').split('.')[0] + 'Z'
 }
+
+const formatDateTimeLabel24h = (date: Date): string =>
+  new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date).replace(',', ' ·') + ' hs'
 
 const heroContent = computed(() => {
   const raw = props.data as Record<string, unknown> & {
@@ -140,7 +243,16 @@ const heroContent = computed(() => {
 
 const brideName = computed(() => resolveText(props.data.couple?.brideName, 'Nombre 1'))
 const groomName = computed(() => resolveText(props.data.couple?.groomName, 'Nombre 2'))
-const eventDateLabel = computed(() => resolveText(props.data.event?.date?.label, 'Fecha del evento'))
+const eventDateLabel = computed(() => {
+  const explicit = resolveText(props.data.event?.date?.label, '')
+  if (explicit) return explicit
+
+  const iso = resolveText(props.data.event?.date?.iso, '')
+  if (!iso) return 'Fecha del evento'
+  const parsed = toDate(iso)
+  if (!parsed) return 'Fecha del evento'
+  return formatDateTimeLabel24h(parsed)
+})
 const eventVenue = computed(() => resolveText(props.data.event?.venue, 'Lugar del evento'))
 const eventCity = computed(() => resolveText(props.data.event?.city, 'Ciudad'))
 const storyPrimary = computed(() => {
@@ -186,9 +298,33 @@ const rsvpLabels = computed(() => ({
 }))
 
 const locationName = computed(() => resolveText(props.data.location?.name, 'Ubicación del evento'))
-const locationAddress = computed(() => resolveText(props.data.location?.address, 'Dirección'))
-const mapsUrl = computed(() => resolveText(props.data.location?.mapsUrl, 'https://maps.google.com'))
-const uberUrl = computed(() => resolveText(props.data.location?.uberUrl, 'https://m.uber.com/ul/'))
+const locationAddress = computed(() =>
+  resolveText(props.data.location?.address, resolveText(props.data.location?.formattedAddress, 'Dirección')),
+)
+const locationLatitude = computed(() => toFiniteNumber(props.data.location?.latitude))
+const locationLongitude = computed(() => toFiniteNumber(props.data.location?.longitude))
+const mapsUrl = computed(() => {
+  const resolved = normalizeExternalUrl(
+    resolveText(
+      props.data.location?.mapsCanonicalUrl,
+      resolveText(props.data.location?.mapsUrl, 'https://maps.google.com'),
+    ),
+  )
+  if (resolved && isValidHttpUrl(resolved)) return resolved
+  return 'https://maps.google.com'
+})
+const uberEnabled = computed(() => props.data.location?.uberEnabled !== false)
+const uberUrl = computed(() => {
+  const explicit = normalizeExternalUrl(resolveText(props.data.location?.uberUrl, ''))
+  if (explicit && isValidHttpUrl(explicit)) return explicit
+  return buildUberUrl({
+    mapsUrl: mapsUrl.value,
+    name: locationName.value,
+    address: locationAddress.value,
+    latitude: locationLatitude.value,
+    longitude: locationLongitude.value,
+  })
+})
 
 const dressCode = computed(() => {
   const code = resolveText(props.data.dressCode?.code, '')
@@ -201,6 +337,96 @@ const dressCode = computed(() => {
 })
 
 const faqItems = computed(() => (Array.isArray(props.data.faq) ? props.data.faq : []).filter((item) => item.question && item.answer))
+
+const wallConfig = computed(() => {
+  const source = props.data.wall && typeof props.data.wall === 'object'
+    ? props.data.wall
+    : {}
+
+  const rawLimit = Number((source as Record<string, unknown>).limit)
+  const normalizedLimit = Number.isFinite(rawLimit) && rawLimit > 0
+    ? Math.floor(rawLimit)
+    : null
+
+  return {
+    title: resolveText((source as Record<string, unknown>).title, 'Muro de mensajes'),
+    description: resolveText(
+      (source as Record<string, unknown>).description,
+      'Deja unas palabras lindas para este gran día.',
+    ),
+    addLabel: resolveText((source as Record<string, unknown>).addLabel, 'Añadir mensaje'),
+    emptyStateLabel: resolveText(
+      (source as Record<string, unknown>).emptyStateLabel,
+      'Sé la primera persona en dejar un mensaje.',
+    ),
+    limit: normalizedLimit,
+    receivedCount: Number.isFinite(Number((source as Record<string, unknown>).receivedCount))
+      ? Math.max(0, Math.floor(Number((source as Record<string, unknown>).receivedCount)))
+      : null,
+  }
+})
+
+const normalizeWallMessage = (value: unknown, fallbackIndex: number): WallMessage => {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    id: resolveText(source.id, `wall-${fallbackIndex + 1}`),
+    guestName: resolveText(source.guestName, 'Invitado'),
+    message: resolveText(source.message, ''),
+    status: resolveText(source.status, 'visible'),
+    isVisible: source.isVisible === false ? false : true,
+    postedAt: resolveText(source.postedAt, '') || null,
+  }
+}
+
+const wallMessages = ref<WallMessage[]>([])
+
+const hydrateWallMessagesFromProps = () => {
+  const source = Array.isArray(props.data.wall?.messages) ? props.data.wall?.messages : []
+  wallMessages.value = source
+    .map((item, index) => normalizeWallMessage(item, index))
+    .filter((item) => item.message.trim().length > 0 && item.isVisible !== false)
+
+  const explicitReceived = Number(props.data.wall?.receivedCount)
+  if (Number.isFinite(explicitReceived) && explicitReceived >= 0) {
+    wallReceivedCount.value = Math.floor(explicitReceived)
+  } else {
+    wallReceivedCount.value = wallMessages.value.length
+  }
+}
+
+const wallHasMessages = computed(() => wallMessages.value.length > 0)
+
+const wallPreviewMessages = computed(() => wallMessages.value.slice(0, 4))
+
+const wallMessageLimit = computed(() => {
+  if (wallConfig.value.limit !== null) return wallConfig.value.limit
+  return 4
+})
+
+const wallReachedLimit = computed(() => {
+  const limit = wallMessageLimit.value
+  if (limit === null) return false
+  return wallReceivedCount.value >= limit
+})
+
+const wallLimitTooltip = computed(() => {
+  if (!wallReachedLimit.value) return wallConfig.value.addLabel
+
+  const messages = [
+    'Llegaste tarde 😅. Ya no entran más mensajes para esta invitación.',
+    'Te ganaron de mano 😅. El muro ya está completo.',
+    '¡Misión cumplida! 😅 Otros invitados llenaron el muro antes.',
+  ]
+
+  return messages[wallReceivedCount.value % messages.length] ?? messages[0]
+})
+
+const wallCanSubmit = computed(() => {
+  if (props.editable) return false
+  if (!isSectionVisible('wall')) return false
+  if (wallReachedLimit.value) return false
+  return wallGuestName.value.trim().length >= 2 && wallGuestMessage.value.trim().length >= 2 && !wallSubmitting.value
+})
 
 const galleryItems = computed(() => {
   if (Array.isArray(props.data.gallery) && props.data.gallery.length) {
@@ -318,14 +544,23 @@ const musicAudioUrl = computed(() => {
 })
 
 const saveDateLabel = computed(() => resolveText(props.data.saveDate?.label, 'Guardar fecha'))
+const saveDateTitle = computed(() => {
+  const eventTypeName = resolveText(props.typeEventName, 'Evento')
+  const invitationName = resolveText(
+    props.invitationTitle,
+    `${brideName.value} y ${groomName.value}`,
+  )
+
+  return `${eventTypeName}: ${invitationName}`
+})
 
 const saveDateUrl = computed(() => {
-  const target = countdownTarget.value ?? toDate(props.data.event?.date?.iso ?? '')
+  const target = toDate(props.data.event?.date?.iso ?? '') ?? countdownTarget.value
   if (!target) return '#'
   const endDate = new Date(target.getTime() + 1000 * 60 * 60 * 2)
   const query = new URLSearchParams({
     action: 'TEMPLATE',
-    text: `Boda de ${brideName.value} y ${groomName.value}`,
+    text: saveDateTitle.value,
     dates: `${toCalendarFormat(target)}/${toCalendarFormat(endDate)}`,
     details: storyPrimary.value.description,
     location: `${locationName.value}, ${locationAddress.value}`,
@@ -337,6 +572,51 @@ const saveDateUrl = computed(() => {
 const checkinTitle = computed(() => resolveText(props.data.checkin?.title, 'Bienvenida interactiva'))
 const checkinMessage = computed(() => resolveText(props.data.checkin?.message, 'Tu experiencia comienza aquí.'))
 const checkinButton = computed(() => resolveText(props.data.checkin?.buttonLabel, 'Entrar'))
+const checkinShowEventDate = computed(() => Boolean(props.data.checkin?.showEventDate ?? false))
+const checkinShowEntryValue = computed(() => Boolean(props.data.checkin?.showEntryValue ?? false))
+const checkinEventDateText = computed(() => {
+  if (!checkinShowEventDate.value) return ''
+
+  const eventDateIso = resolveText(props.data.checkin?.eventDateIso, resolveText(props.data.event?.date?.iso, ''))
+  if (!eventDateIso) return ''
+
+  const date = new Date(eventDateIso)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const formattedDate = new Intl.DateTimeFormat('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+
+  return `Te esperamos para celebrar juntos el ${formattedDate}.`
+})
+
+const checkinEntryText = computed(() => {
+  if (!checkinShowEntryValue.value) return ''
+
+  const amount = Number(props.data.checkin?.entry?.amount ?? 0)
+  if (!Number.isFinite(amount) || amount <= 0) return ''
+
+  const currencyCode = resolveText(props.data.checkin?.entry?.currency, 'USD').toUpperCase()
+  let formattedAmount = ''
+  try {
+    formattedAmount = new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: currencyCode,
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    }).format(amount)
+  } catch {
+    formattedAmount = `${currencyCode} ${amount.toFixed(2)}`
+  }
+
+  return `Valor de la entrada: ${formattedAmount}.`
+})
 
 const checkinOverlayStyle = computed<Record<string, string>>(() => {
   if (props.editable || props.constrainedOverlay) {
@@ -437,12 +717,84 @@ const closeFaq = () => {
   faqModalOpen.value = false
 }
 
+const formatWallDate = (rawIso?: string | null): string => {
+  if (!rawIso) return 'Sin fecha'
+  const parsed = new Date(rawIso)
+  if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
+
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(parsed).replace(',', ' ·')
+}
+
+const openWallComposer = () => {
+  if (props.editable) return
+  if (wallReachedLimit.value) {
+    notifyError(wallLimitTooltip.value)
+    return
+  }
+  wallComposerOpen.value = true
+}
+
+const closeWallComposer = () => {
+  wallComposerOpen.value = false
+}
+
+const clearWallComposer = () => {
+  wallGuestName.value = ''
+  wallGuestMessage.value = ''
+}
+
+const submitWallMessage = async () => {
+  if (!wallCanSubmit.value) return
+  if (wallReachedLimit.value) {
+    notifyError(wallLimitTooltip.value)
+    return
+  }
+  wallSubmitting.value = true
+
+  try {
+    const response = await createPublicInvitationWallMessage({
+      guest_name: wallGuestName.value.trim(),
+      message: wallGuestMessage.value.trim(),
+    })
+
+    const nextMessage: WallMessage = {
+      id: response.message.id,
+      guestName: response.message.guestName,
+      message: response.message.message,
+      status: response.message.status,
+      isVisible: response.message.isVisible,
+      postedAt: response.message.postedAt,
+    }
+
+    wallMessages.value = [nextMessage, ...wallMessages.value]
+    wallReceivedCount.value += 1
+    notifySuccess('Tu mensaje se publicó correctamente.')
+    clearWallComposer()
+    closeWallComposer()
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos publicar tu mensaje ahora.')
+  } finally {
+    wallSubmitting.value = false
+  }
+}
+
 const openCheckinOverlay = () => {
   checkinOverlayVisible.value = true
 }
 
 const closeCheckinOverlay = () => {
   checkinOverlayVisible.value = false
+  if (props.editable && props.checkinPreview) {
+    emit('checkin-preview-closed')
+  }
 }
 
 const handleWindowKeydown = (event: KeyboardEvent) => {
@@ -508,6 +860,7 @@ const syncMusicState = async () => {
 }
 
 onMounted(() => {
+  hydrateWallMessagesFromProps()
   syncGalleryViewportMode()
   timerId = setInterval(() => {
     countdownNow.value = Date.now()
@@ -575,6 +928,14 @@ watch([musicAudioUrl, () => props.sectionVisibility.music], () => {
 watch(musicMuted, () => {
   void syncMusicState()
 })
+
+watch(
+  () => props.data.wall?.messages,
+  () => {
+    hydrateWallMessagesFromProps()
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -585,87 +946,41 @@ watch(musicMuted, () => {
       <h1 v-if="!isEditing('hero_title')" class="snow-title editable" @dblclick="startEdit('hero_title')">
         {{ heroContent.title }}
       </h1>
-      <input
-        v-else
-        class="inline-input inline-input--title"
-        :value="heroContent.title"
-        autofocus
-        @input="updateText('hero_title', $event)"
-        @blur="finishEdit"
-        @keydown.enter.prevent="finishEdit" />
+      <input v-else class="inline-input inline-input--title" :value="heroContent.title" autofocus
+        @input="updateText('hero_title', $event)" @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
 
-      <p
-        v-if="!isEditing('hero_subtitle')"
-        class="snow-subtitle editable"
-        @dblclick="startEdit('hero_subtitle')">
+      <p v-if="!isEditing('hero_subtitle')" class="snow-subtitle editable" @dblclick="startEdit('hero_subtitle')">
         {{ heroContent.subtitle }}
       </p>
-      <textarea
-        v-else
-        class="inline-input inline-input--multiline"
-        :value="heroContent.subtitle"
-        autofocus
-        rows="2"
-        @input="updateText('hero_subtitle', $event)"
-        @blur="finishEdit"
-        @keydown.esc.prevent="finishEdit" />
+      <textarea v-else class="inline-input inline-input--multiline" :value="heroContent.subtitle" autofocus rows="2"
+        @input="updateText('hero_subtitle', $event)" @blur="finishEdit" @keydown.esc.prevent="finishEdit" />
 
       <div class="snow-names">
         <p v-if="!isEditing('bride_name')" class="editable" @dblclick="startEdit('bride_name')">{{ brideName }}</p>
-        <input
-          v-else
-          class="inline-input"
-          :value="brideName"
-          autofocus
-          @input="updateText('bride_name', $event)"
-          @blur="finishEdit"
-          @keydown.enter.prevent="finishEdit" />
+        <input v-else class="inline-input" :value="brideName" autofocus @input="updateText('bride_name', $event)"
+          @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
 
         <span>&</span>
 
         <p v-if="!isEditing('groom_name')" class="editable" @dblclick="startEdit('groom_name')">{{ groomName }}</p>
-        <input
-          v-else
-          class="inline-input"
-          :value="groomName"
-          autofocus
-          @input="updateText('groom_name', $event)"
-          @blur="finishEdit"
-          @keydown.enter.prevent="finishEdit" />
+        <input v-else class="inline-input" :value="groomName" autofocus @input="updateText('groom_name', $event)"
+          @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
       </div>
 
       <div class="snow-meta">
         <p v-if="!isEditing('event_date_label')" class="editable" @dblclick="startEdit('event_date_label')">
           {{ eventDateLabel }}
         </p>
-        <input
-          v-else
-          class="inline-input"
-          :value="eventDateLabel"
-          autofocus
-          @input="updateText('event_date_label', $event)"
-          @blur="finishEdit"
-          @keydown.enter.prevent="finishEdit" />
+        <input v-else class="inline-input" :value="eventDateLabel" autofocus
+          @input="updateText('event_date_label', $event)" @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
 
         <p v-if="!isEditing('event_venue')" class="editable" @dblclick="startEdit('event_venue')">{{ eventVenue }}</p>
-        <input
-          v-else
-          class="inline-input"
-          :value="eventVenue"
-          autofocus
-          @input="updateText('event_venue', $event)"
-          @blur="finishEdit"
-          @keydown.enter.prevent="finishEdit" />
+        <input v-else class="inline-input" :value="eventVenue" autofocus @input="updateText('event_venue', $event)"
+          @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
 
         <p v-if="!isEditing('event_city')" class="editable" @dblclick="startEdit('event_city')">{{ eventCity }}</p>
-        <input
-          v-else
-          class="inline-input"
-          :value="eventCity"
-          autofocus
-          @input="updateText('event_city', $event)"
-          @blur="finishEdit"
-          @keydown.enter.prevent="finishEdit" />
+        <input v-else class="inline-input" :value="eventCity" autofocus @input="updateText('event_city', $event)"
+          @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
       </div>
     </header>
 
@@ -674,15 +989,8 @@ watch(musicMuted, () => {
       <p v-if="!isEditing('countdown_note')" class="editable" @dblclick="startEdit('countdown_note')">
         {{ countdown.note }}
       </p>
-      <textarea
-        v-else
-        class="inline-input inline-input--multiline"
-        :value="countdown.note"
-        autofocus
-        rows="2"
-        @input="updateText('countdown_note', $event)"
-        @blur="finishEdit"
-        @keydown.esc.prevent="finishEdit" />
+      <textarea v-else class="inline-input inline-input--multiline" :value="countdown.note" autofocus rows="2"
+        @input="updateText('countdown_note', $event)" @blur="finishEdit" @keydown.esc.prevent="finishEdit" />
       <div class="snow-countdown">
         <div class="snow-countdown__unit">
           <strong>{{ countdownMetrics.days }}</strong>
@@ -711,73 +1019,93 @@ watch(musicMuted, () => {
       <h2 v-if="!isEditing('story_title')" class="editable" @dblclick="startEdit('story_title')">
         {{ storyPrimary.title }}
       </h2>
-      <input
-        v-else
-        class="inline-input"
-        :value="storyPrimary.title"
-        autofocus
-        @input="updateText('story_title', $event)"
-        @blur="finishEdit"
-        @keydown.enter.prevent="finishEdit" />
+      <input v-else class="inline-input" :value="storyPrimary.title" autofocus
+        @input="updateText('story_title', $event)" @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
 
       <p v-if="!isEditing('story_description')" class="editable" @dblclick="startEdit('story_description')">
         {{ storyPrimary.description }}
       </p>
-      <textarea
-        v-else
-        class="inline-input inline-input--multiline"
-        :value="storyPrimary.description"
-        autofocus
-        rows="4"
-        @input="updateText('story_description', $event)"
-        @blur="finishEdit"
-        @keydown.esc.prevent="finishEdit" />
+      <textarea v-else class="inline-input inline-input--multiline" :value="storyPrimary.description" autofocus rows="4"
+        @input="updateText('story_description', $event)" @blur="finishEdit" @keydown.esc.prevent="finishEdit" />
+    </section>
+
+    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall">
+      <div class="snow-wall__head">
+        <p class="section-kicker">{{ wallConfig.title }}</p>
+        <button v-if="!editable && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
+          :class="{ 'is-disabled': wallReachedLimit }"
+          :aria-label="wallReachedLimit ? 'Muro completo' : wallConfig.addLabel"
+          :aria-disabled="wallReachedLimit ? 'true' : 'false'"
+          :title="wallLimitTooltip"
+          :data-tooltip="wallReachedLimit ? wallLimitTooltip : null"
+          @click="openWallComposer">
+          <span aria-hidden="true">+</span>
+        </button>
+      </div>
+
+      <p class="snow-wall__description">{{ wallConfig.description }}</p>
+
+      <form v-if="!wallHasMessages && !editable && !wallReachedLimit" class="snow-wall__form" @submit.prevent="submitWallMessage">
+        <label>
+          <span>Nombre</span>
+          <input v-model="wallGuestName" type="text" maxlength="120" placeholder="Tu nombre" />
+        </label>
+        <label>
+          <span>Mensaje</span>
+          <textarea v-model="wallGuestMessage" rows="3" maxlength="1200"
+            placeholder="Escribe aquí tu mensaje"></textarea>
+        </label>
+        <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
+          {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
+        </button>
+      </form>
+
+      <p v-if="!wallHasMessages && !editable && wallReachedLimit" class="snow-wall__empty">
+        {{ wallLimitTooltip }}
+      </p>
+
+      <p v-if="!wallHasMessages && editable" class="snow-wall__empty">
+        {{ wallConfig.emptyStateLabel }}
+      </p>
+
+      <div v-if="wallHasMessages" class="snow-wall__grid">
+        <article v-for="(item, index) in wallPreviewMessages" :key="`wall-${item.id}-${index}`" class="snow-wall-note">
+          <header>
+            <strong>{{ item.guestName }}</strong>
+            <time>{{ formatWallDate(item.postedAt) }}</time>
+          </header>
+          <p>{{ item.message }}</p>
+        </article>
+      </div>
     </section>
 
     <section v-if="isSectionVisible('gallery') && galleryItems.length > 0" class="snow-card">
       <p class="section-kicker">Galería</p>
       <div class="snow-gallery-carousel">
         <div class="snow-gallery-carousel__stage">
-          <button
-            v-if="galleryHasMultipleItems"
-            type="button"
-            class="snow-gallery-nav snow-gallery-nav--prev"
-            aria-label="Imagen anterior"
-            @click="goToPreviousGallerySlide">
+          <button v-if="galleryHasMultipleItems" type="button" class="snow-gallery-nav snow-gallery-nav--prev"
+            aria-label="Imagen anterior" @click="goToPreviousGallerySlide">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m14 6-6 6 6 6" />
             </svg>
           </button>
 
-          <button
-            v-if="galleryHasMultipleItems"
-            type="button"
-            class="snow-gallery-nav snow-gallery-nav--next"
-            aria-label="Imagen siguiente"
-            @click="goToNextGallerySlide">
+          <button v-if="galleryHasMultipleItems" type="button" class="snow-gallery-nav snow-gallery-nav--next"
+            aria-label="Imagen siguiente" @click="goToNextGallerySlide">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m10 6 6 6-6 6" />
             </svg>
           </button>
 
-          <div
-            class="snow-gallery-strip"
-            :class="{
-              'snow-gallery-strip--compact': galleryIsCompactSet,
-              'snow-gallery-strip--single': galleryIsSingleItem,
-            }">
-            <button
-              v-for="slide in galleryDesktopSlides"
-              :key="`gallery-slide-${slide.item.id}-${slide.role}-${slide.index}`"
-              type="button"
-              class="snow-gallery-card"
-              :class="`snow-gallery-card--${slide.role}`"
-              :aria-label="`Abrir imagen ${slide.index + 1}`"
-              @click="openGalleryLightbox(slide.index)">
-              <img
-                :src="resolveGalleryDisplayUrl(slide.item)"
-                :alt="slide.item.alt"
-                loading="lazy" />
+          <div class="snow-gallery-strip" :class="{
+            'snow-gallery-strip--compact': galleryIsCompactSet,
+            'snow-gallery-strip--single': galleryIsSingleItem,
+          }">
+            <button v-for="slide in galleryDesktopSlides"
+              :key="`gallery-slide-${slide.item.id}-${slide.role}-${slide.index}`" type="button"
+              class="snow-gallery-card" :class="`snow-gallery-card--${slide.role}`"
+              :aria-label="`Abrir imagen ${slide.index + 1}`" @click="openGalleryLightbox(slide.index)">
+              <img :src="resolveGalleryDisplayUrl(slide.item)" :alt="slide.item.alt" loading="lazy" />
             </button>
           </div>
         </div>
@@ -797,18 +1125,15 @@ watch(musicMuted, () => {
       <p>{{ locationAddress }}</p>
       <div class="snow-actions-inline">
         <a class="snow-link" :href="mapsUrl" target="_blank" rel="noopener noreferrer">Google Maps</a>
-        <a class="snow-link" :href="uberUrl" target="_blank" rel="noopener noreferrer">Pedir Uber</a>
+        <a v-if="uberEnabled" class="snow-link" :href="uberUrl" target="_blank" rel="noopener noreferrer">
+          Pedir Uber
+        </a>
       </div>
     </section>
 
     <section v-if="isSectionVisible('saveDate')" class="snow-card">
       <p class="section-kicker">Save the date</p>
-      <a
-        v-if="!editable"
-        class="snow-link"
-        :href="saveDateUrl"
-        target="_blank"
-        rel="noopener noreferrer">
+      <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">
         {{ saveDateLabel }}
       </a>
       <button v-else type="button" class="snow-action" disabled>
@@ -838,32 +1163,18 @@ watch(musicMuted, () => {
           <input type="text" />
         </label>
       </form>
-      <button
-        v-if="!isEditing('rsvp_label')"
-        class="snow-rsvp__button editable"
-        type="button"
+      <button v-if="!isEditing('rsvp_label')" class="snow-rsvp__button editable" type="button"
         @dblclick="startEdit('rsvp_label')">
         {{ rsvpLabel }}
       </button>
-      <input
-        v-else
-        class="inline-input"
-        :value="rsvpLabel"
-        autofocus
-        @input="updateText('rsvp_label', $event)"
-        @blur="finishEdit"
-        @keydown.enter.prevent="finishEdit" />
+      <input v-else class="inline-input" :value="rsvpLabel" autofocus @input="updateText('rsvp_label', $event)"
+        @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
     </section>
 
     <audio ref="audioRef" preload="auto" loop playsinline></audio>
 
-    <button
-      v-if="isSectionVisible('music')"
-      type="button"
-      class="snow-music-fab"
-      :class="{ active: !musicMuted }"
-      :aria-label="musicMuted ? 'Activar música' : 'Silenciar música'"
-      @click="toggleMute">
+    <button v-if="isSectionVisible('music')" type="button" class="snow-music-fab" :class="{ active: !musicMuted }"
+      :aria-label="musicMuted ? 'Activar música' : 'Silenciar música'" @click="toggleMute">
       <span class="music-wave">
         <i></i>
         <i></i>
@@ -900,10 +1211,37 @@ watch(musicMuted, () => {
       </div>
     </div>
 
-    <div
-      v-if="galleryLightboxOpen"
-      class="snow-gallery-lightbox"
-      :style="galleryLightboxStyle"
+    <div v-if="wallComposerOpen" class="snow-modal-backdrop" @click.self="closeWallComposer">
+      <div class="snow-modal snow-modal--wall">
+        <header class="snow-modal__head">
+          <h3>{{ wallConfig.addLabel }}</h3>
+          <button type="button" aria-label="Salir de añadir mensaje" title="Salir" @click="closeWallComposer">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 6-12 12" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+        <div class="snow-modal__body">
+          <form class="snow-wall__form" @submit.prevent="submitWallMessage">
+            <label>
+              <span>Nombre</span>
+              <input v-model="wallGuestName" type="text" maxlength="120" placeholder="Tu nombre" />
+            </label>
+            <label>
+              <span>Mensaje</span>
+              <textarea v-model="wallGuestMessage" rows="4" maxlength="1200"
+                placeholder="Escribe aquí tu mensaje"></textarea>
+            </label>
+            <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
+              {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="galleryLightboxOpen" class="snow-gallery-lightbox" :style="galleryLightboxStyle"
       @click.self="closeGalleryLightbox">
       <div class="snow-gallery-lightbox__panel">
         <header class="snow-gallery-lightbox__head">
@@ -917,11 +1255,8 @@ watch(musicMuted, () => {
         </header>
 
         <div class="snow-gallery-lightbox__stage">
-          <button
-            v-if="galleryHasMultipleItems"
-            type="button"
-            class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--prev"
-            aria-label="Imagen anterior"
+          <button v-if="galleryHasMultipleItems" type="button"
+            class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--prev" aria-label="Imagen anterior"
             @click="goToPreviousLightboxSlide">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m14 6-6 6 6 6" />
@@ -932,11 +1267,8 @@ watch(musicMuted, () => {
             <img :src="resolveGalleryLightboxUrl(activeLightboxItem)" :alt="activeLightboxItem.alt" loading="eager" />
           </figure>
 
-          <button
-            v-if="galleryHasMultipleItems"
-            type="button"
-            class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--next"
-            aria-label="Imagen siguiente"
+          <button v-if="galleryHasMultipleItems" type="button"
+            class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--next" aria-label="Imagen siguiente"
             @click="goToNextLightboxSlide">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m10 6 6 6-6 6" />
@@ -945,34 +1277,27 @@ watch(musicMuted, () => {
         </div>
 
         <div class="snow-gallery-lightbox__thumbs" role="tablist" aria-label="Miniaturas en visor">
-          <button
-            v-for="(item, index) in galleryItems"
-            :key="`lightbox-${item.id}`"
-            type="button"
-            class="snow-gallery-lightbox__thumb"
-            :class="{ 'is-active': index === normalizedGalleryLightboxIndex }"
-            :aria-label="`Ir a imagen ${index + 1}`"
-            @click="selectLightboxSlide(index)">
+          <button v-for="(item, index) in galleryItems" :key="`lightbox-${item.id}`" type="button"
+            class="snow-gallery-lightbox__thumb" :class="{ 'is-active': index === normalizedGalleryLightboxIndex }"
+            :aria-label="`Ir a imagen ${index + 1}`" @click="selectLightboxSlide(index)">
             <img :src="resolveGalleryThumbnailUrl(item)" :alt="item.alt" loading="lazy" />
           </button>
         </div>
       </div>
     </div>
 
-    <div
-      v-if="checkinOverlayVisible"
-      class="snow-checkin-overlay"
-      :style="checkinOverlayStyle"
-      :class="{
-        'snow-checkin-overlay--editor': editable,
-        'snow-checkin-overlay--embedded': constrainedOverlay,
-      }">
+    <div v-if="checkinOverlayVisible" class="snow-checkin-overlay" :style="checkinOverlayStyle" :class="{
+      'snow-checkin-overlay--editor': editable,
+      'snow-checkin-overlay--embedded': constrainedOverlay,
+    }">
       <div class="snow-checkin-overlay__glow snow-checkin-overlay__glow--one"></div>
       <div class="snow-checkin-overlay__glow snow-checkin-overlay__glow--two"></div>
       <div class="snow-checkin-overlay__card">
         <p class="section-kicker">{{ props.checkinPreview ? 'Vista previa check-in' : 'Bienvenida interactiva' }}</p>
         <h3>{{ checkinTitle }}</h3>
         <p>{{ checkinMessage }}</p>
+        <p v-if="checkinEventDateText" class="snow-checkin-overlay__meta">{{ checkinEventDateText }}</p>
+        <p v-if="checkinEntryText" class="snow-checkin-overlay__meta">{{ checkinEntryText }}</p>
         <button class="snow-action" type="button" @click="closeCheckinOverlay">{{ checkinButton }}</button>
       </div>
     </div>
@@ -1007,6 +1332,284 @@ watch(musicMuted, () => {
   border: 1px solid rgba(31, 41, 55, 0.08);
   background: white;
   padding: 16px;
+}
+
+.snow-wall {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(120, 84, 52, 0.2);
+  background: linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%)
+}
+
+.snow-wall::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 10% 22%, rgba(255, 255, 255, 0.1) 0 20%, transparent 24%),
+    radial-gradient(circle at 85% 68%, rgba(255, 255, 255, 0.07) 0 17%, transparent 22%);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.snow-wall>* {
+  position: relative;
+  z-index: 1;
+}
+
+.snow-wall__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.snow-wall__description {
+  margin: 0 0 0.8rem;
+  color: rgba(45, 24, 10, 0.86);
+}
+
+.snow-wall__add {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.snow-wall__add:hover,
+.snow-wall__add:focus-visible {
+  transform: translateY(-1px) scale(1.04);
+  background: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+}
+
+.snow-wall__add.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  background: rgba(15, 23, 42, 0.08);
+  box-shadow: none;
+}
+
+.snow-wall__add.is-disabled:hover,
+.snow-wall__add.is-disabled:focus-visible {
+  transform: none;
+  background: rgba(15, 23, 42, 0.08);
+  box-shadow: none;
+}
+
+.snow-wall__add[data-tooltip] {
+  position: relative;
+}
+
+.snow-wall__add[data-tooltip]::after,
+.snow-wall__add[data-tooltip]::before {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.snow-wall__add[data-tooltip]::after {
+  content: attr(data-tooltip);
+  right: 0;
+  top: calc(100% + 10px);
+  transform: translateY(-4px);
+  min-width: 220px;
+  max-width: min(300px, 72vw);
+  white-space: normal;
+  text-align: left;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 0.56rem;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.34);
+  z-index: 4;
+}
+
+.snow-wall__add[data-tooltip]::before {
+  content: '';
+  right: 10px;
+  top: calc(100% + 4px);
+  transform: translateY(-4px);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(15, 23, 42, 0.94);
+  z-index: 4;
+}
+
+.snow-wall__add[data-tooltip]:hover::after,
+.snow-wall__add[data-tooltip]:hover::before,
+.snow-wall__add[data-tooltip]:focus-visible::after,
+.snow-wall__add[data-tooltip]:focus-visible::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.snow-wall__empty {
+  margin: 0;
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(119, 82, 49, 0.45);
+  color: rgba(57, 34, 14, 0.9);
+  background: rgba(255, 252, 245, 0.85);
+}
+
+.snow-wall__form {
+  display: grid;
+  gap: 10px;
+}
+
+.snow-wall__form label {
+  display: grid;
+  gap: 6px;
+}
+
+.snow-wall__form span {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.snow-wall__form input,
+.snow-wall__form textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: #fff;
+}
+
+.snow-wall__form textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.snow-wall__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 40px;
+}
+
+.snow-wall-note {
+  --note-bg: #fff9b4;
+  --note-edge: #f4eb8d;
+  --pin-color: #db4f57;
+  position: relative;
+  isolation: isolate;
+  border-radius: 14px;
+  border: 1px solid rgba(102, 70, 43, 0.14);
+  padding: 16px 14px 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0px, transparent 34px),
+    linear-gradient(180deg, var(--note-bg) 0%, var(--note-edge) 100%);
+  box-shadow:
+    0 16px 26px rgba(45, 24, 10, 0.24),
+    0 3px 8px rgba(45, 24, 10, 0.18);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
+  transform: rotate(-1.4deg);
+}
+
+.snow-wall-note::before {
+  content: '';
+  position: absolute;
+  inset: -8px 8px 8px -8px;
+  border-radius: 14px;
+  background: rgba(238, 247, 255, 0.82);
+  border: 1px solid rgba(102, 70, 43, 0.12);
+  z-index: -2;
+  transform: rotate(-3.2deg);
+  box-shadow: 0 8px 16px rgba(45, 24, 10, 0.1);
+}
+
+.snow-wall-note::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 32%, rgba(255, 255, 255, 0.8), transparent 40%),
+    var(--pin-color);
+  box-shadow:
+    0 2px 3px rgba(15, 23, 42, 0.25),
+    inset 0 -2px 2px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+}
+
+.snow-wall-note:nth-child(2n) {
+  --note-bg: #c7ecff;
+  --note-edge: #afe2fa;
+  --pin-color: #2f65cc;
+  transform: rotate(1.6deg);
+}
+
+.snow-wall-note:nth-child(3n) {
+  --note-bg: #ffe6ee;
+  --note-edge: #ffd8e5;
+  --pin-color: #f0d43f;
+  transform: rotate(-0.8deg);
+}
+
+.snow-wall-note:nth-child(4n) {
+  --note-bg: #d8f6cf;
+  --note-edge: #c6edbc;
+  --pin-color: #2f65cc;
+  transform: rotate(1.1deg);
+}
+
+.snow-wall-note:hover,
+.snow-wall-note:focus-within {
+  transform: translateY(-3px) scale(1.016);
+  box-shadow:
+    0 22px 32px rgba(45, 24, 10, 0.3),
+    0 8px 14px rgba(45, 24, 10, 0.2);
+  filter: saturate(1.03);
+}
+
+.snow-wall-note header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-top: 8px;
+}
+
+.snow-wall-note strong {
+  font-size: 0.84rem;
+  color: rgba(44, 23, 8, 0.95);
+}
+
+.snow-wall-note time {
+  font-size: 0.71rem;
+  color: rgba(84, 58, 35, 0.78);
+}
+
+.snow-wall-note p {
+  margin: 0;
+  color: rgba(44, 23, 8, 0.92);
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.snow-modal--wall {
+  max-width: 460px;
 }
 
 .snow-tag,
@@ -1784,6 +2387,14 @@ watch(musicMuted, () => {
   line-height: 1.5;
 }
 
+.snow-checkin-overlay__meta {
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(219, 234, 254, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-weight: 600;
+}
+
 .snow-modal__head {
   padding: 0.9rem 1rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.28);
@@ -1833,11 +2444,13 @@ watch(musicMuted, () => {
 }
 
 @keyframes music-wave-idle {
+
   0%,
   100% {
     transform: scaleY(0.5);
     opacity: 0.65;
   }
+
   50% {
     transform: scaleY(1.2);
     opacity: 1;
@@ -1849,6 +2462,7 @@ watch(musicMuted, () => {
     transform: translateY(12px) scale(0.98);
     opacity: 0;
   }
+
   to {
     transform: translateY(0) scale(1);
     opacity: 1;
@@ -1856,11 +2470,13 @@ watch(musicMuted, () => {
 }
 
 @keyframes checkin-glow {
+
   0%,
   100% {
     transform: scale(1);
     opacity: 0.46;
   }
+
   50% {
     transform: scale(1.08);
     opacity: 0.72;
@@ -1991,6 +2607,14 @@ watch(musicMuted, () => {
     padding-bottom: 0.2rem;
   }
 
+  .snow-wall__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .snow-wall-note {
+    transform: none;
+  }
+
   .snow-music-fab {
     right: 12px;
     bottom: 12px;
@@ -2090,6 +2714,11 @@ watch(musicMuted, () => {
   .snow-gallery-lightbox__thumbs {
     padding: 0.5rem;
     gap: 6px;
+  }
+
+  .snow-wall__form input,
+  .snow-wall__form textarea {
+    font-size: 0.88rem;
   }
 }
 </style>

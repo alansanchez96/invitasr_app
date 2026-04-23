@@ -10,7 +10,7 @@ import {
   publishTenantInvitation,
   type TenantInvitationItem,
 } from '@/services/tenantInvitations'
-import { listCatalogTemplates, listCatalogTypeEvents, type CatalogTemplateItem, type CatalogTypeEventItem } from '@/services/catalogs'
+import { listCatalogTemplates, type CatalogTemplateItem, type CatalogTypeEventItem } from '@/services/catalogs'
 import { useSessionStore } from '@/stores/session'
 import { loadTemplateModuleByRendererKey } from '@/templates/registry'
 import { weddingTemplateMocks } from '@/templates/mockWeddingTemplateData'
@@ -69,24 +69,17 @@ const filteredTemplates = computed(() => {
 const selectedTemplate = computed(() =>
   templates.value.find((item) => String(item.id) === createForm.template_id),
 )
+const selectedTypeEventName = computed(() => {
+  const eventId = String(createForm.type_event_id ?? '').trim()
+  if (!eventId) return ''
+  const match = typeEvents.value.find((item) => String(item.id ?? '') === eventId)
+  return String(match?.name ?? '').trim()
+})
 
 const createPreviewViewportClass = computed(() => `template-preview-frame--${createPreviewDevice.value}`)
 
 const createPreviewData = computed<WeddingTemplateData>(() => {
-  const rendererKey = String(selectedTemplate.value?.renderer_key ?? '').trim()
-  if (rendererKey === 'wedding_snow' || rendererKey === 'wedding_base_basic') {
-    return weddingTemplateMocks[1001] ?? weddingTemplateMocks[2]!
-  }
-
-  if (rendererKey === 'wedding_template_43' || rendererKey === 'wedding_base_pro') {
-    return weddingTemplateMocks[43] ?? weddingTemplateMocks[2]!
-  }
-
-  if (rendererKey === 'wedding_template_42') {
-    return weddingTemplateMocks[42] ?? weddingTemplateMocks[2]!
-  }
-
-  return weddingTemplateMocks[2] ?? weddingTemplateMocks[1001]!
+  return weddingTemplateMocks[1001]!
 })
 
 const createPreviewDevices = [
@@ -179,20 +172,37 @@ const fetchCatalogs = async () => {
   const planId = session.user?.client_plan?.plan?.id
   if (!planId) return
 
-  const [templateResponse, eventResponse] = await Promise.all([
-    listCatalogTemplates({ plan_id: planId, perPage: 100, page: 1 }),
-    listCatalogTypeEvents({ perPage: 100, page: 1 }),
-  ])
+  const templateResponse = await listCatalogTemplates({ plan_id: planId, perPage: 100, page: 1 })
 
   templates.value = templateResponse.list.filter(
     (template) => String(template.status ?? 'active').toLowerCase() === 'active',
   )
-  typeEvents.value = eventResponse.list.filter(
-    (eventType) => String(eventType.status ?? 'active').toLowerCase() === 'active',
-  )
+
+  const mappedTypeEvents = new Map<string, CatalogTypeEventItem>()
+  templates.value.forEach((template) => {
+    const id = template.type_event?.id ?? template.type_event_id
+    if (id === undefined || id === null) return
+    const key = String(id)
+    if (mappedTypeEvents.has(key)) return
+    mappedTypeEvents.set(key, {
+      id,
+      name: template.type_event?.name ?? `Evento ${key}`,
+      status: 'active',
+    })
+  })
+  typeEvents.value = Array.from(mappedTypeEvents.values())
 
   if (!createForm.type_event_id && typeEvents.value[0]?.id !== undefined) {
     createForm.type_event_id = String(typeEvents.value[0].id)
+  }
+
+  if (
+    createForm.type_event_id &&
+    !typeEvents.value.some((eventType) => String(eventType.id ?? '') === String(createForm.type_event_id))
+  ) {
+    createForm.type_event_id = typeEvents.value[0]?.id !== undefined
+      ? String(typeEvents.value[0].id)
+      : ''
   }
 
   if (!createForm.template_id) {
@@ -541,6 +551,8 @@ watch(showDeletePrompt, (isOpen) => {
                 :template-id="Number(createForm.template_id || 0)"
                 :manifest="createTemplatePreviewModule.manifest"
                 :data="createPreviewData"
+                :invitation-title="createForm.title || selectedTemplate?.name || 'Mi invitación'"
+                :type-event-name="selectedTypeEventName || 'Evento'"
                 :constrained-overlay="true" />
             </div>
           </div>

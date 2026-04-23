@@ -11,46 +11,13 @@ export const templateRegistry: Record<number, InvitationTemplateLoader> = {
 
     return { component, manifest }
   },
-  2: async () => {
-    const [{ default: component }, { romanceLightManifest: manifest }] = await Promise.all([
-      import('@/templates/wedding/romance-light/RomanceLightTemplate.vue'),
-      import('@/templates/wedding/romance-light/manifest'),
-    ])
-
-    return { component, manifest }
-  },
-  42: async () => {
-    const [{ default: component }, { template42Manifest: manifest }] = await Promise.all([
-      import('@/templates/wedding/template-42/Template42.vue'),
-      import('@/templates/wedding/template-42/manifest'),
-    ])
-
-    return { component, manifest }
-  },
-  43: async () => {
-    const [{ default: component }, { template43Manifest: manifest }] = await Promise.all([
-      import('@/templates/wedding/template-43/Template43.vue'),
-      import('@/templates/wedding/template-43/manifest'),
-    ])
-
-    return { component, manifest }
-  },
 }
 
-const loadRomanceLightTemplate: InvitationTemplateLoader = async () => templateRegistry[2]!()
-const loadTemplate42: InvitationTemplateLoader = async () => templateRegistry[42]!()
-const loadTemplate43: InvitationTemplateLoader = async () => templateRegistry[43]!()
 const loadWeddingSnowTemplate: InvitationTemplateLoader = async () => templateRegistry[1001]!()
 
 export const templateRendererRegistry: Record<string, InvitationTemplateLoader> = {
   wedding_snow: loadWeddingSnowTemplate,
-  wedding_romance_light: loadRomanceLightTemplate,
-  wedding_template_42: loadTemplate42,
-  wedding_template_43: loadTemplate43,
-  wedding_base_demo: loadRomanceLightTemplate,
   wedding_base_basic: loadWeddingSnowTemplate,
-  wedding_base_pro: loadTemplate43,
-  wedding_base_planner: loadTemplate43,
 }
 
 export const listRegisteredTemplateIds = () => Object.keys(templateRegistry).map((value) => Number(value))
@@ -71,7 +38,7 @@ export const loadTemplateModuleByRendererKey = async (rendererKey: string): Prom
   if (!normalized) return null
   const loader = templateRendererRegistry[normalized]
   if (!loader) {
-    const fallback = templateRegistry[1001] ?? templateRegistry[42] ?? templateRegistry[2]
+    const fallback = templateRegistry[1001]
     return fallback ? fallback() : null
   }
   return loader()

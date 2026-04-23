@@ -7,6 +7,16 @@ type PublicApiResponse<T = Record<string, unknown>> = {
   status?: number
 }
 
+type PublicWallMessageRaw = {
+  id?: number | string
+  guest_name?: string
+  message?: string
+  status?: string
+  is_visible?: boolean
+  posted_at?: string | null
+  created_at?: string | null
+}
+
 type PublicInvitationRaw = {
   invitation?: Record<string, unknown> | null
   template?: Record<string, unknown> | null
@@ -47,6 +57,16 @@ export type PublicInvitationPayload = {
     host: string
     url: string
   } | null
+}
+
+export type PublicWallMessage = {
+  id: string
+  guestName: string
+  message: string
+  status: string
+  isVisible: boolean
+  postedAt: string | null
+  createdAt: string | null
 }
 
 const toRecord = (value: unknown): Record<string, unknown> =>
@@ -129,4 +149,44 @@ export const getPublicInvitationByHost = async (): Promise<PublicInvitationPaylo
   })
 
   return normalizePayload(response?.data ?? {})
+}
+
+export const createPublicInvitationWallMessage = async (payload: {
+  guest_name: string
+  message: string
+}): Promise<{
+  message: PublicWallMessage
+  summary: {
+    limit: number | null
+    used: number
+    remaining: number | null
+  }
+}> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>('/invitations/wall-messages', {
+    method: 'POST',
+    token: '',
+    credentials: 'omit',
+    body: payload,
+  })
+
+  const data = toRecord(response.data)
+  const rawMessage = toRecord(data.message) as PublicWallMessageRaw
+  const rawSummary = toRecord(data.summary)
+
+  return {
+    message: {
+      id: String(rawMessage.id ?? ''),
+      guestName: toString(rawMessage.guest_name),
+      message: toString(rawMessage.message),
+      status: toString(rawMessage.status, 'visible'),
+      isVisible: Boolean(rawMessage.is_visible ?? true),
+      postedAt: toString(rawMessage.posted_at) || null,
+      createdAt: toString(rawMessage.created_at) || null,
+    },
+    summary: {
+      limit: toNumber(rawSummary.limit),
+      used: Number(rawSummary.used ?? 0) || 0,
+      remaining: toNumber(rawSummary.remaining),
+    },
+  }
 }

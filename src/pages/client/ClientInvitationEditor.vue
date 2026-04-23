@@ -7,13 +7,20 @@ import {
   checkTenantInvitationSubdomainAvailability,
   getTenantInvitation,
   getTenantInvitationGallery,
+  getTenantInvitationWallMessages,
   publishTenantInvitation,
   syncTenantInvitationGalleryImages,
+  deleteTenantInvitationWallMessage,
+  resolveTenantInvitationLocation,
+  updateTenantInvitationWallMessage,
   updateTenantInvitation,
   type TenantInvitationItem,
   type TenantInvitationGalleryImage,
   type TenantInvitationGallerySummary,
+  type TenantInvitationWallMessage,
+  type TenantInvitationWallSummary,
   type TenantTemplateSummary,
+  type TenantTypeEventSummary,
 } from '@/services/tenantInvitations'
 import { useSessionStore } from '@/stores/session'
 import { loadTemplateModule, loadTemplateModuleByRendererKey } from '@/templates/registry'
@@ -52,6 +59,20 @@ type DressCodeOption = {
   description: string
 }
 
+type CurrencyOption = {
+  code: string
+  label: string
+}
+
+type PendingGallerySnapshotItem = {
+  id: string
+  file: File
+  name: string
+  shortName: string
+  extension: string
+  sizeBytes: number
+}
+
 type EditorSnapshot = {
   title: string
   slug: string
@@ -63,8 +84,12 @@ type EditorSnapshot = {
   sectionVisibility: Record<string, boolean>
   activeTextField: string | null
   showCheckinPreview: boolean
+  isCheckinConfigEditing: boolean
   pendingGallerySignature: string[]
+  pendingGalleryItems: PendingGallerySnapshotItem[]
   removedGalleryImageIds: number[]
+  pendingDeleteWallMessageIds: number[]
+  pendingWallMessageVisibilityById: Record<number, boolean>
 }
 
 type PendingGalleryImage = {
@@ -93,6 +118,7 @@ const session = useSessionStore()
 
 const invitation = ref<TenantInvitationItem | null>(null)
 const template = ref<TenantTemplateSummary | null>(null)
+const typeEvent = ref<TenantTypeEventSummary | null>(null)
 const templateModule = ref<InvitationTemplateModule<'wedding'> | null>(null)
 const availableTemplates = ref<CatalogTemplateItem[]>([])
 
@@ -107,6 +133,7 @@ const sectionVisibilityDraft = ref<Record<string, boolean>>({})
 const activeTextField = ref<string | null>(null)
 const previewDevice = ref<ResponsiveDevice>('desktop')
 const showCheckinPreview = ref(false)
+const isCheckinConfigEditing = ref(false)
 const isSidebarOpen = ref(false)
 const lastSavedSerializedState = ref('')
 
@@ -123,13 +150,30 @@ const slugAvailabilityReason = ref<string | null>(null)
 const undoStack = ref<EditorSnapshot[]>([])
 const isHydratingSnapshot = ref(true)
 const isApplyingUndo = ref(false)
+const snapshotRegistry = new Map<string, EditorSnapshot>()
 const skipNextLeaveConfirm = ref(false)
 const showLeavePrompt = ref(false)
 const pendingNavigationPath = ref<string | null>(null)
 const showHelpModal = ref(false)
+const showDeleteWallPrompt = ref(false)
+const pendingDeleteWallMessageId = ref<number | null>(null)
+const pendingDeleteWallMessageGuestName = ref('')
+const pendingDeleteWallMessageText = ref('')
 const isImmersivePreviewOpen = ref(false)
 const isLoadingGallery = ref(false)
 const isUploadingGallery = ref(false)
+const isLoadingWallMessages = ref(false)
+const wallMessages = ref<TenantInvitationWallMessage[]>([])
+const wallSummary = ref<TenantInvitationWallSummary>({
+  enabled: false,
+  limit: null,
+  used: 0,
+  visible_count: 0,
+  remaining: null,
+})
+const updatingWallMessageIds = ref<number[]>([])
+const pendingDeleteWallMessageIds = ref<number[]>([])
+const pendingWallMessageVisibilityById = ref<Record<number, boolean>>({})
 const galleryInputRef = ref<HTMLInputElement | null>(null)
 const gallerySummary = ref<TenantInvitationGallerySummary>({
   enabled: false,
@@ -146,6 +190,34 @@ let galleryProcessingRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const invitationId = computed(() => Number(route.params.invitationId))
 const isDraft = computed(() => String(invitation.value?.status ?? '').toLowerCase() === 'draft')
+const isDeletingPendingWallMessage = computed(() => {
+  const messageId = pendingDeleteWallMessageId.value
+  if (!messageId) return false
+  return updatingWallMessageIds.value.includes(messageId)
+})
+const wallMessagesInEditor = computed(() =>
+  wallMessages.value
+    .filter((item) => !pendingDeleteWallMessageIds.value.includes(item.id))
+    .map((item) => {
+      const override = pendingWallMessageVisibilityById.value[item.id]
+      if (typeof override !== 'boolean') return item
+
+      const nextStatus = override ? 'visible' : 'hidden'
+      return {
+        ...item,
+        status: nextStatus,
+        is_visible: override,
+      }
+    }),
+)
+const wallUsedCountInEditor = computed(() => wallMessagesInEditor.value.length)
+const wallVisibleCountInEditor = computed(() =>
+  wallMessagesInEditor.value.filter((item) => item.is_visible).length,
+)
+const hasPendingWallMessageDeletes = computed(() => pendingDeleteWallMessageIds.value.length > 0)
+const hasPendingWallMessageVisibilityChanges = computed(
+  () => Object.keys(pendingWallMessageVisibilityById.value).length > 0,
+)
 
 const supportsInlineEditor = computed(() => {
   const rendererKey = String(template.value?.renderer_key ?? '').trim()
@@ -248,6 +320,15 @@ const dressCodeOptions: DressCodeOption[] = [
   },
 ]
 
+const checkinCurrencyOptions: CurrencyOption[] = [
+  { code: 'USD', label: 'USD · Dólar estadounidense' },
+  { code: 'ARS', label: 'ARS · Peso argentino' },
+  { code: 'EUR', label: 'EUR · Euro' },
+  { code: 'BRL', label: 'BRL · Real brasileño' },
+  { code: 'CLP', label: 'CLP · Peso chileno' },
+  { code: 'MXN', label: 'MXN · Peso mexicano' },
+]
+
 const editableFieldBindings: Record<string, EditableFieldBinding> = {
   hero_title: { paths: ['hero.title', 'couple.headline'], fallback: 'Nos casamos' },
   hero_subtitle: {
@@ -302,10 +383,57 @@ const normalizeSubdomain = (value: string): string => {
 const isValidSubdomain = (value: string): boolean =>
   /^(?!-)[a-z0-9]+(?:-[a-z0-9]+)*(?<!-)$/.test(value) && value.length >= 3 && value.length <= 63
 
+const normalizeExternalUrl = (value: string): string => {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (trimmed.includes('.') && !/\s/.test(trimmed)) {
+    return `https://${trimmed}`
+  }
+  return trimmed
+}
+
+const isValidHttpUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 const asText = (value: unknown, fallback = ''): string => {
   if (typeof value !== 'string') return fallback
   return value.trim().length ? value : fallback
 }
+
+const formatDateTimeLabel24h = (date: Date): string =>
+  new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date).replace(',', ' ·') + ' hs'
+
+const formatWallMessageDate = (rawIso: string | null | undefined): string => {
+  if (!rawIso) return 'Sin fecha'
+  const parsed = new Date(rawIso)
+  if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
+
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(parsed).replace(',', ' ·')
+}
+
+const isWallMessageUpdating = (messageId: number): boolean =>
+  updatingWallMessageIds.value.includes(messageId)
 
 const pathTokens = (path: string): Array<string | number> =>
   path
@@ -399,8 +527,20 @@ const ensureDefaultFeatureData = () => {
     setByPath(nextContent, 'location.mapsUrl', 'https://maps.google.com/?q=Estancia+Nevada+Bariloche')
   }
 
+  if (!asText(getByPath(nextContent, 'location.mapsCanonicalUrl'))) {
+    setByPath(nextContent, 'location.mapsCanonicalUrl', asText(getByPath(nextContent, 'location.mapsUrl')))
+  }
+
+  if (!asText(getByPath(nextContent, 'location.mapsSourceUrl'))) {
+    setByPath(nextContent, 'location.mapsSourceUrl', asText(getByPath(nextContent, 'location.mapsUrl')))
+  }
+
+  if (typeof getByPath(nextContent, 'location.uberEnabled') !== 'boolean') {
+    setByPath(nextContent, 'location.uberEnabled', true)
+  }
+
   if (!asText(getByPath(nextContent, 'location.uberUrl'))) {
-    setByPath(nextContent, 'location.uberUrl', 'https://m.uber.com/ul/?action=setPickup')
+    setByPath(nextContent, 'location.uberUrl', '')
   }
 
   if (!asText(getByPath(nextContent, 'saveDate.label'))) {
@@ -431,14 +571,71 @@ const ensureDefaultFeatureData = () => {
     setByPath(nextContent, 'rsvp.formLabels.dietaryRestrictions', 'Restricción alimentaria')
   }
 
+  if (!asText(getByPath(nextContent, 'wall.title'))) {
+    setByPath(nextContent, 'wall.title', 'Muro de mensajes')
+  }
+
+  if (!asText(getByPath(nextContent, 'wall.description'))) {
+    setByPath(nextContent, 'wall.description', 'Deja unas palabras lindas para este gran día.')
+  }
+
+  if (!asText(getByPath(nextContent, 'wall.addLabel'))) {
+    setByPath(nextContent, 'wall.addLabel', 'Añadir mensaje')
+  }
+
+  if (!asText(getByPath(nextContent, 'wall.emptyStateLabel'))) {
+    setByPath(nextContent, 'wall.emptyStateLabel', 'Sé la primera persona en dejar un mensaje.')
+  }
+
+  if (!Array.isArray(getByPath(nextContent, 'wall.messages'))) {
+    setByPath(nextContent, 'wall.messages', [])
+  }
+
   if (!Array.isArray(getByPath(nextContent, 'faq'))) {
-    setByPath(nextContent, 'faq', [])
+    const rawFaq = getByPath(nextContent, 'faq')
+    if (rawFaq && typeof rawFaq === 'object') {
+      const normalizedFaq = Object.values(toRecord(rawFaq))
+        .map((item, index) => {
+          const row = toRecord(item)
+          return {
+            id: asText(row.id, `faq-${index + 1}`),
+            question: asText(row.question),
+            answer: asText(row.answer),
+          }
+        })
+        .filter((item) => item.question || item.answer)
+      setByPath(nextContent, 'faq', normalizedFaq)
+    } else {
+      setByPath(nextContent, 'faq', [])
+    }
   }
 
   const countdownTarget = asText(getByPath(nextContent, 'countdown.targetDateIso'))
   if (!countdownTarget) {
     const fallbackIso = asText(getByPath(nextContent, 'event.date.iso'), new Date().toISOString())
     setByPath(nextContent, 'countdown.targetDateIso', fallbackIso)
+  }
+
+  if (typeof getByPath(nextContent, 'checkin.showEventDate') !== 'boolean') {
+    setByPath(nextContent, 'checkin.showEventDate', false)
+  }
+
+  if (!asText(getByPath(nextContent, 'checkin.eventDateIso'))) {
+    const fallbackIso = asText(getByPath(nextContent, 'event.date.iso'), new Date().toISOString())
+    setByPath(nextContent, 'checkin.eventDateIso', fallbackIso)
+  }
+
+  if (typeof getByPath(nextContent, 'checkin.showEntryValue') !== 'boolean') {
+    setByPath(nextContent, 'checkin.showEntryValue', false)
+  }
+
+  if (!asText(getByPath(nextContent, 'checkin.entry.currency'))) {
+    setByPath(nextContent, 'checkin.entry.currency', checkinCurrencyOptions[0]?.code ?? 'USD')
+  }
+
+  const entryAmount = Number(getByPath(nextContent, 'checkin.entry.amount') ?? 0)
+  if (!Number.isFinite(entryAmount) || entryAmount < 0) {
+    setByPath(nextContent, 'checkin.entry.amount', 0)
   }
 
   if (!toRecord(nextSettings).section_visibility || typeof toRecord(nextSettings).section_visibility !== 'object') {
@@ -706,6 +903,42 @@ const getGalleryItemStatusTitle = (item: GalleryVisualItem): string => {
   return 'Imagen lista.'
 }
 
+const clonePendingGallerySnapshotItems = (items: PendingGallerySnapshotItem[]): PendingGallerySnapshotItem[] =>
+  items.map((item) => ({
+    id: item.id,
+    file: item.file,
+    name: item.name,
+    shortName: item.shortName,
+    extension: item.extension,
+    sizeBytes: item.sizeBytes,
+  }))
+
+const toPendingGallerySnapshotItems = (items: PendingGalleryImage[]): PendingGallerySnapshotItem[] =>
+  items.map((item) => ({
+    id: item.id,
+    file: item.file,
+    name: item.name,
+    shortName: item.shortName,
+    extension: item.extension,
+    sizeBytes: item.sizeBytes,
+  }))
+
+const hydratePendingGalleryImages = (items: PendingGallerySnapshotItem[]): PendingGalleryImage[] =>
+  clonePendingGallerySnapshotItems(items).map((item) => ({
+    ...item,
+    previewUrl: URL.createObjectURL(item.file),
+  }))
+
+const replacePendingGalleryImages = (items: PendingGalleryImage[]) => {
+  const nextPreviewUrls = new Set(items.map((item) => item.previewUrl))
+  for (const image of pendingGalleryImages.value) {
+    if (image.previewUrl && !nextPreviewUrls.has(image.previewUrl)) {
+      URL.revokeObjectURL(image.previewUrl)
+    }
+  }
+  pendingGalleryImages.value = items
+}
+
 const removeGalleryVisualItem = (item: GalleryVisualItem) => {
   if (item.kind === 'pending') {
     const pendingRow = pendingGalleryImages.value.find((row) => row.id === item.id)
@@ -723,12 +956,7 @@ const removeGalleryVisualItem = (item: GalleryVisualItem) => {
 }
 
 const clearGalleryPendingChanges = () => {
-  for (const image of pendingGalleryImages.value) {
-    if (image.previewUrl) {
-      URL.revokeObjectURL(image.previewUrl)
-    }
-  }
-  pendingGalleryImages.value = []
+  replacePendingGalleryImages([])
   removedGalleryImageIds.value = []
 }
 
@@ -778,6 +1006,34 @@ watch(galleryImages, () => {
   }
 })
 
+watch(wallMessages, () => {
+  const activeIds = new Set(wallMessages.value.map((item) => Number(item.id)))
+  if (pendingDeleteWallMessageIds.value.length) {
+    const validDeleteIds = pendingDeleteWallMessageIds.value.filter((id) => activeIds.has(Number(id)))
+    if (validDeleteIds.length !== pendingDeleteWallMessageIds.value.length) {
+      pendingDeleteWallMessageIds.value = validDeleteIds
+    }
+  }
+
+  if (Object.keys(pendingWallMessageVisibilityById.value).length) {
+    const nextVisibilityMap = Object.entries(pendingWallMessageVisibilityById.value).reduce<Record<number, boolean>>(
+      (carry, [rawId, rawVisible]) => {
+        const id = Number(rawId)
+        if (!Number.isFinite(id) || !activeIds.has(id)) return carry
+        carry[id] = Boolean(rawVisible)
+        return carry
+      },
+      {},
+    )
+
+    const currentEntries = Object.keys(pendingWallMessageVisibilityById.value).length
+    const nextEntries = Object.keys(nextVisibilityMap).length
+    if (currentEntries !== nextEntries) {
+      pendingWallMessageVisibilityById.value = nextVisibilityMap
+    }
+  }
+})
+
 const previewViewportClass = computed(() => `preview-frame--${previewDevice.value}`)
 
 const slugAvailabilityMessage = computed(() => {
@@ -821,9 +1077,74 @@ const createSnapshot = (): EditorSnapshot => ({
   sectionVisibility: { ...sectionVisibilityDraft.value },
   activeTextField: activeTextField.value,
   showCheckinPreview: showCheckinPreview.value,
+  isCheckinConfigEditing: isCheckinConfigEditing.value,
   pendingGallerySignature: pendingGalleryImages.value.map((item) => `${item.name}:${item.sizeBytes}`),
+  pendingGalleryItems: toPendingGallerySnapshotItems(pendingGalleryImages.value),
   removedGalleryImageIds: [...removedGalleryImageIds.value],
+  pendingDeleteWallMessageIds: [...pendingDeleteWallMessageIds.value],
+  pendingWallMessageVisibilityById: { ...pendingWallMessageVisibilityById.value },
 })
+
+const cloneSnapshot = (snapshot: EditorSnapshot): EditorSnapshot => ({
+  title: snapshot.title,
+  slug: snapshot.slug,
+  selectedTemplateId: snapshot.selectedTemplateId,
+  content: cloneRecord(snapshot.content),
+  textOverrides: normalizeTextOverrides(snapshot.textOverrides),
+  settings: cloneRecord(snapshot.settings),
+  featureOverrides: cloneRecord(snapshot.featureOverrides),
+  sectionVisibility: { ...snapshot.sectionVisibility },
+  activeTextField: snapshot.activeTextField,
+  showCheckinPreview: Boolean(snapshot.showCheckinPreview),
+  isCheckinConfigEditing: Boolean(snapshot.isCheckinConfigEditing),
+  pendingGallerySignature: Array.isArray(snapshot.pendingGallerySignature)
+    ? snapshot.pendingGallerySignature.map((item) => String(item))
+    : [],
+  pendingGalleryItems: Array.isArray(snapshot.pendingGalleryItems)
+    ? clonePendingGallerySnapshotItems(snapshot.pendingGalleryItems)
+    : [],
+  removedGalleryImageIds: Array.isArray(snapshot.removedGalleryImageIds)
+    ? snapshot.removedGalleryImageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [],
+  pendingDeleteWallMessageIds: Array.isArray(snapshot.pendingDeleteWallMessageIds)
+    ? snapshot.pendingDeleteWallMessageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [],
+  pendingWallMessageVisibilityById: snapshot.pendingWallMessageVisibilityById && typeof snapshot.pendingWallMessageVisibilityById === 'object'
+    ? Object.entries(snapshot.pendingWallMessageVisibilityById).reduce<Record<number, boolean>>((carry, [rawId, rawValue]) => {
+      const id = Number(rawId)
+      if (!Number.isFinite(id) || id <= 0) return carry
+      carry[id] = Boolean(rawValue)
+      return carry
+    }, {})
+    : {},
+})
+
+const registerSnapshotState = (serializedState: string, snapshot?: EditorSnapshot) => {
+  if (!serializedState) return
+  snapshotRegistry.set(serializedState, snapshot ? cloneSnapshot(snapshot) : createSnapshot())
+  if (snapshotRegistry.size <= 220) return
+
+  const overflow = snapshotRegistry.size - 220
+  for (let index = 0; index < overflow; index += 1) {
+    const oldest = snapshotRegistry.keys().next()
+    if (oldest.done) break
+    snapshotRegistry.delete(oldest.value)
+  }
+}
+
+const resolveSnapshotBySerializedState = (serializedState: string): EditorSnapshot | null => {
+  const registered = snapshotRegistry.get(serializedState)
+  if (registered) return cloneSnapshot(registered)
+  return snapshotFromSerializedState(serializedState)
+}
+
+const pushUndoSnapshot = (snapshot: EditorSnapshot | null) => {
+  if (!snapshot) return
+  undoStack.value.push(cloneSnapshot(snapshot))
+  if (undoStack.value.length > 80) {
+    undoStack.value.splice(0, undoStack.value.length - 80)
+  }
+}
 
 const applySnapshot = async (snapshot: EditorSnapshot) => {
   title.value = snapshot.title
@@ -836,12 +1157,27 @@ const applySnapshot = async (snapshot: EditorSnapshot) => {
   sectionVisibilityDraft.value = { ...snapshot.sectionVisibility }
   activeTextField.value = snapshot.activeTextField
   showCheckinPreview.value = snapshot.showCheckinPreview
-  if ((snapshot.pendingGallerySignature ?? []).length === 0) {
-    clearGalleryPendingChanges()
-  }
+  isCheckinConfigEditing.value = Boolean(snapshot.isCheckinConfigEditing)
+  const nextPendingGalleryItems = Array.isArray(snapshot.pendingGalleryItems)
+    ? hydratePendingGalleryImages(snapshot.pendingGalleryItems)
+    : []
+  replacePendingGalleryImages(nextPendingGalleryItems)
   removedGalleryImageIds.value = Array.isArray(snapshot.removedGalleryImageIds)
     ? snapshot.removedGalleryImageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
     : []
+  pendingDeleteWallMessageIds.value = Array.isArray(snapshot.pendingDeleteWallMessageIds)
+    ? snapshot.pendingDeleteWallMessageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : []
+  pendingWallMessageVisibilityById.value = snapshot.pendingWallMessageVisibilityById && typeof snapshot.pendingWallMessageVisibilityById === 'object'
+    ? Object.entries(snapshot.pendingWallMessageVisibilityById).reduce<Record<number, boolean>>((carry, [rawId, rawValue]) => {
+      const id = Number(rawId)
+      if (!Number.isFinite(id) || id <= 0) return carry
+      carry[id] = Boolean(rawValue)
+      return carry
+    }, {})
+    : {}
+  syncWallSummaryWithEditorState()
+  syncWallMessagesIntoContent()
   await loadTemplateRenderer()
 }
 
@@ -859,26 +1195,29 @@ const snapshotFromSerializedState = (state: string): EditorSnapshot | null => {
       sectionVisibility: { ...toRecord(parsed.sectionVisibility) } as Record<string, boolean>,
       activeTextField: typeof parsed.activeTextField === 'string' ? parsed.activeTextField : null,
       showCheckinPreview: Boolean(parsed.showCheckinPreview),
+      isCheckinConfigEditing: Boolean(parsed.isCheckinConfigEditing),
       pendingGallerySignature: Array.isArray(parsed.pendingGallerySignature)
         ? parsed.pendingGallerySignature.map((item) => String(item))
         : [],
+      pendingGalleryItems: [],
       removedGalleryImageIds: Array.isArray(parsed.removedGalleryImageIds)
         ? parsed.removedGalleryImageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
         : [],
+      pendingDeleteWallMessageIds: Array.isArray(parsed.pendingDeleteWallMessageIds)
+        ? parsed.pendingDeleteWallMessageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+        : [],
+      pendingWallMessageVisibilityById:
+        parsed.pendingWallMessageVisibilityById && typeof parsed.pendingWallMessageVisibilityById === 'object'
+          ? Object.entries(parsed.pendingWallMessageVisibilityById).reduce<Record<number, boolean>>((carry, [rawId, rawValue]) => {
+            const id = Number(rawId)
+            if (!Number.isFinite(id) || id <= 0) return carry
+            carry[id] = Boolean(rawValue)
+            return carry
+          }, {})
+          : {},
     }
   } catch {
     return null
-  }
-}
-
-const pushUndoFromSerializedState = (serializedState: string | undefined) => {
-  if (!serializedState) return
-  const snapshot = snapshotFromSerializedState(serializedState)
-  if (!snapshot) return
-
-  undoStack.value.push(snapshot)
-  if (undoStack.value.length > 80) {
-    undoStack.value.splice(0, undoStack.value.length - 80)
   }
 }
 
@@ -897,6 +1236,7 @@ const undoLastChange = async () => {
   isApplyingUndo.value = true
   try {
     await applySnapshot(snapshot)
+    registerSnapshotState(serializedEditorState.value, snapshot)
   } finally {
     isApplyingUndo.value = false
   }
@@ -1012,6 +1352,7 @@ const countdownDatetime = computed({
     const nextContent = cloneRecord(contentDraft.value)
     setByPath(nextContent, 'countdown.targetDateIso', iso)
     setByPath(nextContent, 'event.date.iso', iso)
+    setByPath(nextContent, 'event.date.label', formatDateTimeLabel24h(safeDate))
     contentDraft.value = nextContent
   },
 })
@@ -1042,6 +1383,131 @@ const selectedDressCode = computed({
     contentDraft.value = nextContent
   },
 })
+
+const locationMapsUrl = computed({
+  get: () => asText(getByPath(contentDraft.value, 'location.mapsUrl')),
+  set: (value: string) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'location.mapsUrl', value)
+    contentDraft.value = nextContent
+  },
+})
+
+const locationPlaceId = computed(() => asText(getByPath(contentDraft.value, 'location.placeId')))
+const locationLatitude = computed(() => {
+  const value = Number(getByPath(contentDraft.value, 'location.latitude') ?? NaN)
+  return Number.isFinite(value) ? value : null
+})
+const locationLongitude = computed(() => {
+  const value = Number(getByPath(contentDraft.value, 'location.longitude') ?? NaN)
+  return Number.isFinite(value) ? value : null
+})
+const locationMapsCanonicalUrl = computed(() => asText(getByPath(contentDraft.value, 'location.mapsCanonicalUrl')))
+
+const locationUberEnabled = computed({
+  get: () => Boolean(getByPath(contentDraft.value, 'location.uberEnabled') ?? true),
+  set: (value: boolean) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'location.uberEnabled', value)
+    contentDraft.value = nextContent
+  },
+})
+
+const locationUberUrl = computed({
+  get: () => asText(getByPath(contentDraft.value, 'location.uberUrl')),
+  set: (value: string) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'location.uberUrl', value)
+    contentDraft.value = nextContent
+  },
+})
+
+const checkinActionLabel = computed(() => {
+  if (!showCheckinPreview.value) return 'Probar'
+  if (isCheckinConfigEditing.value) return 'Editando'
+  return 'Editar'
+})
+
+const checkinShowEventDate = computed({
+  get: () => Boolean(getByPath(contentDraft.value, 'checkin.showEventDate') ?? false),
+  set: (value: boolean) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'checkin.showEventDate', value)
+    contentDraft.value = nextContent
+  },
+})
+
+const checkinEventDatetime = computed({
+  get: () => {
+    const iso = asText(getByPath(contentDraft.value, 'checkin.eventDateIso')) || asText(getByPath(contentDraft.value, 'event.date.iso'))
+    if (!iso) return ''
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return ''
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    return local.toISOString().slice(0, 16)
+  },
+  set: (value: string) => {
+    if (!value) return
+    const selectedDate = new Date(value)
+    if (Number.isNaN(selectedDate.getTime())) return
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'checkin.eventDateIso', selectedDate.toISOString())
+    contentDraft.value = nextContent
+  },
+})
+
+const checkinShowEntryValue = computed({
+  get: () => Boolean(getByPath(contentDraft.value, 'checkin.showEntryValue') ?? false),
+  set: (value: boolean) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'checkin.showEntryValue', value)
+    contentDraft.value = nextContent
+  },
+})
+
+const checkinEntryCurrency = computed({
+  get: () => {
+    const current = asText(getByPath(contentDraft.value, 'checkin.entry.currency')).toUpperCase()
+    if (checkinCurrencyOptions.some((option) => option.code === current)) return current
+    return checkinCurrencyOptions[0]?.code ?? 'USD'
+  },
+  set: (value: string) => {
+    const normalized = value.toUpperCase()
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'checkin.entry.currency', normalized)
+    contentDraft.value = nextContent
+  },
+})
+
+const checkinEntryAmount = computed({
+  get: () => {
+    const value = Number(getByPath(contentDraft.value, 'checkin.entry.amount') ?? 0)
+    return Number.isFinite(value) && value >= 0 ? value : 0
+  },
+  set: (value: number) => {
+    const safeValue = Number.isFinite(value) && value >= 0 ? Number(value) : 0
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'checkin.entry.amount', safeValue)
+    contentDraft.value = nextContent
+  },
+})
+
+const onCheckinAction = () => {
+  if (!showCheckinPreview.value) {
+    showCheckinPreview.value = true
+    isCheckinConfigEditing.value = false
+    return
+  }
+
+  if (!isCheckinConfigEditing.value) {
+    isCheckinConfigEditing.value = true
+  }
+}
+
+const onCheckinPreviewClosed = () => {
+  showCheckinPreview.value = false
+  isCheckinConfigEditing.value = false
+}
 
 const readFieldValue = (fieldKey: string): string => {
   const binding = editableFieldBindings[fieldKey]
@@ -1145,7 +1611,18 @@ const previewData = computed<WeddingTemplateData>(() => {
       name: asText(getByPath(contentDraft.value, 'location.name'), 'Ubicación del evento'),
       address: asText(getByPath(contentDraft.value, 'location.address'), 'Dirección del evento'),
       mapsUrl: asText(getByPath(contentDraft.value, 'location.mapsUrl'), 'https://maps.google.com'),
-      uberUrl: asText(getByPath(contentDraft.value, 'location.uberUrl'), 'https://m.uber.com/ul/'),
+      mapsCanonicalUrl: asText(getByPath(contentDraft.value, 'location.mapsCanonicalUrl')),
+      mapsSourceUrl: asText(getByPath(contentDraft.value, 'location.mapsSourceUrl')),
+      placeId: asText(getByPath(contentDraft.value, 'location.placeId')),
+      formattedAddress: asText(getByPath(contentDraft.value, 'location.formattedAddress')),
+      latitude: Number.isFinite(Number(getByPath(contentDraft.value, 'location.latitude') ?? NaN))
+        ? Number(getByPath(contentDraft.value, 'location.latitude') ?? NaN)
+        : null,
+      longitude: Number.isFinite(Number(getByPath(contentDraft.value, 'location.longitude') ?? NaN))
+        ? Number(getByPath(contentDraft.value, 'location.longitude') ?? NaN)
+        : null,
+      uberEnabled: Boolean(getByPath(contentDraft.value, 'location.uberEnabled') ?? true),
+      uberUrl: asText(getByPath(contentDraft.value, 'location.uberUrl')),
     },
     music: {
       title: asText(getByPath(contentDraft.value, 'music.title'), 'Canción principal'),
@@ -1177,6 +1654,16 @@ const previewData = computed<WeddingTemplateData>(() => {
       title: asText(getByPath(contentDraft.value, 'checkin.title'), 'Te esperamos para celebrar'),
       message: asText(getByPath(contentDraft.value, 'checkin.message'), 'Confirma tu asistencia cuando quieras.'),
       buttonLabel: asText(getByPath(contentDraft.value, 'checkin.buttonLabel'), 'Entrar'),
+      showEventDate: Boolean(getByPath(contentDraft.value, 'checkin.showEventDate') ?? false),
+      eventDateIso: asText(
+        getByPath(contentDraft.value, 'checkin.eventDateIso'),
+        asText(getByPath(contentDraft.value, 'event.date.iso')),
+      ),
+      showEntryValue: Boolean(getByPath(contentDraft.value, 'checkin.showEntryValue') ?? false),
+      entry: {
+        currency: asText(getByPath(contentDraft.value, 'checkin.entry.currency'), checkinCurrencyOptions[0]?.code ?? 'USD'),
+        amount: Number(getByPath(contentDraft.value, 'checkin.entry.amount') ?? 0),
+      },
     },
     saveDate: {
       enabled: Boolean(getByPath(contentDraft.value, 'saveDate.enabled') ?? true),
@@ -1189,6 +1676,22 @@ const previewData = computed<WeddingTemplateData>(() => {
       description: asText(getByPath(contentDraft.value, 'dressCode.description'), 'Elegante sport en tonos claros.'),
     },
     faq: faqItems.value.map((item) => ({ id: item.id, question: item.question, answer: item.answer })),
+    wall: {
+      title: asText(getByPath(contentDraft.value, 'wall.title'), 'Muro de mensajes'),
+      description: asText(getByPath(contentDraft.value, 'wall.description'), 'Deja unas palabras lindas para este gran día.'),
+      addLabel: asText(getByPath(contentDraft.value, 'wall.addLabel'), 'Añadir mensaje'),
+      emptyStateLabel: asText(getByPath(contentDraft.value, 'wall.emptyStateLabel'), 'Sé la primera persona en dejar un mensaje.'),
+      messages: wallMessages.value
+        .filter((item) => item.is_visible)
+        .map((item) => ({
+          id: String(item.id),
+          guestName: item.guest_name,
+          message: item.message,
+          status: item.status,
+          isVisible: item.is_visible,
+          postedAt: item.posted_at,
+        })),
+    },
     branding: {
       visible: Boolean(getByPath(contentDraft.value, 'branding.visible') ?? true),
       label: asText(getByPath(contentDraft.value, 'branding.label'), 'Creado con InvitaSR'),
@@ -1289,14 +1792,18 @@ const syncEditor = async () => {
     featureOverridesDraft.value = cloneRecord(invitation.value?.feature_overrides)
     activeTextField.value = null
     showCheckinPreview.value = false
+    isCheckinConfigEditing.value = false
     clearGalleryPendingChanges()
     ensureDefaultFeatureData()
     hydrateSectionVisibility()
     await loadAvailableTemplates()
     await loadTemplateRenderer()
     await loadGalleryData()
+    await loadWallMessagesData()
     undoStack.value = []
     lastSavedSerializedState.value = serializedEditorState.value
+    snapshotRegistry.clear()
+    registerSnapshotState(lastSavedSerializedState.value)
   } finally {
     isHydratingSnapshot.value = false
   }
@@ -1318,6 +1825,7 @@ const loadData = async () => {
     const detail = await getTenantInvitation(invitationId.value)
     invitation.value = detail.invitation
     template.value = detail.template
+    typeEvent.value = detail.type_event
     await syncEditor()
   } catch (error) {
     const payload = error as { message?: string }
@@ -1347,6 +1855,209 @@ const loadGalleryData = async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
       isLoadingGallery.value = false
     }
+  }
+}
+
+const syncWallMessagesIntoContent = () => {
+  const nextContent = cloneRecord(contentDraft.value)
+  const currentWall = toRecord(getByPath(nextContent, 'wall'))
+
+  const visibleMessages = wallMessagesInEditor.value
+    .filter((item) => item.is_visible)
+    .map((item) => ({
+      id: String(item.id),
+      guestName: item.guest_name,
+      message: item.message,
+      status: item.status,
+      isVisible: item.is_visible,
+      postedAt: item.posted_at,
+    }))
+
+  const nextWall = {
+    title: asText(currentWall.title, 'Muro de mensajes'),
+    description: asText(currentWall.description, 'Deja unas palabras lindas para este gran día.'),
+    addLabel: asText(currentWall.addLabel, 'Añadir mensaje'),
+    emptyStateLabel: asText(currentWall.emptyStateLabel, 'Sé la primera persona en dejar un mensaje.'),
+    limit: wallSummary.value.limit,
+    receivedCount: wallUsedCountInEditor.value,
+    messages: visibleMessages,
+  }
+
+  setByPath(nextContent, 'wall', nextWall)
+  contentDraft.value = nextContent
+}
+
+const syncWallSummaryWithEditorState = () => {
+  wallSummary.value = {
+    ...wallSummary.value,
+    used: wallUsedCountInEditor.value,
+    visible_count: wallVisibleCountInEditor.value,
+    remaining: wallSummary.value.limit === null
+      ? null
+      : Math.max(0, Number(wallSummary.value.limit ?? 0) - wallUsedCountInEditor.value),
+  }
+}
+
+const loadWallMessagesData = async (options?: { silent?: boolean }) => {
+  if (!invitation.value?.id) return
+
+  if (!options?.silent) {
+    isLoadingWallMessages.value = true
+  }
+
+  try {
+    const response = await getTenantInvitationWallMessages(invitation.value.id)
+    pendingDeleteWallMessageIds.value = []
+    pendingWallMessageVisibilityById.value = {}
+    wallSummary.value = response.wall
+    wallMessages.value = response.items
+    syncWallSummaryWithEditorState()
+    syncWallMessagesIntoContent()
+  } catch (error) {
+    if (!options?.silent) {
+      const payload = error as { message?: string }
+      notifyError(payload?.message ?? 'No pudimos cargar el muro de mensajes.')
+    }
+  } finally {
+    if (!options?.silent) {
+      isLoadingWallMessages.value = false
+    }
+  }
+}
+
+const updateWallMessageVisibility = async (messageId: number, visible: boolean) => {
+  const source = wallMessages.value.find((item) => item.id === messageId)
+  if (!source) return
+  if (pendingDeleteWallMessageIds.value.includes(messageId)) return
+
+  if (visible === source.is_visible) {
+    const nextMap = { ...pendingWallMessageVisibilityById.value }
+    delete nextMap[messageId]
+    pendingWallMessageVisibilityById.value = nextMap
+  } else {
+    pendingWallMessageVisibilityById.value = {
+      ...pendingWallMessageVisibilityById.value,
+      [messageId]: visible,
+    }
+  }
+
+  syncWallSummaryWithEditorState()
+  syncWallMessagesIntoContent()
+}
+
+const openDeleteWallMessagePrompt = (messageId: number) => {
+  if (pendingDeleteWallMessageIds.value.includes(messageId)) return
+
+  const message = wallMessagesInEditor.value.find((item) => item.id === messageId)
+  if (!message) return
+  if (updatingWallMessageIds.value.includes(messageId)) return
+
+  pendingDeleteWallMessageId.value = messageId
+  pendingDeleteWallMessageGuestName.value = message.guest_name
+  pendingDeleteWallMessageText.value = message.message
+  showDeleteWallPrompt.value = true
+}
+
+const closeDeleteWallMessagePrompt = () => {
+  showDeleteWallPrompt.value = false
+  pendingDeleteWallMessageId.value = null
+  pendingDeleteWallMessageGuestName.value = ''
+  pendingDeleteWallMessageText.value = ''
+}
+
+const queueDeleteWallMessage = () => {
+  const messageId = pendingDeleteWallMessageId.value
+  if (!messageId) return
+  if (pendingDeleteWallMessageIds.value.includes(messageId)) {
+    closeDeleteWallMessagePrompt()
+    return
+  }
+
+  pendingDeleteWallMessageIds.value = [...pendingDeleteWallMessageIds.value, messageId]
+  syncWallSummaryWithEditorState()
+  syncWallMessagesIntoContent()
+  closeDeleteWallMessagePrompt()
+  notifySuccess('Mensaje marcado para eliminar. Se aplicará al guardar cambios.')
+}
+
+const persistPendingWallMessageDeletes = async () => {
+  if (!invitation.value?.id) return
+  const pendingIds = pendingDeleteWallMessageIds.value
+    .map((item) => Number(item))
+    .filter((item, index, list) => Number.isFinite(item) && item > 0 && list.indexOf(item) === index)
+  if (!pendingIds.length) return
+
+  const deletedIds: number[] = []
+  let firstError: unknown = null
+
+  for (const messageId of pendingIds) {
+    try {
+      await deleteTenantInvitationWallMessage(invitation.value.id, messageId)
+      deletedIds.push(messageId)
+    } catch (error) {
+      if (!firstError) {
+        firstError = error
+      }
+    }
+  }
+
+  if (deletedIds.length) {
+    wallMessages.value = wallMessages.value.filter((item) => !deletedIds.includes(item.id))
+    pendingDeleteWallMessageIds.value = pendingDeleteWallMessageIds.value.filter((id) => !deletedIds.includes(id))
+    const nextVisibilityMap = { ...pendingWallMessageVisibilityById.value }
+    for (const id of deletedIds) {
+      delete nextVisibilityMap[id]
+    }
+    pendingWallMessageVisibilityById.value = nextVisibilityMap
+    syncWallSummaryWithEditorState()
+    syncWallMessagesIntoContent()
+  }
+
+  if (firstError) {
+    throw firstError
+  }
+}
+
+const persistPendingWallMessageVisibilityChanges = async () => {
+  if (!invitation.value?.id) return
+
+  const pendingEntries = Object.entries(pendingWallMessageVisibilityById.value)
+    .map(([rawId, rawVisible]) => ({ id: Number(rawId), visible: Boolean(rawVisible) }))
+    .filter(({ id }) => Number.isFinite(id) && id > 0)
+    .filter(({ id }) => !pendingDeleteWallMessageIds.value.includes(id))
+    .filter(({ id }) => wallMessages.value.some((item) => item.id === id))
+
+  if (!pendingEntries.length) return
+
+  const updatedIds: number[] = []
+  let firstError: unknown = null
+
+  for (const entry of pendingEntries) {
+    try {
+      const response = await updateTenantInvitationWallMessage(invitation.value.id, entry.id, entry.visible)
+      wallMessages.value = wallMessages.value.map((item) => (
+        item.id === entry.id ? response.message : item
+      ))
+      updatedIds.push(entry.id)
+    } catch (error) {
+      if (!firstError) {
+        firstError = error
+      }
+    }
+  }
+
+  if (updatedIds.length) {
+    const nextMap = { ...pendingWallMessageVisibilityById.value }
+    for (const id of updatedIds) {
+      delete nextMap[id]
+    }
+    pendingWallMessageVisibilityById.value = nextMap
+    syncWallSummaryWithEditorState()
+    syncWallMessagesIntoContent()
+  }
+
+  if (firstError) {
+    throw firstError
   }
 }
 
@@ -1386,6 +2097,7 @@ const onSectionToggle = (sectionKey: string, event: Event) => {
 
   if (sectionKey === 'checkin' && !enabled) {
     showCheckinPreview.value = false
+    isCheckinConfigEditing.value = false
   }
 
   if (sectionKey === 'gallery' && !enabled) {
@@ -1623,12 +2335,54 @@ const validateBeforeSave = (): string | null => {
     }
   }
 
+  if (resolvedSectionVisibility.value.location) {
+    const mapsUrl = normalizeExternalUrl(asText(getByPath(contentDraft.value, 'location.mapsUrl')))
+    if (!mapsUrl) {
+      return 'Agrega el enlace de Google Maps para la sección de ubicación.'
+    }
+    if (!isValidHttpUrl(mapsUrl)) {
+      return 'El enlace de Google Maps no es válido.'
+    }
+
+    if (locationUberEnabled.value) {
+      const uberUrl = normalizeExternalUrl(asText(getByPath(contentDraft.value, 'location.uberUrl')))
+      if (uberUrl && !isValidHttpUrl(uberUrl)) {
+        return 'El enlace de Uber no es válido.'
+      }
+    }
+  }
+
+  if (resolvedSectionVisibility.value.checkin) {
+    if (checkinShowEventDate.value) {
+      const checkinDateIso = asText(getByPath(contentDraft.value, 'checkin.eventDateIso')) || asText(getByPath(contentDraft.value, 'event.date.iso'))
+      const checkinDate = checkinDateIso ? new Date(checkinDateIso) : null
+      if (!checkinDate || Number.isNaN(checkinDate.getTime())) {
+        return 'La fecha del check-in interactivo no es válida.'
+      }
+    }
+
+    if (checkinShowEntryValue.value) {
+      const amount = Number(getByPath(contentDraft.value, 'checkin.entry.amount') ?? 0)
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return 'Ingresa un valor de entrada mayor a 0 para el check-in interactivo.'
+      }
+
+      const currency = asText(getByPath(contentDraft.value, 'checkin.entry.currency')).toUpperCase()
+      const allowed = checkinCurrencyOptions.map((option) => option.code)
+      if (!allowed.includes(currency)) {
+        return 'Selecciona una moneda válida para el valor de entrada.'
+      }
+    }
+  }
+
   return null
 }
 
 const markStateAsSaved = () => {
   lastSavedSerializedState.value = serializedEditorState.value
   undoStack.value = []
+  snapshotRegistry.clear()
+  registerSnapshotState(lastSavedSerializedState.value)
 }
 
 const saveChanges = async () => {
@@ -1650,8 +2404,72 @@ const saveChanges = async () => {
 
   try {
     const hadGalleryChanges = hasPendingGalleryChanges.value
+    const hadPendingWallVisibilityChanges = hasPendingWallMessageVisibilityChanges.value
+    const hadPendingWallDeletes = hasPendingWallMessageDeletes.value
 
     const projectedContent = projectTextOverridesIntoContent(cloneRecord(contentDraft.value))
+    setByPath(
+      projectedContent,
+      'faq',
+      faqItems.value.map((item, index) => ({
+        id: asText(item.id, `faq-${index + 1}`),
+        question: item.question,
+        answer: item.answer,
+      })),
+    )
+
+    const countdownIso = asText(getByPath(projectedContent, 'countdown.targetDateIso'))
+    if (countdownIso) {
+      const countdownDate = new Date(countdownIso)
+      if (!Number.isNaN(countdownDate.getTime())) {
+        setByPath(projectedContent, 'event.date.iso', countdownDate.toISOString())
+        setByPath(projectedContent, 'event.date.label', formatDateTimeLabel24h(countdownDate))
+      }
+    }
+
+    if (resolvedSectionVisibility.value.location) {
+      const normalizedMapsUrl = normalizeExternalUrl(asText(getByPath(projectedContent, 'location.mapsUrl')))
+      if (normalizedMapsUrl) {
+        setByPath(projectedContent, 'location.mapsUrl', normalizedMapsUrl)
+      }
+
+      const normalizedUberUrl = normalizeExternalUrl(asText(getByPath(projectedContent, 'location.uberUrl')))
+      if (normalizedUberUrl) {
+        setByPath(projectedContent, 'location.uberUrl', normalizedUberUrl)
+      }
+
+      try {
+        const resolvedLocation = await resolveTenantInvitationLocation({
+          maps_url: normalizedMapsUrl || null,
+          place_id: asText(getByPath(projectedContent, 'location.placeId')) || null,
+          name: asText(getByPath(projectedContent, 'location.name')) || null,
+          address: asText(getByPath(projectedContent, 'location.address')) || null,
+          formatted_address: asText(getByPath(projectedContent, 'location.formattedAddress')) || null,
+          latitude: Number.isFinite(Number(getByPath(projectedContent, 'location.latitude') ?? NaN))
+            ? Number(getByPath(projectedContent, 'location.latitude') ?? NaN)
+            : null,
+          longitude: Number.isFinite(Number(getByPath(projectedContent, 'location.longitude') ?? NaN))
+            ? Number(getByPath(projectedContent, 'location.longitude') ?? NaN)
+            : null,
+          uber_enabled: Boolean(getByPath(projectedContent, 'location.uberEnabled') ?? true),
+          uber_url: normalizedUberUrl || null,
+        })
+
+        if (resolvedLocation.name) setByPath(projectedContent, 'location.name', resolvedLocation.name)
+        if (resolvedLocation.address) setByPath(projectedContent, 'location.address', resolvedLocation.address)
+        if (resolvedLocation.formattedAddress) setByPath(projectedContent, 'location.formattedAddress', resolvedLocation.formattedAddress)
+        if (resolvedLocation.mapsUrl) setByPath(projectedContent, 'location.mapsUrl', resolvedLocation.mapsUrl)
+        if (resolvedLocation.mapsCanonicalUrl) setByPath(projectedContent, 'location.mapsCanonicalUrl', resolvedLocation.mapsCanonicalUrl)
+        if (resolvedLocation.mapsSourceUrl) setByPath(projectedContent, 'location.mapsSourceUrl', resolvedLocation.mapsSourceUrl)
+        if (resolvedLocation.placeId) setByPath(projectedContent, 'location.placeId', resolvedLocation.placeId)
+        if (typeof resolvedLocation.latitude === 'number') setByPath(projectedContent, 'location.latitude', resolvedLocation.latitude)
+        if (typeof resolvedLocation.longitude === 'number') setByPath(projectedContent, 'location.longitude', resolvedLocation.longitude)
+        if (typeof resolvedLocation.uberEnabled === 'boolean') setByPath(projectedContent, 'location.uberEnabled', resolvedLocation.uberEnabled)
+        if (resolvedLocation.uberUrl) setByPath(projectedContent, 'location.uberUrl', resolvedLocation.uberUrl)
+      } catch {
+        // Si falla la resolución canónica, continúa con la URL enviada por el cliente.
+      }
+    }
     contentDraft.value = projectedContent
 
     const response = await updateTenantInvitation(invitation.value.id, {
@@ -1690,6 +2508,26 @@ const saveChanges = async () => {
       } catch (error) {
         const payload = error as { message?: string }
         notifyError(payload?.message ?? 'Guardamos los cambios de texto, pero no pudimos actualizar la galería.')
+        return
+      }
+    }
+
+    if (hadPendingWallDeletes) {
+      try {
+        await persistPendingWallMessageDeletes()
+      } catch (error) {
+        const payload = error as { message?: string }
+        notifyError(payload?.message ?? 'Guardamos tus cambios, pero no pudimos eliminar uno o más mensajes del muro.')
+        return
+      }
+    }
+
+    if (hadPendingWallVisibilityChanges) {
+      try {
+        await persistPendingWallMessageVisibilityChanges()
+      } catch (error) {
+        const payload = error as { message?: string }
+        notifyError(payload?.message ?? 'Guardamos tus cambios, pero no pudimos actualizar la visibilidad de uno o más mensajes.')
         return
       }
     }
@@ -1754,8 +2592,11 @@ const serializedEditorState = computed(() =>
     sectionVisibility: sectionVisibilityDraft.value,
     activeTextField: activeTextField.value,
     showCheckinPreview: showCheckinPreview.value,
+    isCheckinConfigEditing: isCheckinConfigEditing.value,
     pendingGallerySignature: pendingGalleryImages.value.map((item) => `${item.name}:${item.sizeBytes}`),
     removedGalleryImageIds: removedGalleryImageIds.value,
+    pendingDeleteWallMessageIds: pendingDeleteWallMessageIds.value,
+    pendingWallMessageVisibilityById: pendingWallMessageVisibilityById.value,
   }),
 )
 
@@ -1781,6 +2622,12 @@ const handleEditorHotkeys = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && showHelpModal.value) {
     event.preventDefault()
     closeHelpModal()
+    return
+  }
+
+  if (event.key === 'Escape' && showDeleteWallPrompt.value) {
+    event.preventDefault()
+    closeDeleteWallMessagePrompt()
     return
   }
 
@@ -1854,13 +2701,22 @@ watch(slug, (nextValue, previousValue) => {
 })
 
 watch(serializedEditorState, (nextState, previousState) => {
-  if (!nextState || !previousState) return
+  if (!nextState) return
+  registerSnapshotState(nextState)
+  if (!previousState) return
   if (isHydratingSnapshot.value || isApplyingUndo.value || isLoading.value) return
-  pushUndoFromSerializedState(previousState)
+  const previousSnapshot = resolveSnapshotBySerializedState(previousState)
+  pushUndoSnapshot(previousSnapshot)
 })
 
 watch(isImmersivePreviewOpen, (isOpen) => {
   document.body.style.overflow = isOpen ? 'hidden' : ''
+})
+
+watch(showCheckinPreview, (isOpen) => {
+  if (!isOpen) {
+    isCheckinConfigEditing.value = false
+  }
 })
 
 onMounted(() => {
@@ -2034,6 +2890,8 @@ onBeforeRouteLeave((to) => {
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
                 :manifest="templateModule.manifest"
                 :data="previewData"
+                :invitation-title="title || invitation?.title || ''"
+                :type-event-name="typeEvent?.name || ''"
                 :editable="true"
                 :constrained-overlay="true"
                 :active-field="activeTextField"
@@ -2041,272 +2899,462 @@ onBeforeRouteLeave((to) => {
                 :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']"
                 @start-edit="startTextEdit"
                 @update-field="updateFieldValue"
-                @finish-edit="finishTextEdit" />
+                @finish-edit="finishTextEdit"
+                @checkin-preview-closed="onCheckinPreviewClosed" />
               <component
                 :is="templateModule.component"
                 v-else
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
                 :manifest="templateModule.manifest"
-                :data="previewData" />
+                :data="previewData"
+                :invitation-title="title || invitation?.title || ''"
+                :type-event-name="typeEvent?.name || ''" />
             </div>
           </div>
         </article>
       </div>
 
-      <Transition name="drawer-fade">
+      <Transition name="config-overlay">
         <button
           v-if="isSidebarOpen"
           type="button"
-          class="drawer-backdrop"
+          class="config-overlay"
           aria-label="Ocultar configuración"
           @click="closeSidebar"></button>
       </Transition>
 
-      <Transition name="drawer-slide">
-        <aside v-if="isSidebarOpen" class="bo-card editor-sidebar">
-        <h2>Configuración</h2>
-        <input
-          ref="galleryInputRef"
-          class="gallery-file-input-hidden"
-          type="file"
-          accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-          multiple
-          @change="onGalleryFilesSelected" />
+      <Transition name="config-drawer">
+        <aside
+          v-if="isSidebarOpen"
+          class="config-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Configuración del editor">
+          <div class="config-drawer__shell">
+            <header class="config-drawer__header">
+              <div class="config-drawer__title-wrap">
+                <p class="config-drawer__eyebrow">Modo editor</p>
+                <h2>Configuración</h2>
+              </div>
+              <button
+                type="button"
+                class="config-drawer__close"
+                aria-label="Cerrar configuración"
+                title="Cerrar configuración"
+                @click="closeSidebar">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m18 6-12 12" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </header>
 
-        <label class="field">
-          <span>Título</span>
-          <input v-model="title" type="text" placeholder="Ej: Boda de Sofía y Mateo" />
-        </label>
+            <div class="config-drawer__body">
+              <input
+                ref="galleryInputRef"
+                class="gallery-file-input-hidden"
+                type="file"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                multiple
+                @change="onGalleryFilesSelected" />
 
-        <label class="field">
-          <span>Enlace corto (Subdominio)</span>
-          <input
-            v-model="slug"
-            type="text"
-            maxlength="63"
-            autocapitalize="off"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="boda-sofia-mateo" />
-          <small class="field-hint">Usa solo letras minúsculas, números y guiones.</small>
-          <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
-        </label>
-
-        <div class="sidebar-section">
-          <h3>Estilo de plantilla</h3>
-          <p v-if="isDraft">Puedes cambiar el estilo mientras sea borrador.</p>
-          <p v-else>El estilo queda fijo después de publicar.</p>
-
-          <label class="field">
-            <span>Plantilla</span>
-            <select v-model="selectedTemplateId" :disabled="!isDraft || isChangingTemplate || isLoadingTemplates">
-              <option
-                v-for="item in availableTemplates"
-                :key="String(item.id)"
-                :value="String(item.id)">
-                {{ item.name ?? `Plantilla #${item.id}` }}
-              </option>
-            </select>
-          </label>
-
-          <BaseButton
-            v-if="isDraft"
-            type="button"
-            variant="ghost"
-            :disabled="!hasPendingTemplateChange || isChangingTemplate"
-            @click="applyTemplateChange">
-            {{ isChangingTemplate ? 'Aplicando estilo...' : 'Aplicar estilo' }}
-          </BaseButton>
-        </div>
-
-        <div class="sidebar-section">
-          <h3>Opcionales</h3>
-          <p>Activa o desactiva secciones y configura cada bloque.</p>
-
-          <div class="option-group">
-            <article v-for="section in optionalSections" :key="section.key" class="feature-item">
-              <div class="feature-header">
-                <span>{{ section.label }}</span>
-                <label class="switch">
-                  <input
-                    type="checkbox"
-                    :checked="resolvedSectionVisibility[section.key]"
-                    @change="onSectionToggle(section.key, $event)" />
-                  <span class="switch-track"></span>
+              <section class="config-block">
+                <label class="field">
+                  <span>Título</span>
+                  <input v-model="title" type="text" placeholder="Ej: Boda de Sofía y Mateo" />
                 </label>
-              </div>
 
-              <div v-if="resolvedSectionVisibility[section.key]" class="feature-body">
-                <div v-if="section.key === 'checkin'" class="option-panel">
-                  <BaseButton type="button" variant="ghost" @click="showCheckinPreview = !showCheckinPreview">
-                    {{ showCheckinPreview ? 'Ocultar prueba' : 'Probar' }}
-                  </BaseButton>
-                </div>
+                <label class="field">
+                  <span>Enlace corto (Subdominio)</span>
+                  <input
+                    v-model="slug"
+                    type="text"
+                    maxlength="63"
+                    autocapitalize="off"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="boda-sofia-mateo" />
+                  <small class="field-hint">Usa solo letras minúsculas, números y guiones.</small>
+                  <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
+                </label>
+              </section>
 
-                <div v-else-if="section.key === 'countdown'" class="option-panel">
-                  <label class="field">
-                    <span>Fecha objetivo</span>
-                    <input v-model="countdownDatetime" type="datetime-local" :min="minAllowedCountdownDatetime" />
-                  </label>
-                </div>
+              <section class="config-block">
+                <h3>Estilo de plantilla</h3>
+                <p v-if="isDraft">Puedes cambiar el estilo mientras sea borrador.</p>
+                <p v-else>El estilo queda fijo después de publicar.</p>
 
-                <div v-else-if="section.key === 'music'" class="option-panel">
-                  <label class="field">
-                    <span>Canción</span>
-                    <select v-model="musicSelection">
-                      <option v-for="song in musicOptions" :key="song.id" :value="song.id">
-                        {{ song.label }}
-                      </option>
-                    </select>
-                  </label>
-                </div>
+                <label class="field">
+                  <span>Plantilla</span>
+                  <select v-model="selectedTemplateId" :disabled="!isDraft || isChangingTemplate || isLoadingTemplates">
+                    <option
+                      v-for="item in availableTemplates"
+                      :key="String(item.id)"
+                      :value="String(item.id)">
+                      {{ item.name ?? `Plantilla #${item.id}` }}
+                    </option>
+                  </select>
+                </label>
 
-                <div v-else-if="section.key === 'gallery'" class="option-panel">
-                  <div class="gallery-panel-head">
-                    <p>{{ galleryCounterLabel }}</p>
-                    <button
-                      type="button"
-                      class="gallery-add-btn"
-                      :disabled="!canAddGalleryImages || isUploadingGallery"
-                      aria-label="Agregar imagen"
-                      title="Agregar imagen"
-                      @click="openGalleryFilePicker">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 5v14" />
-                        <path d="M5 12h14" />
-                      </svg>
-                    </button>
-                  </div>
-                  <p class="gallery-panel-copy">Sube JPG, JPEG o PNG. Las imágenes se guardan al pulsar Guardar cambios.</p>
-                  <p v-if="!isLoadingGallery && !gallerySummary.enabled" class="gallery-panel-copy">
-                    Tu plan actual no incluye galería de imágenes.
-                  </p>
-                  <p v-if="galleryProcessingHint" class="gallery-panel-copy gallery-panel-copy--processing">
-                    {{ galleryProcessingHint }}
-                  </p>
-                  <p v-if="isLoadingGallery" class="gallery-panel-copy">Cargando galería...</p>
-                  <p v-else-if="galleryRemainingSlots !== null" class="gallery-panel-copy">
-                    Puedes agregar {{ galleryRemainingSlots }} imagen{{ galleryRemainingSlots === 1 ? '' : 'es' }} más.
-                  </p>
+                <BaseButton
+                  v-if="isDraft"
+                  type="button"
+                  variant="ghost"
+                  :disabled="!hasPendingTemplateChange || isChangingTemplate"
+                  @click="applyTemplateChange">
+                  {{ isChangingTemplate ? 'Aplicando estilo...' : 'Aplicar estilo' }}
+                </BaseButton>
+              </section>
 
-                  <div class="gallery-pill-grid">
-                    <article
-                      v-for="item in galleryVisualItems"
-                      :key="item.id"
-                      class="gallery-pill"
-                      :class="[
-                        item.kind === 'pending' ? 'gallery-pill--pending' : '',
-                        item.statusClass === 'processing' ? 'gallery-pill--processing' : '',
-                        item.statusClass === 'failed' ? 'gallery-pill--failed' : '',
-                      ]"
-                      :title="item.name">
-                      <div class="gallery-pill-main">
-                        <span>{{ item.shortName }}</span>
-                        <small :title="getGalleryItemStatusTitle(item)">{{ item.statusLabel }}</small>
-                      </div>
-                      <button
-                        type="button"
-                        class="gallery-pill-remove"
-                        aria-label="Quitar imagen"
-                        title="Quitar imagen"
-                        @click="removeGalleryVisualItem(item)">
-                        <span aria-hidden="true">×</span>
-                      </button>
-                    </article>
-                  </div>
+              <section class="config-block">
+                <h3>Opcionales</h3>
+                <p>Activa o desactiva secciones y configura cada bloque.</p>
 
-                  <div v-if="removedGalleryImageIds.length" class="gallery-removed-actions">
-                    <button type="button" class="link-button" @click="restoreAllRemovedGalleryImages">
-                      Deshacer eliminaciones ({{ removedGalleryImageIds.length }})
-                    </button>
-                  </div>
-                </div>
-
-                <div v-else-if="section.key === 'faq'" class="option-panel">
-                  <div class="faq-editor">
-                    <article v-for="(item, index) in faqItems" :key="item.id" class="faq-item">
-                      <label class="field">
-                        <span>Pregunta</span>
+                <div class="option-group">
+                  <article v-for="section in optionalSections" :key="section.key" class="feature-item">
+                    <div class="feature-header">
+                      <span>{{ section.label }}</span>
+                      <label class="switch">
                         <input
-                          :value="item.question"
-                          type="text"
-                          placeholder="Ej: ¿Hay dress code?"
-                          @input="updateFaqItem(index, 'question', ($event.target as HTMLInputElement).value)" />
+                          type="checkbox"
+                          :checked="resolvedSectionVisibility[section.key]"
+                          @change="onSectionToggle(section.key, $event)" />
+                        <span class="switch-track"></span>
                       </label>
+                    </div>
 
-                      <label class="field">
-                        <span>Respuesta</span>
-                        <textarea
-                          :value="item.answer"
-                          rows="2"
-                          placeholder="Ej: Sí, elegante sport."
-                          @input="updateFaqItem(index, 'answer', ($event.target as HTMLTextAreaElement).value)" />
-                      </label>
+                    <div v-if="resolvedSectionVisibility[section.key]" class="feature-body">
+                      <div v-if="section.key === 'checkin'" class="option-panel">
+                        <BaseButton
+                          type="button"
+                          variant="ghost"
+                          :disabled="isCheckinConfigEditing"
+                          @click="onCheckinAction">
+                          {{ checkinActionLabel }}
+                        </BaseButton>
 
-                      <button type="button" class="link-button" @click="removeFaqItem(index)">Quitar</button>
-                    </article>
-                  </div>
-                  <BaseButton type="button" variant="ghost" @click="addFaqItem">Agregar pregunta</BaseButton>
+                        <p v-if="showCheckinPreview && !isCheckinConfigEditing" class="field-hint">
+                          La vista previa está activa. Pulsa <strong>Editar</strong> para personalizarla.
+                        </p>
+
+                        <div v-if="isCheckinConfigEditing" class="checkin-config-grid">
+                          <div class="feature-inline-switch">
+                            <span>Mostrar fecha del evento</span>
+                            <label class="switch">
+                              <input v-model="checkinShowEventDate" type="checkbox" />
+                              <span class="switch-track"></span>
+                            </label>
+                          </div>
+
+                          <label v-if="checkinShowEventDate" class="field">
+                            <span>Fecha del evento</span>
+                            <input v-model="checkinEventDatetime" type="datetime-local" />
+                          </label>
+
+                          <div class="feature-inline-switch">
+                            <span>Mostrar valor de entrada</span>
+                            <label class="switch">
+                              <input v-model="checkinShowEntryValue" type="checkbox" />
+                              <span class="switch-track"></span>
+                            </label>
+                          </div>
+
+                          <template v-if="checkinShowEntryValue">
+                            <label class="field">
+                              <span>Moneda</span>
+                              <select v-model="checkinEntryCurrency">
+                                <option v-for="currency in checkinCurrencyOptions" :key="currency.code" :value="currency.code">
+                                  {{ currency.label }}
+                                </option>
+                              </select>
+                            </label>
+
+                            <label class="field">
+                              <span>Monto</span>
+                              <input v-model.number="checkinEntryAmount" type="number" step="0.01" min="0" placeholder="0.00" />
+                            </label>
+                          </template>
+                        </div>
+                      </div>
+
+                      <div v-else-if="section.key === 'countdown'" class="option-panel">
+                        <label class="field">
+                          <span>Fecha objetivo</span>
+                          <input v-model="countdownDatetime" type="datetime-local" :min="minAllowedCountdownDatetime" />
+                        </label>
+                      </div>
+
+                      <div v-else-if="section.key === 'music'" class="option-panel">
+                        <label class="field">
+                          <span>Canción</span>
+                          <select v-model="musicSelection">
+                            <option v-for="song in musicOptions" :key="song.id" :value="song.id">
+                              {{ song.label }}
+                            </option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <div v-else-if="section.key === 'gallery'" class="option-panel">
+                        <div class="gallery-panel-head">
+                          <p>{{ galleryCounterLabel }}</p>
+                          <button
+                            type="button"
+                            class="gallery-add-btn"
+                            :disabled="!canAddGalleryImages || isUploadingGallery"
+                            aria-label="Agregar imagen"
+                            title="Agregar imagen"
+                            @click="openGalleryFilePicker">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M12 5v14" />
+                              <path d="M5 12h14" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p class="gallery-panel-copy">Sube JPG, JPEG o PNG. Las imágenes se guardan al pulsar Guardar cambios.</p>
+                        <p v-if="!isLoadingGallery && !gallerySummary.enabled" class="gallery-panel-copy">
+                          Tu plan actual no incluye galería de imágenes.
+                        </p>
+                        <p v-if="galleryProcessingHint" class="gallery-panel-copy gallery-panel-copy--processing">
+                          {{ galleryProcessingHint }}
+                        </p>
+                        <p v-if="isLoadingGallery" class="gallery-panel-copy">Cargando galería...</p>
+                        <p v-else-if="galleryRemainingSlots !== null" class="gallery-panel-copy">
+                          Puedes agregar {{ galleryRemainingSlots }} imagen{{ galleryRemainingSlots === 1 ? '' : 'es' }} más.
+                        </p>
+
+                        <div class="gallery-pill-grid">
+                          <article
+                            v-for="item in galleryVisualItems"
+                            :key="item.id"
+                            class="gallery-pill"
+                            :class="[
+                              item.kind === 'pending' ? 'gallery-pill--pending' : '',
+                              item.statusClass === 'processing' ? 'gallery-pill--processing' : '',
+                              item.statusClass === 'failed' ? 'gallery-pill--failed' : '',
+                            ]"
+                            :title="item.name">
+                            <div class="gallery-pill-main">
+                              <span>{{ item.shortName }}</span>
+                              <small :title="getGalleryItemStatusTitle(item)">{{ item.statusLabel }}</small>
+                            </div>
+                            <button
+                              type="button"
+                              class="gallery-pill-remove"
+                              aria-label="Quitar imagen"
+                              title="Quitar imagen"
+                              @click="removeGalleryVisualItem(item)">
+                              <span aria-hidden="true">×</span>
+                            </button>
+                          </article>
+                        </div>
+
+                        <div v-if="removedGalleryImageIds.length" class="gallery-removed-actions">
+                          <button type="button" class="link-button" @click="restoreAllRemovedGalleryImages">
+                            Deshacer eliminaciones ({{ removedGalleryImageIds.length }})
+                          </button>
+                        </div>
+                      </div>
+
+                      <div v-else-if="section.key === 'faq'" class="option-panel">
+                        <div class="faq-editor">
+                          <article v-for="(item, index) in faqItems" :key="item.id" class="faq-item">
+                            <label class="field">
+                              <span>Pregunta</span>
+                              <input
+                                :value="item.question"
+                                type="text"
+                                placeholder="Ej: ¿Hay dress code?"
+                                @input="updateFaqItem(index, 'question', ($event.target as HTMLInputElement).value)" />
+                            </label>
+
+                            <label class="field">
+                              <span>Respuesta</span>
+                              <textarea
+                                :value="item.answer"
+                                rows="2"
+                                placeholder="Ej: Sí, elegante sport."
+                                @input="updateFaqItem(index, 'answer', ($event.target as HTMLTextAreaElement).value)" />
+                            </label>
+
+                            <button type="button" class="link-button" @click="removeFaqItem(index)">Quitar</button>
+                          </article>
+                        </div>
+                        <BaseButton type="button" variant="ghost" @click="addFaqItem">Agregar pregunta</BaseButton>
+                      </div>
+
+                      <div v-else-if="section.key === 'wall'" class="option-panel">
+                        <p class="gallery-panel-copy">
+                          {{ isLoadingWallMessages
+                            ? 'Cargando mensajes...'
+                            : `Mensajes recibidos: ${wallUsedCountInEditor}${wallSummary.limit === null ? '' : ` / ${wallSummary.limit}`}` }}
+                        </p>
+                        <p v-if="!isLoadingWallMessages" class="gallery-panel-copy">
+                          Visibles en la invitación: {{ wallVisibleCountInEditor }}
+                        </p>
+                        <p v-if="!isLoadingWallMessages && hasPendingWallMessageDeletes" class="gallery-panel-copy">
+                          Tienes {{ pendingDeleteWallMessageIds.length }} mensaje{{ pendingDeleteWallMessageIds.length === 1 ? '' : 's' }} pendiente{{ pendingDeleteWallMessageIds.length === 1 ? '' : 's' }} de eliminación. Se aplicará al guardar cambios.
+                        </p>
+                        <p v-if="!isLoadingWallMessages && hasPendingWallMessageVisibilityChanges" class="gallery-panel-copy">
+                          Tienes cambios de visibilidad pendientes. Se aplicarán al guardar cambios.
+                        </p>
+                        <p v-if="!wallSummary.enabled && !isLoadingWallMessages" class="gallery-panel-copy">
+                          Tu plan actual no tiene activo el muro de mensajes.
+                        </p>
+
+                        <div class="faq-editor">
+                          <article
+                            v-for="item in wallMessagesInEditor"
+                            :key="item.id"
+                            class="faq-item wall-message-item">
+                            <div class="wall-message-item__head">
+                              <strong>{{ item.guest_name }}</strong>
+                              <small>{{ formatWallMessageDate(item.posted_at) }}</small>
+                            </div>
+                            <p class="wall-message-item__text">{{ item.message }}</p>
+
+                            <div class="wall-message-item__actions">
+                              <div class="feature-inline-switch feature-inline-switch--compact">
+                                <label
+                                  class="switch"
+                                  title="Mostrar u ocultar mensaje en la invitación">
+                                  <span class="sr-only">
+                                    {{ item.is_visible ? 'Desactivar mensaje en la invitación' : 'Activar mensaje en la invitación' }}
+                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    :checked="item.is_visible"
+                                    :aria-label="item.is_visible ? 'Desactivar mensaje en invitación' : 'Activar mensaje en invitación'"
+                                    :disabled="isSaving || isWallMessageUpdating(item.id)"
+                                    @change="updateWallMessageVisibility(item.id, ($event.target as HTMLInputElement).checked)" />
+                                  <span class="switch-track"></span>
+                                </label>
+                              </div>
+                              <button
+                                type="button"
+                                class="wall-message-delete-btn"
+                                :disabled="isSaving || isWallMessageUpdating(item.id)"
+                                aria-label="Eliminar mensaje"
+                                title="Eliminar mensaje"
+                                @click="openDeleteWallMessagePrompt(item.id)">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M4 7h16" />
+                                  <path d="M9 7V5h6v2" />
+                                  <path d="M8 7v12h8V7" />
+                                  <path d="M11 11v5" />
+                                  <path d="M13 11v5" />
+                                </svg>
+                              </button>
+                            </div>
+                          </article>
+                        </div>
+
+                        <p v-if="!isLoadingWallMessages && !wallMessagesInEditor.length" class="gallery-panel-copy">
+                          Aún no llegaron mensajes de invitados.
+                        </p>
+                      </div>
+
+                      <div v-else-if="section.key === 'rsvp'" class="option-panel">
+                        <p>Campos del plan Basic: Nombre, Apellido y Restricción alimentaria.</p>
+
+                        <label class="field">
+                          <span>Etiqueta Nombre</span>
+                          <input
+                            :value="rsvpLabelsDraft.firstName"
+                            type="text"
+                            @input="updateRsvpLabel('firstName', ($event.target as HTMLInputElement).value)" />
+                        </label>
+
+                        <label class="field">
+                          <span>Etiqueta Apellido</span>
+                          <input
+                            :value="rsvpLabelsDraft.lastName"
+                            type="text"
+                            @input="updateRsvpLabel('lastName', ($event.target as HTMLInputElement).value)" />
+                        </label>
+
+                        <label class="field">
+                          <span>Etiqueta Restricción alimentaria</span>
+                          <input
+                            :value="rsvpLabelsDraft.dietaryRestrictions"
+                            type="text"
+                            @input="updateRsvpLabel('dietaryRestrictions', ($event.target as HTMLInputElement).value)" />
+                        </label>
+                      </div>
+
+                      <div v-else-if="section.key === 'location'" class="option-panel option-panel--location">
+                        <label class="field">
+                          <span>Enlace de Google Maps</span>
+                          <input
+                            v-model="locationMapsUrl"
+                            type="url"
+                            inputmode="url"
+                            placeholder="https://maps.google.com/..." />
+                          <small class="field-hint field-hint--location">Pega el enlace del lugar. Al guardar, convertimos la ubicación a formato compatible para Maps y Uber.</small>
+                        </label>
+
+                        <div
+                          v-if="locationPlaceId || (locationLatitude !== null && locationLongitude !== null) || locationMapsCanonicalUrl"
+                          class="location-meta">
+                          <p v-if="locationPlaceId" class="field-hint field-hint--location">
+                            <strong>Destino detectado:</strong> {{ locationPlaceId }}
+                          </p>
+                          <p v-if="locationLatitude !== null && locationLongitude !== null" class="field-hint field-hint--location">
+                            <strong>Coordenadas:</strong> {{ locationLatitude.toFixed(6) }}, {{ locationLongitude.toFixed(6) }}
+                          </p>
+                          <p v-if="locationMapsCanonicalUrl" class="field-hint field-hint--location">
+                            <strong>Enlace canónico:</strong>
+                            <code>{{ locationMapsCanonicalUrl }}</code>
+                          </p>
+                        </div>
+
+                        <div class="feature-inline-switch">
+                          <span>Mostrar botón de Uber</span>
+                          <label class="switch">
+                            <input v-model="locationUberEnabled" type="checkbox" />
+                            <span class="switch-track"></span>
+                          </label>
+                        </div>
+
+                        <label v-if="locationUberEnabled" class="field">
+                          <span>Enlace de Uber (opcional)</span>
+                          <input
+                            v-model="locationUberUrl"
+                            type="url"
+                            inputmode="url"
+                            placeholder="https://m.uber.com/ul/?action=setPickup" />
+                          <small class="field-hint field-hint--location">Si lo dejas vacío, se arma automáticamente desde Google Maps.</small>
+                        </label>
+                      </div>
+
+                      <div v-else-if="section.key === 'saveDate'" class="option-panel">
+                        <p>Se activará para invitados cuando publiques la invitación.</p>
+                      </div>
+
+                      <div v-else-if="section.key === 'dressCode'" class="option-panel">
+                        <label class="field">
+                          <span>Tipo de vestimenta</span>
+                          <select v-model="selectedDressCode">
+                            <option v-for="option in dressCodeOptions" :key="option.code" :value="option.code">
+                              {{ option.label }}
+                            </option>
+                          </select>
+                        </label>
+                        <p>
+                          {{ dressCodeOptions.find((option) => option.code === selectedDressCode)?.description }}
+                        </p>
+                      </div>
+
+                      <div v-else class="option-panel">
+                        <h4>{{ section.label }}</h4>
+                      </div>
+                    </div>
+                  </article>
                 </div>
-
-                <div v-else-if="section.key === 'rsvp'" class="option-panel">
-                  <p>Campos del plan Basic: Nombre, Apellido y Restricción alimentaria.</p>
-
-                  <label class="field">
-                    <span>Etiqueta Nombre</span>
-                    <input
-                      :value="rsvpLabelsDraft.firstName"
-                      type="text"
-                      @input="updateRsvpLabel('firstName', ($event.target as HTMLInputElement).value)" />
-                  </label>
-
-                  <label class="field">
-                    <span>Etiqueta Apellido</span>
-                    <input
-                      :value="rsvpLabelsDraft.lastName"
-                      type="text"
-                      @input="updateRsvpLabel('lastName', ($event.target as HTMLInputElement).value)" />
-                  </label>
-
-                  <label class="field">
-                    <span>Etiqueta Restricción alimentaria</span>
-                    <input
-                      :value="rsvpLabelsDraft.dietaryRestrictions"
-                      type="text"
-                      @input="updateRsvpLabel('dietaryRestrictions', ($event.target as HTMLInputElement).value)" />
-                  </label>
-                </div>
-
-                <div v-else-if="section.key === 'location'" class="option-panel">
-                  <p>Usando links mock por ahora.</p>
-                </div>
-
-                <div v-else-if="section.key === 'saveDate'" class="option-panel">
-                  <p>Se activará para invitados cuando publiques la invitación.</p>
-                </div>
-
-                <div v-else-if="section.key === 'dressCode'" class="option-panel">
-                  <label class="field">
-                    <span>Tipo de vestimenta</span>
-                    <select v-model="selectedDressCode">
-                      <option v-for="option in dressCodeOptions" :key="option.code" :value="option.code">
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <p>
-                    {{ dressCodeOptions.find((option) => option.code === selectedDressCode)?.description }}
-                  </p>
-                </div>
-
-                <div v-else class="option-panel">
-                  <h4>{{ section.label }}</h4>
-                </div>
-              </div>
-            </article>
+              </section>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </Transition>
     </section>
 
@@ -2319,6 +3367,39 @@ onBeforeRouteLeave((to) => {
           <div class="leave-modal-actions">
             <BaseButton type="button" variant="ghost" @click="closeLeavePrompt">Seguir editando</BaseButton>
             <BaseButton type="button" variant="primary" @click="leaveWithoutSaving">Salir sin guardar</BaseButton>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="leave-modal">
+      <div v-if="showDeleteWallPrompt" class="leave-modal-backdrop" role="dialog" aria-modal="true">
+        <div class="leave-modal-card delete-message-modal-card">
+          <p class="leave-modal-kicker">Eliminar mensaje</p>
+          <h3>¿Quieres eliminar este mensaje del muro?</h3>
+          <p>El mensaje se eliminará cuando guardes los cambios.</p>
+          <div class="delete-message-preview">
+            <strong>{{ pendingDeleteWallMessageGuestName }}</strong>
+            <p>{{ pendingDeleteWallMessageText }}</p>
+          </div>
+          <div class="leave-modal-actions">
+            <BaseButton type="button" variant="ghost" :disabled="isDeletingPendingWallMessage" @click="closeDeleteWallMessagePrompt">
+              Cancelar
+            </BaseButton>
+            <button
+              type="button"
+              class="danger-confirm-btn"
+              :disabled="isDeletingPendingWallMessage"
+              @click="queueDeleteWallMessage">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16" />
+                <path d="M9 7V5h6v2" />
+                <path d="M8 7v12h8V7" />
+                <path d="M11 11v5" />
+                <path d="M13 11v5" />
+              </svg>
+              <span>{{ isDeletingPendingWallMessage ? 'Procesando...' : 'Marcar para eliminar' }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -2404,6 +3485,8 @@ onBeforeRouteLeave((to) => {
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
                 :manifest="templateModule.manifest"
                 :data="previewData"
+                :invitation-title="title || invitation?.title || ''"
+                :type-event-name="typeEvent?.name || ''"
                 :editable="true"
                 :constrained-overlay="true"
                 :active-field="activeTextField"
@@ -2411,13 +3494,16 @@ onBeforeRouteLeave((to) => {
                 :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']"
                 @start-edit="startTextEdit"
                 @update-field="updateFieldValue"
-                @finish-edit="finishTextEdit" />
+                @finish-edit="finishTextEdit"
+                @checkin-preview-closed="onCheckinPreviewClosed" />
               <component
                 :is="templateModule.component"
                 v-else-if="templateModule"
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
                 :manifest="templateModule.manifest"
-                :data="previewData" />
+                :data="previewData"
+                :invitation-title="title || invitation?.title || ''"
+                :type-event-name="typeEvent?.name || ''" />
             </div>
           </div>
         </div>
@@ -2609,58 +3695,142 @@ onBeforeRouteLeave((to) => {
   width: 100%;
 }
 
-.drawer-backdrop {
+.config-overlay {
   position: fixed;
   inset: 0;
-  border: 0;
   z-index: 79;
-  background: rgba(15, 23, 42, 0.34);
+  border: 0;
+  background:
+    radial-gradient(circle at 84% 18%, rgba(56, 189, 248, 0.18), transparent 35%),
+    rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(3px);
 }
 
-.editor-sidebar {
+.config-drawer {
   position: fixed;
-  top: 92px;
-  right: 16px;
-  width: min(390px, calc(100vw - 24px));
-  max-height: calc(100vh - 110px);
+  top: 84px;
+  right: 12px;
+  width: min(446px, calc(100vw - 24px));
+  height: calc(100dvh - 96px);
   z-index: 80;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  box-shadow: 0 28px 44px rgba(15, 23, 42, 0.28);
-  padding: 12px 12px 14px;
+  min-width: 0;
+}
+
+.config-drawer,
+.config-drawer *,
+.config-drawer *::before,
+.config-drawer *::after {
+  box-sizing: border-box;
+}
+
+.config-drawer__shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(246, 250, 255, 0.98) 100%);
+  box-shadow:
+    0 28px 52px rgba(2, 6, 23, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  backdrop-filter: blur(8px);
+}
+
+.config-drawer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 255, 0.95) 100%);
+}
+
+.config-drawer__title-wrap {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.config-drawer__eyebrow {
+  margin: 0;
+  font-size: 0.69rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.config-drawer h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.config-drawer__body {
+  position: relative;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 12px 24px;
   display: grid;
   gap: 12px;
-  align-content: start;
-  overflow: auto;
-  background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
-  border-radius: 16px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.62) transparent;
 }
 
-.editor-sidebar h2 {
-  margin: 0;
-  font-size: 1.02rem;
+.config-drawer__body::-webkit-scrollbar {
+  width: 8px;
 }
 
-.sidebar-section {
-  border-top: 1px solid rgba(148, 163, 184, 0.24);
-  padding-top: 10px;
+.config-drawer__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.config-drawer__body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.config-drawer__body::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.74);
+}
+
+.config-block {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 14px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.94));
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
-.sidebar-section h3 {
+.config-block h3 {
   margin: 0;
-  font-size: 0.93rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
-.sidebar-section p {
+.config-block p {
   margin: 0;
   color: #64748b;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
+  line-height: 1.36;
 }
 
 .field {
   display: grid;
   gap: 0.28rem;
+  min-width: 0;
 }
 
 .field span {
@@ -2672,7 +3842,10 @@ onBeforeRouteLeave((to) => {
 .field input,
 .field select,
 .field textarea {
+  box-sizing: border-box;
+  min-width: 0;
   width: 100%;
+  max-width: 100%;
   min-height: 38px;
   border-radius: 9px;
   border: 1px solid rgba(15, 23, 42, 0.16);
@@ -2689,6 +3862,8 @@ onBeforeRouteLeave((to) => {
 .field-hint {
   font-size: 0.74rem;
   color: #64748b;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .field-alert {
@@ -2713,30 +3888,48 @@ onBeforeRouteLeave((to) => {
 
 .option-group {
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .feature-item {
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 12px;
-  background: #fff;
-  padding: 8px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 10px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
 }
 
 .feature-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  justify-content: initial;
   align-items: center;
   gap: 10px;
-  color: #1f2937;
-  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.feature-header > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.feature-header .switch {
+  justify-self: end;
+  flex: 0 0 auto;
 }
 
 .feature-body {
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .switch {
@@ -2784,17 +3977,88 @@ onBeforeRouteLeave((to) => {
 }
 
 .option-panel {
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 10px;
-  padding: 8px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  padding: 10px;
   display: grid;
-  gap: 8px;
-  background: #f8fafc;
+  gap: 10px;
+  background: #ffffff;
 }
 
 .option-panel h4 {
   margin: 0;
   font-size: 0.89rem;
+}
+
+.option-panel--location {
+  gap: 12px;
+}
+
+.location-meta {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 10px;
+  padding: 8px 9px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(241, 245, 249, 0.82));
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-hint--location {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.field-hint--location strong {
+  color: #334155;
+  font-weight: 700;
+}
+
+.field-hint--location code {
+  display: block;
+  margin-top: 4px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  padding: 0.36rem 0.42rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.checkin-config-grid {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.feature-inline-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.feature-inline-switch span {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.3;
+}
+
+.feature-inline-switch .switch {
+  flex: 0 0 auto;
 }
 
 .gallery-file-input-hidden {
@@ -2823,6 +4087,7 @@ onBeforeRouteLeave((to) => {
   margin: 0;
   font-size: 0.76rem;
   color: #64748b;
+  line-height: 1.35;
 }
 
 .gallery-panel-copy--processing {
@@ -3002,15 +4267,60 @@ onBeforeRouteLeave((to) => {
 .faq-editor {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .faq-item {
+  min-width: 0;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 10px;
-  padding: 8px;
+  border-radius: 12px;
+  padding: 10px;
   display: grid;
   gap: 8px;
   background: #fff;
+}
+
+.wall-message-item {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.9));
+}
+
+.wall-message-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wall-message-item__head strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.wall-message-item__head small {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.wall-message-item__text {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.wall-message-item__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.feature-inline-switch--compact {
+  justify-content: flex-start;
+}
+
+.feature-inline-switch--compact .switch {
+  width: 44px;
 }
 
 .link-button {
@@ -3020,6 +4330,89 @@ onBeforeRouteLeave((to) => {
   font-weight: 700;
   cursor: pointer;
   justify-self: end;
+  min-height: 30px;
+}
+
+.link-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wall-message-delete-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(254, 242, 242, 0.94));
+  color: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.wall-message-delete-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wall-message-delete-btn:hover:not(:disabled),
+.wall-message-delete-btn:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(185, 28, 28, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(254, 226, 226, 0.98));
+}
+
+.wall-message-delete-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.config-drawer__close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef4ff 100%);
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.config-drawer__close:hover,
+.config-drawer__close:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #e8f0ff 100%);
+}
+
+.config-drawer__close svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 
 .editor-topbar-back {
@@ -3128,24 +4521,24 @@ onBeforeRouteLeave((to) => {
   white-space: nowrap;
 }
 
-.drawer-fade-enter-active,
-.drawer-fade-leave-active {
+.config-overlay-enter-active,
+.config-overlay-leave-active {
   transition: opacity 0.3s ease;
 }
 
-.drawer-fade-enter-from,
-.drawer-fade-leave-to {
+.config-overlay-enter-from,
+.config-overlay-leave-to {
   opacity: 0;
 }
 
-.drawer-slide-enter-active,
-.drawer-slide-leave-active {
-  transition: transform 0.3s ease, opacity 0.3s ease;
+.config-drawer-enter-active,
+.config-drawer-leave-active {
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease;
 }
 
-.drawer-slide-enter-from,
-.drawer-slide-leave-to {
-  transform: translateX(24px);
+.config-drawer-enter-from,
+.config-drawer-leave-to {
+  transform: translateX(28px) scale(0.985);
   opacity: 0;
 }
 
@@ -3188,6 +4581,71 @@ onBeforeRouteLeave((to) => {
 .leave-modal-card p {
   margin: 0;
   color: #475569;
+}
+
+.delete-message-modal-card {
+  border-color: rgba(239, 68, 68, 0.24);
+  box-shadow: 0 30px 54px rgba(127, 29, 29, 0.26);
+}
+
+.delete-message-preview {
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(254, 242, 242, 0.92));
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.delete-message-preview strong {
+  color: #7f1d1d;
+  font-size: 0.82rem;
+}
+
+.delete-message-preview p {
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.36;
+  max-height: 108px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.danger-confirm-btn {
+  border: 1px solid rgba(185, 28, 28, 0.4);
+  border-radius: 10px;
+  min-height: 40px;
+  padding: 0.46rem 0.72rem;
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  color: #fff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.danger-confirm-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.danger-confirm-btn:hover:not(:disabled),
+.danger-confirm-btn:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(185, 28, 28, 0.35);
+}
+
+.danger-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .leave-modal-actions {
@@ -3473,11 +4931,23 @@ onBeforeRouteLeave((to) => {
     flex: 1;
   }
 
-  .editor-sidebar {
-    top: 70px;
+  .config-drawer {
+    top: 68px;
     right: 8px;
     width: calc(100vw - 16px);
-    max-height: calc(100vh - 80px);
+    height: calc(100dvh - 78px);
+  }
+
+  .config-drawer__header {
+    padding: 10px 10px 9px 12px;
+  }
+
+  .config-drawer__body {
+    padding: 10px 10px 16px;
+  }
+
+  .config-block {
+    padding: 10px;
   }
 
   .editor-settings-fab {

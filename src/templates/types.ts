@@ -65,6 +65,13 @@ export type InvitationLocation = {
   name: string
   address: string
   mapsUrl: string
+  mapsCanonicalUrl?: string
+  mapsSourceUrl?: string
+  placeId?: string
+  formattedAddress?: string
+  latitude?: number | null
+  longitude?: number | null
+  uberEnabled?: boolean
   uberUrl?: string
 }
 
@@ -93,6 +100,13 @@ export type InvitationCheckinConfig = {
   message: string
   buttonLabel: string
   guestLabel?: string
+  showEventDate?: boolean
+  eventDateIso?: string
+  showEntryValue?: boolean
+  entry?: {
+    currency?: string
+    amount?: number
+  }
 }
 
 export type InvitationCountdownConfig = {
@@ -114,6 +128,25 @@ export type InvitationWallPreviewConfig = {
   title: string
   description: string
   messages: InvitationWallPreviewMessage[]
+}
+
+export type InvitationWallMessage = {
+  id: string
+  guestName: string
+  message: string
+  status?: string
+  isVisible?: boolean
+  postedAt?: string | null
+}
+
+export type InvitationWallConfig = {
+  title?: string
+  description?: string
+  addLabel?: string
+  emptyStateLabel?: string
+  limit?: number | null
+  receivedCount?: number | null
+  messages: InvitationWallMessage[]
 }
 
 export type InvitationBrandingConfig = {
@@ -156,6 +189,7 @@ export type WeddingTemplateData = {
   countdown?: InvitationCountdownConfig
   saveDate?: InvitationSaveDateConfig
   dressCode?: InvitationDressCodeConfig
+  wall?: InvitationWallConfig
   wallPreview?: InvitationWallPreviewConfig
 }
 

@@ -11,6 +11,8 @@ const templateModule = ref<InvitationTemplateModule<'wedding'> | null>(null)
 const templateData = ref<WeddingTemplateData | null>(null)
 const sectionVisibility = ref<Record<string, boolean>>({})
 const templateId = ref<number>(1)
+const invitationTitle = ref('')
+const typeEventName = ref('')
 
 const invitationSubdomain = computed(() => resolveInvitationSubdomainFromHost())
 
@@ -60,6 +62,8 @@ const loadInvitation = async () => {
     templateModule.value = loadedModule
     templateData.value = payload.content
     sectionVisibility.value = nextSectionVisibility
+    invitationTitle.value = String(payload.invitation?.title ?? '').trim()
+    typeEventName.value = String(payload.typeEvent?.name ?? '').trim()
   } catch (error) {
     const source = error as { message?: string; status?: number; statusCode?: number }
     const statusCode = Number(source?.statusCode ?? source?.status ?? 500)
@@ -92,6 +96,8 @@ onMounted(() => {
       :template-id="templateId"
       :manifest="templateModule.manifest"
       :data="templateData"
+      :invitation-title="invitationTitle"
+      :type-event-name="typeEventName"
       :section-visibility="sectionVisibility" />
   </section>
 </template>

@@ -89,6 +89,30 @@ export type TenantInvitationGalleryDetail = {
   items: TenantInvitationGalleryImage[]
 }
 
+export type TenantInvitationWallMessage = {
+  id: number
+  guest_name: string
+  message: string
+  status: 'visible' | 'hidden'
+  is_visible: boolean
+  posted_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type TenantInvitationWallSummary = {
+  enabled: boolean
+  limit: number | null
+  used: number
+  visible_count: number
+  remaining: number | null
+}
+
+export type TenantInvitationWallDetail = {
+  wall: TenantInvitationWallSummary
+  items: TenantInvitationWallMessage[]
+}
+
 export type TenantDashboardSummary = {
   total_invitations: number
   draft_invitations: number
@@ -114,6 +138,32 @@ export type TenantSubdomainAvailability = {
   format_valid: boolean
   available: boolean
   reason: string
+}
+
+export type ResolveTenantInvitationLocationPayload = {
+  maps_url?: string | null
+  place_id?: string | null
+  name?: string | null
+  address?: string | null
+  formatted_address?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  uber_enabled?: boolean
+  uber_url?: string | null
+}
+
+export type TenantResolvedInvitationLocation = {
+  name?: string
+  address?: string
+  formattedAddress?: string | null
+  mapsUrl?: string
+  mapsCanonicalUrl?: string | null
+  mapsSourceUrl?: string | null
+  placeId?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  uberEnabled?: boolean
+  uberUrl?: string | null
 }
 
 type TenantDashboardResponse = {
@@ -271,6 +321,35 @@ const normalizeGallerySummary = (value: unknown): TenantInvitationGallerySummary
   }
 }
 
+const normalizeWallSummary = (value: unknown): TenantInvitationWallSummary => {
+  const source = toRecord(value)
+
+  return {
+    enabled: Boolean(source.enabled),
+    limit: source.limit === null || source.limit === undefined ? null : toNumber(source.limit, 0),
+    used: toNumber(source.used, 0),
+    visible_count: toNumber(source.visible_count, 0),
+    remaining: source.remaining === null || source.remaining === undefined ? null : toNumber(source.remaining, 0),
+  }
+}
+
+const normalizeWallMessage = (value: unknown): TenantInvitationWallMessage => {
+  const source = toRecord(value)
+  const status = String(source.status ?? 'visible').trim().toLowerCase()
+  const normalizedStatus: TenantInvitationWallMessage['status'] = status === 'hidden' ? 'hidden' : 'visible'
+
+  return {
+    id: toNumber(source.id, 0),
+    guest_name: String(source.guest_name ?? ''),
+    message: String(source.message ?? ''),
+    status: normalizedStatus,
+    is_visible: Boolean(source.is_visible) || normalizedStatus === 'visible',
+    posted_at: source.posted_at ? String(source.posted_at) : null,
+    created_at: source.created_at ? String(source.created_at) : null,
+    updated_at: source.updated_at ? String(source.updated_at) : null,
+  }
+}
+
 export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummary> => {
   const payload = await request<TenantDashboardResponse>(`${TENANT_BASE}/dashboard`)
   const data = toRecord(payload.data)
@@ -342,6 +421,16 @@ export const getTenantInvitationGallery = async (invitationId: string | number):
   return {
     gallery: normalizeGallerySummary(data.gallery),
     items: extractList(data.items).map(normalizeGalleryItem),
+  }
+}
+
+export const getTenantInvitationWallMessages = async (invitationId: string | number): Promise<TenantInvitationWallDetail> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(`${TENANT_BASE}/invitations/${invitationId}/wall-messages`)
+  const data = toRecord(payload.data)
+
+  return {
+    wall: normalizeWallSummary(data.wall),
+    items: extractList(data.items).map(normalizeWallMessage),
   }
 }
 
@@ -458,5 +547,73 @@ export const checkTenantInvitationSubdomainAvailability = async (params: {
     format_valid: Boolean(data.format_valid),
     available: Boolean(data.available),
     reason: String(data.reason ?? ''),
+  }
+}
+
+export const updateTenantInvitationWallMessage = async (
+  invitationId: string | number,
+  messageId: string | number,
+  visible: boolean,
+): Promise<{ message: TenantInvitationWallMessage }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/wall-messages/${messageId}`,
+    {
+      method: 'PUT',
+      body: { visible },
+    },
+  )
+
+  const data = toRecord(payload.data)
+  return {
+    message: normalizeWallMessage(data.message),
+  }
+}
+
+export const deleteTenantInvitationWallMessage = async (
+  invitationId: string | number,
+  messageId: string | number,
+): Promise<{ deleted: boolean; deleted_message_id?: number }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/wall-messages/${messageId}`,
+    {
+      method: 'DELETE',
+    },
+  )
+
+  const data = toRecord(payload.data)
+  const deletedMessageId = toNumber(data.deleted_message_id, 0)
+
+  return {
+    deleted: Boolean(data.deleted),
+    deleted_message_id: deletedMessageId > 0 ? deletedMessageId : undefined,
+  }
+}
+
+export const resolveTenantInvitationLocation = async (
+  payload: ResolveTenantInvitationLocationPayload,
+): Promise<TenantResolvedInvitationLocation> => {
+  const response = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/location/resolve`,
+    {
+      method: 'POST',
+      body: payload,
+    },
+  )
+
+  const data = toRecord(response.data)
+  const location = toRecord(data.location)
+
+  return {
+    name: location.name ? String(location.name) : undefined,
+    address: location.address ? String(location.address) : undefined,
+    formattedAddress: location.formattedAddress ? String(location.formattedAddress) : null,
+    mapsUrl: location.mapsUrl ? String(location.mapsUrl) : undefined,
+    mapsCanonicalUrl: location.mapsCanonicalUrl ? String(location.mapsCanonicalUrl) : null,
+    mapsSourceUrl: location.mapsSourceUrl ? String(location.mapsSourceUrl) : null,
+    placeId: location.placeId ? String(location.placeId) : null,
+    latitude: typeof location.latitude === 'number' ? location.latitude : null,
+    longitude: typeof location.longitude === 'number' ? location.longitude : null,
+    uberEnabled: typeof location.uberEnabled === 'boolean' ? location.uberEnabled : undefined,
+    uberUrl: location.uberUrl ? String(location.uberUrl) : null,
   }
 }
