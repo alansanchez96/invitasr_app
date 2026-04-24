@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { getTenantDashboardSummary, listTenantInvitations } from '@/services/tenantInvitations'
+import {
+  getTenantDashboardSummary,
+  listTenantInvitations,
+  type TenantInvitationItem,
+} from '@/services/tenantInvitations'
 import { formatStatusLabel, getClientPlanName } from '@/utils/clientPanel'
 import { useSessionStore } from '@/stores/session'
 
@@ -12,8 +16,10 @@ const dashboard = ref({
   total_invitations: 0,
   draft_invitations: 0,
   published_invitations: 0,
+  credits_available: 0,
   last_updated_at: null as string | null,
 })
+const invitations = ref<TenantInvitationItem[]>([])
 const latestStatuses = ref<string[]>([])
 
 const publicationRate = computed(() => {
@@ -23,22 +29,80 @@ const publicationRate = computed(() => {
 
 const stateCards = computed(() => [
   { label: 'Plan', value: getClientPlanName(session.user) },
+  { label: 'Creditos disponibles', value: String(dashboard.value.credits_available) },
   { label: 'Total de invitaciones', value: String(dashboard.value.total_invitations) },
   { label: 'Borradores', value: String(dashboard.value.draft_invitations) },
   { label: 'Publicadas', value: String(dashboard.value.published_invitations) },
 ])
+
+const publishedInvitations = computed(() =>
+  invitations.value.filter((invitation) => String(invitation.status ?? '').toLowerCase() === 'published'),
+)
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
+
+const isSectionEnabled = (invitation: TenantInvitationItem, sectionKey: string) => {
+  const settings = asRecord(invitation.settings)
+  const sectionVisibility = asRecord(settings.section_visibility)
+
+  if (typeof sectionVisibility[sectionKey] === 'boolean') {
+    return Boolean(sectionVisibility[sectionKey])
+  }
+
+  const content = asRecord(invitation.content)
+
+  if (sectionKey === 'gallery') {
+    return asArray(content.gallery).length > 0
+  }
+  if (sectionKey === 'faq') {
+    return asArray(content.faq).length > 0
+  }
+  if (sectionKey === 'location') {
+    return Boolean(asRecord(content.location).mapsUrl)
+  }
+  if (sectionKey === 'checkin') {
+    return Boolean(asRecord(content.checkin).title || asRecord(content.checkin).message)
+  }
+
+  return Boolean(content[sectionKey])
+}
+
+const basicFeatureMetrics = computed(() => {
+  const source = publishedInvitations.value
+  const total = source.length || 1
+
+  const countEnabled = (key: string) =>
+    source.filter((invitation) => isSectionEnabled(invitation, key)).length
+
+  const toLabel = (count: number) => `${count}/${source.length} invitaciones publicadas`
+
+  return [
+    { label: 'RSVP activo', value: toLabel(countEnabled('rsvp')), pct: Math.round((countEnabled('rsvp') / total) * 100) },
+    { label: 'Galeria activa', value: toLabel(countEnabled('gallery')), pct: Math.round((countEnabled('gallery') / total) * 100) },
+    { label: 'Muro activo', value: toLabel(countEnabled('wall')), pct: Math.round((countEnabled('wall') / total) * 100) },
+    { label: 'Maps + Uber', value: toLabel(countEnabled('location')), pct: Math.round((countEnabled('location') / total) * 100) },
+    { label: 'Cuenta regresiva', value: toLabel(countEnabled('countdown')), pct: Math.round((countEnabled('countdown') / total) * 100) },
+    { label: 'Save the date', value: toLabel(countEnabled('saveDate')), pct: Math.round((countEnabled('saveDate') / total) * 100) },
+  ]
+})
 
 const loadData = async () => {
   isLoading.value = true
   loadError.value = null
 
   try {
-    const [summary, invitations] = await Promise.all([
+    const [summary, invitationList] = await Promise.all([
       getTenantDashboardSummary(),
-      listTenantInvitations({ page: 1, perPage: 5 }),
+      listTenantInvitations({ page: 1, perPage: 100 }),
     ])
     dashboard.value = summary
-    latestStatuses.value = invitations.list.map((invitation) => formatStatusLabel(invitation.status, 'Sin estado'))
+    invitations.value = invitationList.list
+    latestStatuses.value = invitationList.list
+      .slice(0, 5)
+      .map((invitation) => formatStatusLabel(invitation.status, 'Sin estado'))
   } catch (error) {
     const payload = error as { message?: string }
     loadError.value = payload?.message ?? 'No pudimos cargar las estadisticas de tu cuenta.'
@@ -82,12 +146,18 @@ onMounted(() => {
     <section class="bo-card analytics-panel">
       <header class="section-head">
         <div>
-          <h2>Indicadores de publicacion</h2>
-          <p>Medicion directa del avance de tus invitaciones.</p>
+          <h2>Indicadores del plan Basic</h2>
+          <p>Seguimiento real de uso sobre tus invitaciones publicadas.</p>
         </div>
       </header>
 
       <div class="empty-metric-grid">
+        <article v-for="item in basicFeatureMetrics" :key="item.label" class="empty-metric">
+          <strong>{{ item.label }}</strong>
+          <p>{{ item.value }}</p>
+          <small>{{ item.pct }}% de adopcion</small>
+        </article>
+
         <article class="empty-metric">
           <strong>Tasa de publicacion</strong>
           <p>{{ publicationRate }}% de tus invitaciones ya estan publicadas.</p>
@@ -163,7 +233,7 @@ onMounted(() => {
 
 .state-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
 }
 
@@ -202,6 +272,11 @@ onMounted(() => {
   border-radius: 18px;
   background: linear-gradient(180deg, #fff, #f9f4ff);
   border: 1px dashed rgba(155, 107, 255, 0.26);
+}
+
+.empty-metric small {
+  color: #7c6b96;
+  font-weight: 700;
 }
 
 @media (max-width: 1100px) {

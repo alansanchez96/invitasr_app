@@ -59,14 +59,29 @@ const workspaces = computed(() => [
     to: '/panel/invitaciones',
   },
   {
+    title: 'Lista de invitados',
+    description: 'Consulta quién ya confirmó asistencia desde tu invitación.',
+    to: '/panel/invitados',
+  },
+  {
     title: 'Estadisticas',
-    description: 'Consulta el estado de tu cuenta y deja todo listo para ver metricas reales en cuanto se activen.',
+    description: 'Mide rendimiento del plan Basic y avance real de publicación.',
     to: '/panel/estadisticas',
   },
   {
+    title: 'Notificaciones',
+    description: 'Define qué avisos por email quieres recibir.',
+    to: '/panel/notificaciones',
+  },
+  {
     title: 'Configuracion',
-    description: 'Actualiza tus datos, revisa tu plan y deja lista la informacion clave de tu cuenta.',
+    description: 'Actualiza tus datos de cuenta y seguridad.',
     to: '/panel/configuracion',
+  },
+  {
+    title: 'Mejorar plan',
+    description: 'Compara lo que ya tienes con Pro y decide cuándo escalar.',
+    to: '/panel/mejorar-plan',
   },
 ])
 
@@ -121,7 +136,7 @@ onMounted(() => {
 
       <div class="client-actions">
         <BaseButton as="RouterLink" to="/panel/invitaciones" variant="primary">Ir a mis invitaciones</BaseButton>
-        <BaseButton as="RouterLink" to="/panel/configuracion" variant="ghost">Revisar configuracion</BaseButton>
+        <BaseButton as="RouterLink" to="/panel/mejorar-plan" variant="ghost">Mejorar plan</BaseButton>
       </div>
     </header>
 

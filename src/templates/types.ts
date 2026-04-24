@@ -182,6 +182,7 @@ export type WeddingTemplateData = {
   faq?: InvitationFaqItem[]
   schedule: InvitationScheduleItem[]
   location: InvitationLocation
+  locations?: InvitationLocation[]
   music: InvitationMusic
   rsvp: InvitationRsvpConfig
   branding?: InvitationBrandingConfig

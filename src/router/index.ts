@@ -27,6 +27,9 @@ import ClientInvitations from '@/pages/client/ClientInvitations.vue'
 import ClientInvitationEditor from '@/pages/client/ClientInvitationEditor.vue'
 import ClientSettings from '@/pages/client/ClientSettings.vue'
 import ClientBilling from '@/pages/client/ClientBilling.vue'
+import ClientGuestList from '@/pages/client/ClientGuestList.vue'
+import ClientNotifications from '@/pages/client/ClientNotifications.vue'
+import ClientUpgradePlan from '@/pages/client/ClientUpgradePlan.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -285,6 +288,17 @@ const router = createRouter({
           },
         },
         {
+          path: 'invitados',
+          name: 'client-guests',
+          component: ClientGuestList,
+          meta: {
+            title: 'Mi panel · Lista de invitados',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
           path: 'invitaciones/:invitationId/editor',
           name: 'client-invitation-editor',
           component: ClientInvitationEditor,
@@ -301,6 +315,28 @@ const router = createRouter({
           component: ClientSettings,
           meta: {
             title: 'Mi panel · Configuracion',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'notificaciones',
+          name: 'client-notifications',
+          component: ClientNotifications,
+          meta: {
+            title: 'Mi panel · Notificaciones',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'mejorar-plan',
+          name: 'client-upgrade-plan',
+          component: ClientUpgradePlan,
+          meta: {
+            title: 'Mi panel · Mejorar plan',
             requiresAuth: true,
             requiresClient: true,
             requiresActiveClientPlan: true,

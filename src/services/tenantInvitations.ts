@@ -113,6 +113,43 @@ export type TenantInvitationWallDetail = {
   items: TenantInvitationWallMessage[]
 }
 
+export type TenantInvitationRsvpResponse = {
+  id: number
+  invitation_id: number
+  invitation_title: string
+  first_name: string
+  last_name: string
+  full_name: string
+  dietary_restrictions: string | null
+  status: 'confirmed' | string
+  confirmed_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type TenantInvitationRsvpSummary = {
+  total_confirmed: number
+  total_invitations: number
+}
+
+export type TenantInvitationRsvpDetail = {
+  summary: TenantInvitationRsvpSummary
+  items: TenantInvitationRsvpResponse[]
+  pagination: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
+export type TenantInvitationRsvpListParams = {
+  page?: number
+  perPage?: number
+  invitation_id?: number | string
+  search?: string
+}
+
 export type TenantDashboardSummary = {
   total_invitations: number
   draft_invitations: number
@@ -350,6 +387,31 @@ const normalizeWallMessage = (value: unknown): TenantInvitationWallMessage => {
   }
 }
 
+const normalizeRsvpResponse = (value: unknown): TenantInvitationRsvpResponse => {
+  const source = toRecord(value)
+  return {
+    id: toNumber(source.id, 0),
+    invitation_id: toNumber(source.invitation_id, 0),
+    invitation_title: String(source.invitation_title ?? ''),
+    first_name: String(source.first_name ?? ''),
+    last_name: String(source.last_name ?? ''),
+    full_name: String(source.full_name ?? ''),
+    dietary_restrictions: source.dietary_restrictions ? String(source.dietary_restrictions) : null,
+    status: String(source.status ?? 'confirmed'),
+    confirmed_at: source.confirmed_at ? String(source.confirmed_at) : null,
+    created_at: source.created_at ? String(source.created_at) : null,
+    updated_at: source.updated_at ? String(source.updated_at) : null,
+  }
+}
+
+const normalizeRsvpSummary = (value: unknown): TenantInvitationRsvpSummary => {
+  const source = toRecord(value)
+  return {
+    total_confirmed: toNumber(source.total_confirmed, 0),
+    total_invitations: toNumber(source.total_invitations, 0),
+  }
+}
+
 export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummary> => {
   const payload = await request<TenantDashboardResponse>(`${TENANT_BASE}/dashboard`)
   const data = toRecord(payload.data)
@@ -431,6 +493,38 @@ export const getTenantInvitationWallMessages = async (invitationId: string | num
   return {
     wall: normalizeWallSummary(data.wall),
     items: extractList(data.items).map(normalizeWallMessage),
+  }
+}
+
+export const getTenantInvitationRsvpResponses = async (
+  params: TenantInvitationRsvpListParams = {},
+): Promise<TenantInvitationRsvpDetail> => {
+  const search = new URLSearchParams()
+  search.set('page', String(params.page ?? 1))
+  search.set('perPage', String(params.perPage ?? 20))
+
+  if (params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== '') {
+    search.set('invitation_id', String(params.invitation_id))
+  }
+
+  if (params.search && params.search.trim()) {
+    search.set('search', params.search.trim())
+  }
+
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/rsvp-responses?${search.toString()}`,
+  )
+  const data = toRecord(payload.data)
+
+  return {
+    summary: normalizeRsvpSummary(data.summary),
+    items: extractList(data.items).map(normalizeRsvpResponse),
+    pagination: {
+      current_page: toNumber(toRecord(data.pagination).current_page, 1),
+      last_page: toNumber(toRecord(data.pagination).last_page, 1),
+      per_page: toNumber(toRecord(data.pagination).per_page, 20),
+      total: toNumber(toRecord(data.pagination).total, 0),
+    },
   }
 }
 

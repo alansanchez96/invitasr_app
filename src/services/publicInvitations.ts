@@ -69,6 +69,17 @@ export type PublicWallMessage = {
   createdAt: string | null
 }
 
+export type PublicRsvpResponse = {
+  id: number
+  firstName: string
+  lastName: string
+  fullName: string
+  dietaryRestrictions: string | null
+  status: string
+  confirmedAt: string | null
+  createdAt: string | null
+}
+
 const toRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 
@@ -182,6 +193,48 @@ export const createPublicInvitationWallMessage = async (payload: {
       isVisible: Boolean(rawMessage.is_visible ?? true),
       postedAt: toString(rawMessage.posted_at) || null,
       createdAt: toString(rawMessage.created_at) || null,
+    },
+    summary: {
+      limit: toNumber(rawSummary.limit),
+      used: Number(rawSummary.used ?? 0) || 0,
+      remaining: toNumber(rawSummary.remaining),
+    },
+  }
+}
+
+export const createPublicInvitationRsvpResponse = async (payload: {
+  first_name: string
+  last_name: string
+  dietary_restrictions?: string | null
+}): Promise<{
+  response: PublicRsvpResponse
+  summary: {
+    limit: number | null
+    used: number
+    remaining: number | null
+  }
+}> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>('/invitations/rsvp', {
+    method: 'POST',
+    token: '',
+    credentials: 'omit',
+    body: payload,
+  })
+
+  const data = toRecord(response.data)
+  const rawRsvp = toRecord(data.response)
+  const rawSummary = toRecord(data.summary)
+
+  return {
+    response: {
+      id: Number(rawRsvp.id ?? 0) || 0,
+      firstName: toString(rawRsvp.first_name),
+      lastName: toString(rawRsvp.last_name),
+      fullName: toString(rawRsvp.full_name),
+      dietaryRestrictions: toString(rawRsvp.dietary_restrictions) || null,
+      status: toString(rawRsvp.status, 'confirmed'),
+      confirmedAt: toString(rawRsvp.confirmed_at) || null,
+      createdAt: toString(rawRsvp.created_at) || null,
     },
     summary: {
       limit: toNumber(rawSummary.limit),

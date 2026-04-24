@@ -112,9 +112,32 @@ type GalleryVisualItem = {
   statusClass: 'ready' | 'processing' | 'failed' | 'pending'
 }
 
+type DraftLocationItem = {
+  name: string
+  address: string
+  mapsUrl: string
+  mapsCanonicalUrl: string
+  mapsSourceUrl: string
+  placeId: string
+  formattedAddress: string
+  latitude: number | null
+  longitude: number | null
+  uberEnabled: boolean
+  uberUrl: string
+}
+
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+
+const ZOOM_MIN_PERCENT = 50
+const ZOOM_MAX_PERCENT = 140
+const ZOOM_STEP_PERCENT = 5
+const DEVICE_ZOOM_PRESET: Record<ResponsiveDevice, number> = {
+  mobile: 130,
+  tablet: 115,
+  desktop: 100,
+}
 
 const invitation = ref<TenantInvitationItem | null>(null)
 const template = ref<TenantTemplateSummary | null>(null)
@@ -131,10 +154,12 @@ const settingsDraft = ref<JsonRecord>({})
 const featureOverridesDraft = ref<JsonRecord>({})
 const sectionVisibilityDraft = ref<Record<string, boolean>>({})
 const activeTextField = ref<string | null>(null)
-const previewDevice = ref<ResponsiveDevice>('desktop')
+const previewDevice = ref<ResponsiveDevice>('mobile')
+const previewZoomPercent = ref(DEVICE_ZOOM_PRESET.mobile)
 const showCheckinPreview = ref(false)
 const isCheckinConfigEditing = ref(false)
 const isSidebarOpen = ref(false)
+const collapsedOptionalSections = ref<Record<string, boolean>>({})
 const lastSavedSerializedState = ref('')
 
 const isLoading = ref(false)
@@ -171,6 +196,7 @@ const wallSummary = ref<TenantInvitationWallSummary>({
   visible_count: 0,
   remaining: null,
 })
+const wallEditorExpandedMessageIds = ref<Record<number, boolean>>({})
 const updatingWallMessageIds = ref<number[]>([])
 const pendingDeleteWallMessageIds = ref<number[]>([])
 const pendingWallMessageVisibilityById = ref<Record<number, boolean>>({})
@@ -329,6 +355,10 @@ const checkinCurrencyOptions: CurrencyOption[] = [
   { code: 'MXN', label: 'MXN · Peso mexicano' },
 ]
 
+const MAX_LOCATIONS_PER_INVITATION = 2
+const DEFAULT_LOCATION_MAPS_URL = 'https://maps.google.com/?q=Estancia+Nevada+Bariloche'
+const WALL_EDITOR_MESSAGE_PREVIEW_LENGTH = 160
+
 const editableFieldBindings: Record<string, EditableFieldBinding> = {
   hero_title: { paths: ['hero.title', 'couple.headline'], fallback: 'Nos casamos' },
   hero_subtitle: {
@@ -407,6 +437,76 @@ const asText = (value: unknown, fallback = ''): string => {
   return value.trim().length ? value : fallback
 }
 
+const toNullableNumber = (value: unknown): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const createDefaultDraftLocation = (index: number): DraftLocationItem => ({
+  name: `Ubicación ${index + 1}`,
+  address: 'Dirección del evento',
+  mapsUrl: DEFAULT_LOCATION_MAPS_URL,
+  mapsCanonicalUrl: DEFAULT_LOCATION_MAPS_URL,
+  mapsSourceUrl: DEFAULT_LOCATION_MAPS_URL,
+  placeId: '',
+  formattedAddress: 'Dirección del evento',
+  latitude: null,
+  longitude: null,
+  uberEnabled: true,
+  uberUrl: '',
+})
+
+const normalizeDraftLocationItem = (rawValue: unknown, index: number): DraftLocationItem => {
+  const source = toRecord(rawValue)
+  const fallback = createDefaultDraftLocation(index)
+
+  return {
+    name: asText(source.name, fallback.name),
+    address: asText(source.address, asText(source.formattedAddress, fallback.address)),
+    mapsUrl: asText(source.mapsUrl, fallback.mapsUrl),
+    mapsCanonicalUrl: asText(source.mapsCanonicalUrl, asText(source.mapsUrl, fallback.mapsCanonicalUrl)),
+    mapsSourceUrl: asText(source.mapsSourceUrl, asText(source.mapsUrl, fallback.mapsSourceUrl)),
+    placeId: asText(source.placeId),
+    formattedAddress: asText(source.formattedAddress, asText(source.address, fallback.formattedAddress)),
+    latitude: toNullableNumber(source.latitude),
+    longitude: toNullableNumber(source.longitude),
+    uberEnabled: source.uberEnabled === false ? false : true,
+    uberUrl: asText(source.uberUrl),
+  }
+}
+
+const extractDraftLocations = (content: JsonRecord): DraftLocationItem[] => {
+  const rawLocations = getByPath(content, 'locations')
+  let sourceRows: unknown[] = Array.isArray(rawLocations) ? rawLocations : []
+
+  if (!sourceRows.length) {
+    const legacyLocation = getByPath(content, 'location')
+    if (legacyLocation && typeof legacyLocation === 'object') {
+      sourceRows = [legacyLocation]
+    }
+  }
+
+  if (!sourceRows.length) {
+    sourceRows = [createDefaultDraftLocation(0)]
+  }
+
+  return sourceRows
+    .slice(0, MAX_LOCATIONS_PER_INVITATION)
+    .map((row, index) => normalizeDraftLocationItem(row, index))
+}
+
+const writeDraftLocations = (content: JsonRecord, locations: DraftLocationItem[]): JsonRecord => {
+  const nextContent = cloneRecord(content)
+  const normalizedLocations = (locations.length ? locations : [createDefaultDraftLocation(0)])
+    .slice(0, MAX_LOCATIONS_PER_INVITATION)
+    .map((row, index) => normalizeDraftLocationItem(row, index))
+
+  setByPath(nextContent, 'locations', normalizedLocations)
+  setByPath(nextContent, 'location', normalizedLocations[0] ?? createDefaultDraftLocation(0))
+
+  return nextContent
+}
+
 const formatDateTimeLabel24h = (date: Date): string =>
   new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',
@@ -430,6 +530,34 @@ const formatWallMessageDate = (rawIso: string | null | undefined): string => {
     minute: '2-digit',
     hour12: false,
   }).format(parsed).replace(',', ' ·')
+}
+
+const wallEditorMessageToCodePoints = (value: string): string[] => Array.from(value ?? '')
+
+const wallEditorMessageIsLong = (message: string): boolean =>
+  wallEditorMessageToCodePoints(message).length > WALL_EDITOR_MESSAGE_PREVIEW_LENGTH
+
+const wallEditorMessageExpanded = (messageId: number): boolean =>
+  Boolean(wallEditorExpandedMessageIds.value[messageId])
+
+const wallEditorDisplayText = (messageId: number, message: string): string => {
+  if (wallEditorMessageExpanded(messageId) || !wallEditorMessageIsLong(message)) {
+    return message
+  }
+
+  const truncated = wallEditorMessageToCodePoints(message)
+    .slice(0, WALL_EDITOR_MESSAGE_PREVIEW_LENGTH)
+    .join('')
+    .trimEnd()
+
+  return truncated ? `${truncated}…` : ''
+}
+
+const toggleWallEditorMessageExpanded = (messageId: number) => {
+  wallEditorExpandedMessageIds.value = {
+    ...wallEditorExpandedMessageIds.value,
+    [messageId]: !wallEditorMessageExpanded(messageId),
+  }
 }
 
 const isWallMessageUpdating = (messageId: number): boolean =>
@@ -511,7 +639,7 @@ const setByPath = (source: JsonRecord, path: string, value: unknown): void => {
 }
 
 const ensureDefaultFeatureData = () => {
-  const nextContent = cloneRecord(contentDraft.value)
+  let nextContent = cloneRecord(contentDraft.value)
   const nextSettings = cloneRecord(settingsDraft.value)
 
   if (!asText(getByPath(nextContent, 'music.youtubeUrl'))) {
@@ -523,25 +651,14 @@ const ensureDefaultFeatureData = () => {
     setByPath(nextContent, 'music.muted', true)
   }
 
-  if (!asText(getByPath(nextContent, 'location.mapsUrl'))) {
-    setByPath(nextContent, 'location.mapsUrl', 'https://maps.google.com/?q=Estancia+Nevada+Bariloche')
-  }
-
-  if (!asText(getByPath(nextContent, 'location.mapsCanonicalUrl'))) {
-    setByPath(nextContent, 'location.mapsCanonicalUrl', asText(getByPath(nextContent, 'location.mapsUrl')))
-  }
-
-  if (!asText(getByPath(nextContent, 'location.mapsSourceUrl'))) {
-    setByPath(nextContent, 'location.mapsSourceUrl', asText(getByPath(nextContent, 'location.mapsUrl')))
-  }
-
-  if (typeof getByPath(nextContent, 'location.uberEnabled') !== 'boolean') {
-    setByPath(nextContent, 'location.uberEnabled', true)
-  }
-
-  if (!asText(getByPath(nextContent, 'location.uberUrl'))) {
-    setByPath(nextContent, 'location.uberUrl', '')
-  }
+  const normalizedLocations = extractDraftLocations(nextContent).map((locationItem, index) => ({
+    ...locationItem,
+    mapsCanonicalUrl: asText(locationItem.mapsCanonicalUrl, locationItem.mapsUrl || DEFAULT_LOCATION_MAPS_URL),
+    mapsSourceUrl: asText(locationItem.mapsSourceUrl, locationItem.mapsUrl || DEFAULT_LOCATION_MAPS_URL),
+    uberEnabled: typeof locationItem.uberEnabled === 'boolean' ? locationItem.uberEnabled : true,
+    name: asText(locationItem.name, `Ubicación ${index + 1}`),
+  }))
+  nextContent = writeDraftLocations(nextContent, normalizedLocations)
 
   if (!asText(getByPath(nextContent, 'saveDate.label'))) {
     setByPath(nextContent, 'saveDate.enabled', true)
@@ -723,6 +840,16 @@ const optionalSections = computed(() => {
 
   return list
 })
+
+const isOptionalSectionExpanded = (sectionKey: string): boolean =>
+  !Boolean(collapsedOptionalSections.value[sectionKey])
+
+const toggleOptionalSectionPanel = (sectionKey: string) => {
+  collapsedOptionalSections.value = {
+    ...collapsedOptionalSections.value,
+    [sectionKey]: isOptionalSectionExpanded(sectionKey),
+  }
+}
 
 const resolvedSectionVisibility = computed(() => {
   const visibility: Record<string, boolean> = {}
@@ -1032,9 +1159,45 @@ watch(wallMessages, () => {
       pendingWallMessageVisibilityById.value = nextVisibilityMap
     }
   }
+
+  if (Object.keys(wallEditorExpandedMessageIds.value).length) {
+    const nextExpandedMap = Object.entries(wallEditorExpandedMessageIds.value).reduce<Record<number, boolean>>(
+      (carry, [rawId, rawExpanded]) => {
+        const id = Number(rawId)
+        if (!Number.isFinite(id) || !activeIds.has(id)) return carry
+        if (!rawExpanded) return carry
+        carry[id] = true
+        return carry
+      },
+      {},
+    )
+
+    const currentEntries = Object.keys(wallEditorExpandedMessageIds.value).length
+    const nextEntries = Object.keys(nextExpandedMap).length
+    if (currentEntries !== nextEntries) {
+      wallEditorExpandedMessageIds.value = nextExpandedMap
+    }
+  }
 })
 
+const resolvePreviewDeviceByZoom = (zoomValue: number): ResponsiveDevice => {
+  if (zoomValue <= 100) return 'desktop'
+  if (zoomValue <= 125) return 'tablet'
+  return 'mobile'
+}
+
+const effectivePreviewDevice = computed<ResponsiveDevice>(() => resolvePreviewDeviceByZoom(previewZoomPercent.value))
+
+const effectivePreviewDeviceLabel = computed(() => {
+  const row = deviceOptions.find((item) => item.value === effectivePreviewDevice.value)
+  return row?.label ?? 'Desktop'
+})
+
+const isZoomShiftingViewport = computed(() => previewZoomPercent.value !== DEVICE_ZOOM_PRESET[previewDevice.value])
+const previewZoomScale = computed(() => previewZoomPercent.value / 100)
+const previewZoomLabel = computed(() => `${previewZoomPercent.value}%`)
 const previewViewportClass = computed(() => `preview-frame--${previewDevice.value}`)
+const previewFrameStyle = computed(() => ({ zoom: String(previewZoomScale.value) }))
 
 const slugAvailabilityMessage = computed(() => {
   if (slugInputError.value) return slugInputError.value
@@ -1130,6 +1293,43 @@ const registerSnapshotState = (serializedState: string, snapshot?: EditorSnapsho
     if (oldest.done) break
     snapshotRegistry.delete(oldest.value)
   }
+}
+
+const clampZoom = (value: number): number => {
+  const bounded = Math.min(ZOOM_MAX_PERCENT, Math.max(ZOOM_MIN_PERCENT, value))
+  return Math.round(bounded / ZOOM_STEP_PERCENT) * ZOOM_STEP_PERCENT
+}
+
+const setPreviewZoom = (value: number) => {
+  previewZoomPercent.value = clampZoom(value)
+}
+
+const adjustPreviewZoom = (delta: number) => {
+  setPreviewZoom(previewZoomPercent.value + delta)
+}
+
+const resetPreviewZoom = () => {
+  setPreviewZoom(DEVICE_ZOOM_PRESET[previewDevice.value])
+}
+
+const handleZoomInput = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  const value = Number(target.value)
+  if (!Number.isFinite(value)) return
+  setPreviewZoom(value)
+}
+
+const selectPreviewDevice = (device: ResponsiveDevice) => {
+  previewDevice.value = device
+  setPreviewZoom(DEVICE_ZOOM_PRESET[device])
+}
+
+const handlePreviewWheelZoom = (event: WheelEvent) => {
+  if (!(event.ctrlKey || event.metaKey)) return
+  event.preventDefault()
+  if (event.deltaY === 0) return
+  adjustPreviewZoom(event.deltaY > 0 ? -ZOOM_STEP_PERCENT : ZOOM_STEP_PERCENT)
 }
 
 const resolveSnapshotBySerializedState = (serializedState: string): EditorSnapshot | null => {
@@ -1384,43 +1584,39 @@ const selectedDressCode = computed({
   },
 })
 
-const locationMapsUrl = computed({
-  get: () => asText(getByPath(contentDraft.value, 'location.mapsUrl')),
-  set: (value: string) => {
-    const nextContent = cloneRecord(contentDraft.value)
-    setByPath(nextContent, 'location.mapsUrl', value)
-    contentDraft.value = nextContent
-  },
-})
+const locationItemsDraft = computed<DraftLocationItem[]>(() => extractDraftLocations(contentDraft.value))
 
-const locationPlaceId = computed(() => asText(getByPath(contentDraft.value, 'location.placeId')))
-const locationLatitude = computed(() => {
-  const value = Number(getByPath(contentDraft.value, 'location.latitude') ?? NaN)
-  return Number.isFinite(value) ? value : null
-})
-const locationLongitude = computed(() => {
-  const value = Number(getByPath(contentDraft.value, 'location.longitude') ?? NaN)
-  return Number.isFinite(value) ? value : null
-})
-const locationMapsCanonicalUrl = computed(() => asText(getByPath(contentDraft.value, 'location.mapsCanonicalUrl')))
+const canAddLocationDraft = computed(() => locationItemsDraft.value.length < MAX_LOCATIONS_PER_INVITATION)
 
-const locationUberEnabled = computed({
-  get: () => Boolean(getByPath(contentDraft.value, 'location.uberEnabled') ?? true),
-  set: (value: boolean) => {
-    const nextContent = cloneRecord(contentDraft.value)
-    setByPath(nextContent, 'location.uberEnabled', value)
-    contentDraft.value = nextContent
-  },
-})
+const updateLocationDraftField = (
+  index: number,
+  field: keyof DraftLocationItem,
+  value: string | number | boolean | null,
+) => {
+  const locations = [...locationItemsDraft.value]
+  if (!locations[index]) return
 
-const locationUberUrl = computed({
-  get: () => asText(getByPath(contentDraft.value, 'location.uberUrl')),
-  set: (value: string) => {
-    const nextContent = cloneRecord(contentDraft.value)
-    setByPath(nextContent, 'location.uberUrl', value)
-    contentDraft.value = nextContent
-  },
-})
+  const nextItem = { ...locations[index], [field]: value } as DraftLocationItem
+  if (field === 'mapsUrl') {
+    nextItem.mapsCanonicalUrl = asText(nextItem.mapsCanonicalUrl, String(value || nextItem.mapsUrl || DEFAULT_LOCATION_MAPS_URL))
+    nextItem.mapsSourceUrl = asText(nextItem.mapsSourceUrl, String(value || nextItem.mapsSourceUrl || DEFAULT_LOCATION_MAPS_URL))
+  }
+
+  locations[index] = normalizeDraftLocationItem(nextItem, index)
+  contentDraft.value = writeDraftLocations(contentDraft.value, locations)
+}
+
+const addLocationDraft = () => {
+  if (!canAddLocationDraft.value) return
+  const nextLocations = [...locationItemsDraft.value, createDefaultDraftLocation(locationItemsDraft.value.length)]
+  contentDraft.value = writeDraftLocations(contentDraft.value, nextLocations)
+}
+
+const removeLocationDraft = (index: number) => {
+  if (locationItemsDraft.value.length <= 1) return
+  const nextLocations = locationItemsDraft.value.filter((_, currentIndex) => currentIndex !== index)
+  contentDraft.value = writeDraftLocations(contentDraft.value, nextLocations)
+}
 
 const checkinActionLabel = computed(() => {
   if (!showCheckinPreview.value) return 'Probar'
@@ -1589,6 +1785,10 @@ const previewData = computed<WeddingTemplateData>(() => {
   const story = normalizeStory(getByPath(contentDraft.value, 'story'))
   const gallery = normalizeGallery()
   const schedule = normalizeSchedule(getByPath(contentDraft.value, 'schedule'))
+  const previewLocations = locationItemsDraft.value
+    .slice(0, MAX_LOCATIONS_PER_INVITATION)
+    .map((item, index) => normalizeDraftLocationItem(item, index))
+  const primaryLocation = previewLocations[0] ?? createDefaultDraftLocation(0)
 
   return {
     couple: {
@@ -1608,22 +1808,31 @@ const previewData = computed<WeddingTemplateData>(() => {
     gallery,
     schedule,
     location: {
-      name: asText(getByPath(contentDraft.value, 'location.name'), 'Ubicación del evento'),
-      address: asText(getByPath(contentDraft.value, 'location.address'), 'Dirección del evento'),
-      mapsUrl: asText(getByPath(contentDraft.value, 'location.mapsUrl'), 'https://maps.google.com'),
-      mapsCanonicalUrl: asText(getByPath(contentDraft.value, 'location.mapsCanonicalUrl')),
-      mapsSourceUrl: asText(getByPath(contentDraft.value, 'location.mapsSourceUrl')),
-      placeId: asText(getByPath(contentDraft.value, 'location.placeId')),
-      formattedAddress: asText(getByPath(contentDraft.value, 'location.formattedAddress')),
-      latitude: Number.isFinite(Number(getByPath(contentDraft.value, 'location.latitude') ?? NaN))
-        ? Number(getByPath(contentDraft.value, 'location.latitude') ?? NaN)
-        : null,
-      longitude: Number.isFinite(Number(getByPath(contentDraft.value, 'location.longitude') ?? NaN))
-        ? Number(getByPath(contentDraft.value, 'location.longitude') ?? NaN)
-        : null,
-      uberEnabled: Boolean(getByPath(contentDraft.value, 'location.uberEnabled') ?? true),
-      uberUrl: asText(getByPath(contentDraft.value, 'location.uberUrl')),
+      name: asText(primaryLocation.name, 'Ubicación del evento'),
+      address: asText(primaryLocation.address, 'Dirección del evento'),
+      mapsUrl: asText(primaryLocation.mapsUrl, DEFAULT_LOCATION_MAPS_URL),
+      mapsCanonicalUrl: asText(primaryLocation.mapsCanonicalUrl),
+      mapsSourceUrl: asText(primaryLocation.mapsSourceUrl),
+      placeId: asText(primaryLocation.placeId),
+      formattedAddress: asText(primaryLocation.formattedAddress),
+      latitude: primaryLocation.latitude,
+      longitude: primaryLocation.longitude,
+      uberEnabled: primaryLocation.uberEnabled,
+      uberUrl: asText(primaryLocation.uberUrl),
     },
+    locations: previewLocations.map((locationItem) => ({
+      name: asText(locationItem.name, 'Ubicación del evento'),
+      address: asText(locationItem.address, 'Dirección del evento'),
+      mapsUrl: asText(locationItem.mapsUrl, DEFAULT_LOCATION_MAPS_URL),
+      mapsCanonicalUrl: asText(locationItem.mapsCanonicalUrl),
+      mapsSourceUrl: asText(locationItem.mapsSourceUrl),
+      placeId: asText(locationItem.placeId),
+      formattedAddress: asText(locationItem.formattedAddress),
+      latitude: locationItem.latitude,
+      longitude: locationItem.longitude,
+      uberEnabled: locationItem.uberEnabled,
+      uberUrl: asText(locationItem.uberUrl),
+    })),
     music: {
       title: asText(getByPath(contentDraft.value, 'music.title'), 'Canción principal'),
       artist: asText(getByPath(contentDraft.value, 'music.artist'), 'Artista'),
@@ -2095,6 +2304,13 @@ const onSectionToggle = (sectionKey: string, event: Event) => {
   const enabled = Boolean(target?.checked)
   setSectionVisibility(sectionKey, enabled)
 
+  if (enabled) {
+    collapsedOptionalSections.value = {
+      ...collapsedOptionalSections.value,
+      [sectionKey]: false,
+    }
+  }
+
   if (sectionKey === 'checkin' && !enabled) {
     showCheckinPreview.value = false
     isCheckinConfigEditing.value = false
@@ -2336,18 +2552,29 @@ const validateBeforeSave = (): string | null => {
   }
 
   if (resolvedSectionVisibility.value.location) {
-    const mapsUrl = normalizeExternalUrl(asText(getByPath(contentDraft.value, 'location.mapsUrl')))
-    if (!mapsUrl) {
-      return 'Agrega el enlace de Google Maps para la sección de ubicación.'
-    }
-    if (!isValidHttpUrl(mapsUrl)) {
-      return 'El enlace de Google Maps no es válido.'
+    const draftLocations = locationItemsDraft.value.slice(0, MAX_LOCATIONS_PER_INVITATION)
+    if (!draftLocations.length) {
+      return 'Agrega al menos una ubicación para continuar.'
     }
 
-    if (locationUberEnabled.value) {
-      const uberUrl = normalizeExternalUrl(asText(getByPath(contentDraft.value, 'location.uberUrl')))
-      if (uberUrl && !isValidHttpUrl(uberUrl)) {
-        return 'El enlace de Uber no es válido.'
+    for (let index = 0; index < draftLocations.length; index += 1) {
+      const locationItem = draftLocations[index]
+      if (!locationItem) continue
+
+      const suffix = draftLocations.length > 1 ? ` en la ubicación ${index + 1}` : ''
+      const mapsUrl = normalizeExternalUrl(asText(locationItem.mapsUrl))
+      if (!mapsUrl) {
+        return `Agrega el enlace de Google Maps${suffix}.`
+      }
+      if (!isValidHttpUrl(mapsUrl)) {
+        return `El enlace de Google Maps${suffix} no es válido.`
+      }
+
+      if (locationItem.uberEnabled) {
+        const uberUrl = normalizeExternalUrl(asText(locationItem.uberUrl))
+        if (uberUrl && !isValidHttpUrl(uberUrl)) {
+          return `El enlace de Uber${suffix} no es válido.`
+        }
       }
     }
   }
@@ -2428,47 +2655,65 @@ const saveChanges = async () => {
     }
 
     if (resolvedSectionVisibility.value.location) {
-      const normalizedMapsUrl = normalizeExternalUrl(asText(getByPath(projectedContent, 'location.mapsUrl')))
-      if (normalizedMapsUrl) {
-        setByPath(projectedContent, 'location.mapsUrl', normalizedMapsUrl)
+      const draftLocations = locationItemsDraft.value.slice(0, MAX_LOCATIONS_PER_INVITATION)
+      const normalizedLocations: DraftLocationItem[] = []
+
+      for (let index = 0; index < draftLocations.length; index += 1) {
+        const draftLocation = normalizeDraftLocationItem(draftLocations[index], index)
+        const normalizedMapsUrl = normalizeExternalUrl(asText(draftLocation.mapsUrl))
+        const normalizedUberUrl = normalizeExternalUrl(asText(draftLocation.uberUrl))
+
+        const nextLocation: DraftLocationItem = {
+          ...draftLocation,
+          mapsUrl: normalizedMapsUrl || draftLocation.mapsUrl,
+          mapsCanonicalUrl: asText(
+            draftLocation.mapsCanonicalUrl,
+            normalizedMapsUrl || draftLocation.mapsUrl || DEFAULT_LOCATION_MAPS_URL,
+          ),
+          mapsSourceUrl: asText(
+            draftLocation.mapsSourceUrl,
+            normalizedMapsUrl || draftLocation.mapsUrl || DEFAULT_LOCATION_MAPS_URL,
+          ),
+          uberUrl: normalizedUberUrl || '',
+        }
+
+        try {
+          const resolvedLocation = await resolveTenantInvitationLocation({
+            maps_url: normalizedMapsUrl || null,
+            place_id: asText(nextLocation.placeId) || null,
+            name: asText(nextLocation.name) || null,
+            address: asText(nextLocation.address) || null,
+            formatted_address: asText(nextLocation.formattedAddress) || null,
+            latitude: nextLocation.latitude,
+            longitude: nextLocation.longitude,
+            uber_enabled: nextLocation.uberEnabled,
+            uber_url: normalizedUberUrl || null,
+          })
+
+          if (resolvedLocation.name) nextLocation.name = resolvedLocation.name
+          if (resolvedLocation.address) nextLocation.address = resolvedLocation.address
+          if (resolvedLocation.formattedAddress) nextLocation.formattedAddress = resolvedLocation.formattedAddress
+          if (resolvedLocation.mapsUrl) nextLocation.mapsUrl = resolvedLocation.mapsUrl
+          if (resolvedLocation.mapsCanonicalUrl) nextLocation.mapsCanonicalUrl = resolvedLocation.mapsCanonicalUrl
+          if (resolvedLocation.mapsSourceUrl) nextLocation.mapsSourceUrl = resolvedLocation.mapsSourceUrl
+          if (resolvedLocation.placeId) nextLocation.placeId = resolvedLocation.placeId
+          if (typeof resolvedLocation.latitude === 'number') nextLocation.latitude = resolvedLocation.latitude
+          if (typeof resolvedLocation.longitude === 'number') nextLocation.longitude = resolvedLocation.longitude
+          if (typeof resolvedLocation.uberEnabled === 'boolean') nextLocation.uberEnabled = resolvedLocation.uberEnabled
+          if (resolvedLocation.uberUrl) nextLocation.uberUrl = resolvedLocation.uberUrl
+        } catch {
+          // Si falla la resolución canónica, continúa con la URL enviada por el cliente.
+        }
+
+        normalizedLocations.push(normalizeDraftLocationItem(nextLocation, index))
       }
 
-      const normalizedUberUrl = normalizeExternalUrl(asText(getByPath(projectedContent, 'location.uberUrl')))
-      if (normalizedUberUrl) {
-        setByPath(projectedContent, 'location.uberUrl', normalizedUberUrl)
-      }
+      const persistedLocations = normalizedLocations.length
+        ? normalizedLocations
+        : [createDefaultDraftLocation(0)]
 
-      try {
-        const resolvedLocation = await resolveTenantInvitationLocation({
-          maps_url: normalizedMapsUrl || null,
-          place_id: asText(getByPath(projectedContent, 'location.placeId')) || null,
-          name: asText(getByPath(projectedContent, 'location.name')) || null,
-          address: asText(getByPath(projectedContent, 'location.address')) || null,
-          formatted_address: asText(getByPath(projectedContent, 'location.formattedAddress')) || null,
-          latitude: Number.isFinite(Number(getByPath(projectedContent, 'location.latitude') ?? NaN))
-            ? Number(getByPath(projectedContent, 'location.latitude') ?? NaN)
-            : null,
-          longitude: Number.isFinite(Number(getByPath(projectedContent, 'location.longitude') ?? NaN))
-            ? Number(getByPath(projectedContent, 'location.longitude') ?? NaN)
-            : null,
-          uber_enabled: Boolean(getByPath(projectedContent, 'location.uberEnabled') ?? true),
-          uber_url: normalizedUberUrl || null,
-        })
-
-        if (resolvedLocation.name) setByPath(projectedContent, 'location.name', resolvedLocation.name)
-        if (resolvedLocation.address) setByPath(projectedContent, 'location.address', resolvedLocation.address)
-        if (resolvedLocation.formattedAddress) setByPath(projectedContent, 'location.formattedAddress', resolvedLocation.formattedAddress)
-        if (resolvedLocation.mapsUrl) setByPath(projectedContent, 'location.mapsUrl', resolvedLocation.mapsUrl)
-        if (resolvedLocation.mapsCanonicalUrl) setByPath(projectedContent, 'location.mapsCanonicalUrl', resolvedLocation.mapsCanonicalUrl)
-        if (resolvedLocation.mapsSourceUrl) setByPath(projectedContent, 'location.mapsSourceUrl', resolvedLocation.mapsSourceUrl)
-        if (resolvedLocation.placeId) setByPath(projectedContent, 'location.placeId', resolvedLocation.placeId)
-        if (typeof resolvedLocation.latitude === 'number') setByPath(projectedContent, 'location.latitude', resolvedLocation.latitude)
-        if (typeof resolvedLocation.longitude === 'number') setByPath(projectedContent, 'location.longitude', resolvedLocation.longitude)
-        if (typeof resolvedLocation.uberEnabled === 'boolean') setByPath(projectedContent, 'location.uberEnabled', resolvedLocation.uberEnabled)
-        if (resolvedLocation.uberUrl) setByPath(projectedContent, 'location.uberUrl', resolvedLocation.uberUrl)
-      } catch {
-        // Si falla la resolución canónica, continúa con la URL enviada por el cliente.
-      }
+      setByPath(projectedContent, 'locations', persistedLocations)
+      setByPath(projectedContent, 'location', persistedLocations[0] ?? createDefaultDraftLocation(0))
     }
     contentDraft.value = projectedContent
 
@@ -2700,6 +2945,11 @@ watch(slug, (nextValue, previousValue) => {
   scheduleSlugAvailabilityCheck()
 })
 
+watch(effectivePreviewDevice, (nextDevice) => {
+  if (previewDevice.value === nextDevice) return
+  previewDevice.value = nextDevice
+})
+
 watch(serializedEditorState, (nextState, previousState) => {
   if (!nextState) return
   registerSnapshotState(nextState)
@@ -2838,16 +3088,54 @@ onBeforeRouteLeave((to) => {
     <section v-if="!isLoading && !loadError" class="editor-layout">
       <div class="editor-main">
         <div class="bo-card preview-toolbar">
-          <div class="device-tabs" role="tablist" aria-label="Vista responsive">
-            <button
-              v-for="option in deviceOptions"
-              :key="option.value"
-              type="button"
-              class="device-tab"
-              :class="{ active: previewDevice === option.value }"
-              @click="previewDevice = option.value">
-              {{ option.label }}
-            </button>
+          <div class="preview-toolbar-main">
+            <div class="device-tabs" role="tablist" aria-label="Vista responsive">
+              <button
+                v-for="option in deviceOptions"
+                :key="option.value"
+                type="button"
+                class="device-tab"
+                :class="{ active: previewDevice === option.value }"
+                @click="selectPreviewDevice(option.value)">
+                {{ option.label }}
+              </button>
+            </div>
+            <div class="preview-zoom-controls" role="group" aria-label="Controles de zoom del editor">
+              <button
+                type="button"
+                class="preview-zoom-btn"
+                aria-label="Reducir zoom"
+                @click="adjustPreviewZoom(-ZOOM_STEP_PERCENT)">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <input
+                class="preview-zoom-slider"
+                type="range"
+                :min="ZOOM_MIN_PERCENT"
+                :max="ZOOM_MAX_PERCENT"
+                :step="ZOOM_STEP_PERCENT"
+                :value="previewZoomPercent"
+                aria-label="Zoom del editor"
+                @input="handleZoomInput" />
+              <button
+                type="button"
+                class="preview-zoom-btn"
+                aria-label="Aumentar zoom"
+                @click="adjustPreviewZoom(ZOOM_STEP_PERCENT)">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <button type="button" class="preview-zoom-reset" aria-label="Restablecer zoom" @click="resetPreviewZoom">
+                {{ previewZoomLabel }}
+              </button>
+            </div>
+            <p class="preview-zoom-hint" :class="{ 'preview-zoom-hint--active': isZoomShiftingViewport }">
+              Vista activa: {{ effectivePreviewDeviceLabel }}
+            </p>
           </div>
           <button
             type="button"
@@ -2882,8 +3170,8 @@ onBeforeRouteLeave((to) => {
 
           <p v-if="!templateModule" class="preview-note">No encontramos una vista para este estilo.</p>
 
-          <div v-else class="preview-stage">
-            <div class="preview-frame" :class="previewViewportClass">
+          <div v-else class="preview-stage" @wheel="handlePreviewWheelZoom">
+            <div class="preview-frame" :class="previewViewportClass" :style="previewFrameStyle">
               <component
                 :is="templateModule.component"
                 v-if="supportsInlineEditor"
@@ -2894,6 +3182,8 @@ onBeforeRouteLeave((to) => {
                 :type-event-name="typeEvent?.name || ''"
                 :editable="true"
                 :constrained-overlay="true"
+                :preview-viewport="previewDevice"
+                :preview-zoom-percent="previewZoomPercent"
                 :active-field="activeTextField"
                 :section-visibility="previewSectionVisibility"
                 :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']"
@@ -2908,7 +3198,9 @@ onBeforeRouteLeave((to) => {
                 :manifest="templateModule.manifest"
                 :data="previewData"
                 :invitation-title="title || invitation?.title || ''"
-                :type-event-name="typeEvent?.name || ''" />
+                :type-event-name="typeEvent?.name || ''"
+                :preview-viewport="previewDevice"
+                :preview-zoom-percent="previewZoomPercent" />
             </div>
           </div>
         </article>
@@ -3013,17 +3305,27 @@ onBeforeRouteLeave((to) => {
                 <div class="option-group">
                   <article v-for="section in optionalSections" :key="section.key" class="feature-item">
                     <div class="feature-header">
-                      <span>{{ section.label }}</span>
-                      <label class="switch">
+                      <button
+                        type="button"
+                        class="feature-accordion-toggle"
+                        :aria-expanded="isOptionalSectionExpanded(section.key) ? 'true' : 'false'"
+                        @click="toggleOptionalSectionPanel(section.key)">
+                        <span>{{ section.label }}</span>
+                        <svg class="feature-accordion-icon" :class="{ 'is-open': isOptionalSectionExpanded(section.key) }" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m7 10 5 5 5-5" />
+                        </svg>
+                      </button>
+                      <label class="switch" @click.stop>
                         <input
                           type="checkbox"
                           :checked="resolvedSectionVisibility[section.key]"
+                          @click.stop
                           @change="onSectionToggle(section.key, $event)" />
                         <span class="switch-track"></span>
                       </label>
                     </div>
 
-                    <div v-if="resolvedSectionVisibility[section.key]" class="feature-body">
+                    <div v-if="resolvedSectionVisibility[section.key] && isOptionalSectionExpanded(section.key)" class="feature-body">
                       <div v-if="section.key === 'checkin'" class="option-panel">
                         <BaseButton
                           type="button"
@@ -3211,7 +3513,16 @@ onBeforeRouteLeave((to) => {
                               <strong>{{ item.guest_name }}</strong>
                               <small>{{ formatWallMessageDate(item.posted_at) }}</small>
                             </div>
-                            <p class="wall-message-item__text">{{ item.message }}</p>
+                            <p class="wall-message-item__text">
+                              {{ wallEditorDisplayText(item.id, item.message) }}
+                            </p>
+                            <button
+                              v-if="wallEditorMessageIsLong(item.message)"
+                              type="button"
+                              class="wall-message-item__more"
+                              @click="toggleWallEditorMessageExpanded(item.id)">
+                              {{ wallEditorMessageExpanded(item.id) ? 'Ver menos' : 'Ver más' }}
+                            </button>
 
                             <div class="wall-message-item__actions">
                               <div class="feature-inline-switch feature-inline-switch--compact">
@@ -3283,48 +3594,90 @@ onBeforeRouteLeave((to) => {
                       </div>
 
                       <div v-else-if="section.key === 'location'" class="option-panel option-panel--location">
-                        <label class="field">
-                          <span>Enlace de Google Maps</span>
-                          <input
-                            v-model="locationMapsUrl"
-                            type="url"
-                            inputmode="url"
-                            placeholder="https://maps.google.com/..." />
-                          <small class="field-hint field-hint--location">Pega el enlace del lugar. Al guardar, convertimos la ubicación a formato compatible para Maps y Uber.</small>
-                        </label>
-
-                        <div
-                          v-if="locationPlaceId || (locationLatitude !== null && locationLongitude !== null) || locationMapsCanonicalUrl"
-                          class="location-meta">
-                          <p v-if="locationPlaceId" class="field-hint field-hint--location">
-                            <strong>Destino detectado:</strong> {{ locationPlaceId }}
+                        <div class="location-panel-head">
+                          <p class="location-panel-title">
+                            Puedes agregar hasta {{ MAX_LOCATIONS_PER_INVITATION }} ubicaciones.
                           </p>
-                          <p v-if="locationLatitude !== null && locationLongitude !== null" class="field-hint field-hint--location">
-                            <strong>Coordenadas:</strong> {{ locationLatitude.toFixed(6) }}, {{ locationLongitude.toFixed(6) }}
-                          </p>
-                          <p v-if="locationMapsCanonicalUrl" class="field-hint field-hint--location">
-                            <strong>Enlace canónico:</strong>
-                            <code>{{ locationMapsCanonicalUrl }}</code>
-                          </p>
+                          <button
+                            type="button"
+                            class="location-add-btn"
+                            :disabled="!canAddLocationDraft"
+                            @click="addLocationDraft">
+                            + Añadir
+                          </button>
                         </div>
 
-                        <div class="feature-inline-switch">
-                          <span>Mostrar botón de Uber</span>
-                          <label class="switch">
-                            <input v-model="locationUberEnabled" type="checkbox" />
-                            <span class="switch-track"></span>
+                        <p class="gallery-panel-copy">
+                          Ubicaciones configuradas: {{ locationItemsDraft.length }} / {{ MAX_LOCATIONS_PER_INVITATION }}
+                        </p>
+
+                        <article
+                          v-for="(locationItem, locationIndex) in locationItemsDraft"
+                          :key="`location-${locationIndex}`"
+                          class="location-item-card">
+                          <header class="location-item-card__head">
+                            <strong>Ubicación {{ locationIndex + 1 }}</strong>
+                            <button
+                              type="button"
+                              class="location-remove-btn"
+                              :disabled="locationItemsDraft.length <= 1"
+                              @click="removeLocationDraft(locationIndex)">
+                              Quitar
+                            </button>
+                          </header>
+
+                          <label class="field">
+                            <span>Enlace de Google Maps</span>
+                            <input
+                              :value="locationItem.mapsUrl"
+                              type="url"
+                              inputmode="url"
+                              placeholder="https://maps.google.com/..."
+                              @input="updateLocationDraftField(locationIndex, 'mapsUrl', ($event.target as HTMLInputElement).value)" />
+                            <small class="field-hint field-hint--location">
+                              Pega el enlace del lugar. Al guardar, convertimos la ubicación a formato compatible para Maps y Uber.
+                            </small>
                           </label>
-                        </div>
 
-                        <label v-if="locationUberEnabled" class="field">
-                          <span>Enlace de Uber (opcional)</span>
-                          <input
-                            v-model="locationUberUrl"
-                            type="url"
-                            inputmode="url"
-                            placeholder="https://m.uber.com/ul/?action=setPickup" />
-                          <small class="field-hint field-hint--location">Si lo dejas vacío, se arma automáticamente desde Google Maps.</small>
-                        </label>
+                          <div
+                            v-if="locationItem.placeId || (locationItem.latitude !== null && locationItem.longitude !== null) || locationItem.mapsCanonicalUrl"
+                            class="location-meta">
+                            <p v-if="locationItem.placeId" class="field-hint field-hint--location">
+                              <strong>Destino detectado:</strong> {{ locationItem.placeId }}
+                            </p>
+                            <p v-if="locationItem.latitude !== null && locationItem.longitude !== null" class="field-hint field-hint--location">
+                              <strong>Coordenadas:</strong> {{ locationItem.latitude.toFixed(6) }}, {{ locationItem.longitude.toFixed(6) }}
+                            </p>
+                            <p v-if="locationItem.mapsCanonicalUrl" class="field-hint field-hint--location">
+                              <strong>Enlace canónico:</strong>
+                              <code>{{ locationItem.mapsCanonicalUrl }}</code>
+                            </p>
+                          </div>
+
+                          <div class="feature-inline-switch">
+                            <span>Mostrar botón de Uber</span>
+                            <label class="switch">
+                              <input
+                                :checked="locationItem.uberEnabled"
+                                type="checkbox"
+                                @change="updateLocationDraftField(locationIndex, 'uberEnabled', ($event.target as HTMLInputElement).checked)" />
+                              <span class="switch-track"></span>
+                            </label>
+                          </div>
+
+                          <label v-if="locationItem.uberEnabled" class="field">
+                            <span>Enlace de Uber (opcional)</span>
+                            <input
+                              :value="locationItem.uberUrl"
+                              type="url"
+                              inputmode="url"
+                              placeholder="https://m.uber.com/ul/?action=setPickup"
+                              @input="updateLocationDraftField(locationIndex, 'uberUrl', ($event.target as HTMLInputElement).value)" />
+                            <small class="field-hint field-hint--location">
+                              Si lo dejas vacío, se arma automáticamente desde Google Maps.
+                            </small>
+                          </label>
+                        </article>
                       </div>
 
                       <div v-else-if="section.key === 'saveDate'" class="option-panel">
@@ -3421,6 +3774,7 @@ onBeforeRouteLeave((to) => {
             <li><strong>Ctrl/Cmd + Z:</strong> deshacer último cambio.</li>
             <li><strong>Ctrl/Cmd + S:</strong> guardar cambios.</li>
             <li><strong>Ctrl/Cmd + Shift + P:</strong> publicar invitación.</li>
+            <li><strong>Ctrl/Cmd + Scroll:</strong> ajustar zoom y explorar otras vistas.</li>
             <li><strong>Esc:</strong> cerrar panel de configuración o ayuda.</li>
           </ul>
           <div class="leave-modal-actions">
@@ -3489,6 +3843,7 @@ onBeforeRouteLeave((to) => {
                 :type-event-name="typeEvent?.name || ''"
                 :editable="true"
                 :constrained-overlay="true"
+                :preview-viewport="previewDevice"
                 :active-field="activeTextField"
                 :section-visibility="previewSectionVisibility"
                 :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']"
@@ -3563,6 +3918,14 @@ onBeforeRouteLeave((to) => {
   align-items: center;
   justify-content: center;
   position: relative;
+  min-height: 62px;
+}
+
+.preview-toolbar-main {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(840px, calc(100% - 128px));
 }
 
 .editor-immersive-trigger {
@@ -3615,6 +3978,82 @@ onBeforeRouteLeave((to) => {
 .device-tab.active {
   background: #0f172a;
   color: #fff;
+}
+
+.preview-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.32rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.94);
+}
+
+.preview-zoom-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.preview-zoom-btn:hover,
+.preview-zoom-btn:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.preview-zoom-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.preview-zoom-slider {
+  width: min(180px, 36vw);
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.preview-zoom-reset {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  min-height: 30px;
+  padding: 0 0.55rem;
+  background: #fff;
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.preview-zoom-reset:hover,
+.preview-zoom-reset:focus-visible {
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.preview-zoom-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.preview-zoom-hint--active {
+  color: #0f172a;
 }
 
 .editor-settings-fab {
@@ -3693,6 +4132,7 @@ onBeforeRouteLeave((to) => {
 
 .preview-frame--desktop {
   width: 100%;
+  margin: 0 auto;
 }
 
 .config-overlay {
@@ -3915,10 +4355,47 @@ onBeforeRouteLeave((to) => {
   font-weight: 700;
 }
 
-.feature-header > span {
-  flex: 1 1 auto;
+.feature-accordion-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.feature-accordion-toggle span {
   min-width: 0;
   line-height: 1.3;
+}
+
+.feature-accordion-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.65;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.feature-accordion-icon.is-open {
+  transform: rotate(180deg);
+  opacity: 0.95;
+}
+
+.feature-accordion-toggle:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 3px;
+  border-radius: 10px;
 }
 
 .feature-header .switch {
@@ -3994,6 +4471,90 @@ onBeforeRouteLeave((to) => {
 
 .option-panel--location {
   gap: 12px;
+}
+
+.location-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.location-panel-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.location-add-btn {
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.5rem 0.72rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.location-add-btn:hover:not(:disabled),
+.location-add-btn:focus-visible:not(:disabled) {
+  background: rgba(37, 99, 235, 0.16);
+  color: #1e40af;
+  transform: translateY(-1px);
+}
+
+.location-add-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.location-item-card {
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+}
+
+.location-item-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.location-item-card__head strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.location-remove-btn {
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.location-remove-btn:hover:not(:disabled),
+.location-remove-btn:focus-visible:not(:disabled) {
+  background: rgba(220, 38, 38, 0.14);
+  color: #991b1b;
+}
+
+.location-remove-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .location-meta {
@@ -4306,6 +4867,27 @@ onBeforeRouteLeave((to) => {
   font-size: 0.8rem;
   color: #334155;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.wall-message-item__more {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #3730a3;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  margin-top: -1px;
+  cursor: pointer;
+}
+
+.wall-message-item__more:hover,
+.wall-message-item__more:focus-visible {
+  color: #312e81;
+  text-decoration: underline;
 }
 
 .wall-message-item__actions {
@@ -4867,6 +5449,12 @@ onBeforeRouteLeave((to) => {
   color: #fff;
 }
 
+.immersive-preview-zoom {
+  padding: 0 12px 10px;
+  display: flex;
+  justify-content: center;
+}
+
 .immersive-preview-stage {
   overflow: auto;
   padding: 14px;
@@ -4886,7 +5474,7 @@ onBeforeRouteLeave((to) => {
 
 .immersive-preview-canvas--mobile {
   width: 390px;
-  max-width: 100%;
+  max-width: none;
 }
 
 .immersive-preview-canvas--tablet {
@@ -4895,7 +5483,7 @@ onBeforeRouteLeave((to) => {
 }
 
 .immersive-preview-canvas--desktop {
-  width: 1280px;
+  width: 1366px;
   max-width: none;
 }
 
@@ -4921,14 +5509,43 @@ onBeforeRouteLeave((to) => {
 }
 
 @media (max-width: 920px) {
+  .preview-toolbar {
+    min-height: 0;
+    align-items: stretch;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .preview-toolbar-main {
+    width: 100%;
+    justify-items: stretch;
+    gap: 7px;
+  }
+
   .device-tabs {
     width: 100%;
     justify-content: space-between;
-    padding-right: 40px;
   }
 
   .device-tab {
     flex: 1;
+    min-width: 0;
+  }
+
+  .preview-zoom-controls {
+    width: 100%;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  .preview-zoom-slider {
+    width: min(180px, 42vw);
+  }
+
+  .preview-zoom-hint {
+    text-align: center;
   }
 
   .config-drawer {
@@ -4966,6 +5583,9 @@ onBeforeRouteLeave((to) => {
   }
 
   .editor-immersive-trigger {
+    position: static;
+    transform: none;
+    margin-left: auto;
     width: 40px;
     min-width: 40px;
     padding: 0;
@@ -5026,16 +5646,22 @@ onBeforeRouteLeave((to) => {
     justify-content: center;
   }
 
+  .immersive-preview-zoom {
+    padding: 0 10px 10px;
+  }
+
   .immersive-preview-stage {
     padding: 8px;
   }
 
   .immersive-preview-canvas--tablet {
     width: 860px;
+    max-width: none;
   }
 
   .immersive-preview-canvas--desktop {
-    width: 1280px;
+    width: 1366px;
+    max-width: none;
   }
 }
 </style>

@@ -43,19 +43,25 @@ export const backofficeModuleGroups: PanelModuleGroup[] = [
 export const clientModuleGroups: PanelModuleGroup[] = [
   {
     title: 'Gestion',
-    items: [{ label: 'Mis invitaciones', href: '/panel/invitaciones' }],
+    items: [
+      { label: 'Mis invitaciones', href: '/panel/invitaciones' },
+      { label: 'Lista de invitados', href: '/panel/invitados' },
+    ],
   },
   {
     title: 'Analitica',
     items: [{ label: 'Estadisticas', href: '/panel/estadisticas' }],
   },
   {
-    title: 'Pagos',
-    items: [{ label: 'Mis facturaciones', href: '/panel/facturaciones' }],
+    title: 'Cuenta',
+    items: [
+      { label: 'Configuracion', href: '/panel/configuracion' },
+      { label: 'Notificaciones', href: '/panel/notificaciones' },
+    ],
   },
   {
-    title: 'Configuracion',
-    items: [{ label: 'Configuracion', href: '/panel/configuracion' }],
+    title: 'Plan',
+    items: [{ label: 'Mejorar plan', href: '/panel/mejorar-plan' }],
   },
 ]
 

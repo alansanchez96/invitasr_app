@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { createPublicInvitationWallMessage } from '@/services/publicInvitations'
+import { createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
 import type { InvitationTemplateRendererProps } from '@/templates/types'
 import { notifyError, notifySuccess } from '@/utils/toast'
 
@@ -12,6 +12,8 @@ type TemplateProps = InvitationTemplateRendererProps<'wedding'> & {
   constrainedOverlay?: boolean
   invitationTitle?: string
   typeEventName?: string
+  previewViewport?: 'mobile' | 'tablet' | 'desktop' | null
+  previewZoomPercent?: number | null
 }
 
 const props = withDefaults(defineProps<TemplateProps>(), {
@@ -20,6 +22,8 @@ const props = withDefaults(defineProps<TemplateProps>(), {
   sectionVisibility: () => ({}),
   checkinPreview: false,
   constrainedOverlay: false,
+  previewViewport: null,
+  previewZoomPercent: null,
 })
 
 const emit = defineEmits<{
@@ -37,14 +41,23 @@ const audioRef = ref<HTMLAudioElement | null>(null)
 const galleryCarouselIndex = ref(0)
 const galleryLightboxOpen = ref(false)
 const galleryLightboxIndex = ref(0)
-const isMobileGalleryViewport = ref(false)
+const galleryViewportMode = ref<'mobile' | 'tablet' | 'desktop'>('desktop')
 const wallComposerOpen = ref(false)
 const wallSubmitting = ref(false)
 const wallGuestName = ref('')
 const wallGuestMessage = ref('')
 const wallReceivedCount = ref(0)
+const rsvpSubmitting = ref(false)
+const rsvpFirstName = ref('')
+const rsvpLastName = ref('')
+const rsvpDietaryRestrictions = ref('')
+const rsvpSuccessMessage = ref<string | null>(null)
+const faqReviewedForRsvp = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
 const MOBILE_GALLERY_BREAKPOINT = 640
+const TABLET_GALLERY_BREAKPOINT = 900
+const WALL_MESSAGE_MAX_LENGTH = 250
+const WALL_MESSAGE_PREVIEW_LENGTH = 120
 
 type GalleryDisplaySlideRole = 'left' | 'center' | 'right'
 
@@ -296,35 +309,103 @@ const rsvpLabels = computed(() => ({
   lastName: resolveText(props.data.rsvp?.formLabels?.lastName, 'Apellido'),
   dietaryRestrictions: resolveText(props.data.rsvp?.formLabels?.dietaryRestrictions, 'Restricción alimentaria'),
 }))
-
-const locationName = computed(() => resolveText(props.data.location?.name, 'Ubicación del evento'))
-const locationAddress = computed(() =>
-  resolveText(props.data.location?.address, resolveText(props.data.location?.formattedAddress, 'Dirección')),
+const rsvpEnabled = computed(() => props.data.rsvp?.enabled !== false)
+const faqReadRequiredForRsvp = computed(() => {
+  const rawFaq = Array.isArray(props.data.faq) ? props.data.faq : []
+  const hasFaqItems = rawFaq.some((item) => Boolean(item?.question) && Boolean(item?.answer))
+  return !props.editable && isSectionVisible('faq') && hasFaqItems
+})
+const rsvpNeedsFaqReview = computed(() =>
+  faqReadRequiredForRsvp.value
+  && !faqReviewedForRsvp.value,
 )
-const locationLatitude = computed(() => toFiniteNumber(props.data.location?.latitude))
-const locationLongitude = computed(() => toFiniteNumber(props.data.location?.longitude))
-const mapsUrl = computed(() => {
-  const resolved = normalizeExternalUrl(
+const rsvpCanSubmit = computed(() => {
+  if (props.editable) return false
+  if (!isSectionVisible('rsvp')) return false
+  if (!rsvpEnabled.value) return false
+  if (rsvpNeedsFaqReview.value) return false
+  if (rsvpSubmitting.value) return false
+  return rsvpFirstName.value.trim().length >= 2 && rsvpLastName.value.trim().length >= 2
+})
+const rsvpGateHint = computed(() =>
+  rsvpNeedsFaqReview.value
+    ? 'Antes de confirmar, abre las preguntas importantes para evitar dudas de último momento.'
+    : 'Confirma tu asistencia para que podamos esperarte mejor.',
+)
+
+type TemplateLocationCard = {
+  id: string
+  name: string
+  address: string
+  mapsUrl: string
+  uberEnabled: boolean
+  uberUrl: string
+  latitude: number | null
+  longitude: number | null
+}
+
+const toTemplateLocationCard = (source: unknown, index: number): TemplateLocationCard => {
+  const row = source && typeof source === 'object' ? (source as Record<string, unknown>) : {}
+  const name = resolveText(row.name, `Ubicación ${index + 1}`)
+  const address = resolveText(row.address, resolveText(row.formattedAddress, 'Dirección del evento'))
+  const latitude = toFiniteNumber(row.latitude)
+  const longitude = toFiniteNumber(row.longitude)
+
+  const resolvedMapsUrl = normalizeExternalUrl(
     resolveText(
-      props.data.location?.mapsCanonicalUrl,
-      resolveText(props.data.location?.mapsUrl, 'https://maps.google.com'),
+      row.mapsCanonicalUrl,
+      resolveText(row.mapsUrl, 'https://maps.google.com'),
     ),
   )
-  if (resolved && isValidHttpUrl(resolved)) return resolved
-  return 'https://maps.google.com'
+  const mapsUrl = resolvedMapsUrl && isValidHttpUrl(resolvedMapsUrl)
+    ? resolvedMapsUrl
+    : 'https://maps.google.com'
+
+  const uberEnabled = row.uberEnabled !== false
+  const explicitUberUrl = normalizeExternalUrl(resolveText(row.uberUrl, ''))
+  const uberUrl = explicitUberUrl && isValidHttpUrl(explicitUberUrl)
+    ? explicitUberUrl
+    : buildUberUrl({
+      mapsUrl,
+      name,
+      address,
+      latitude,
+      longitude,
+    })
+
+  return {
+    id: resolveText(row.id, `loc-${index + 1}`),
+    name,
+    address,
+    mapsUrl,
+    uberEnabled,
+    uberUrl,
+    latitude,
+    longitude,
+  }
+}
+
+const locationCards = computed<TemplateLocationCard[]>(() => {
+  const rawLocations = Array.isArray((props.data as Record<string, unknown>).locations)
+    ? ((props.data as Record<string, unknown>).locations as unknown[])
+    : []
+
+  const source = rawLocations.length > 0
+    ? rawLocations
+    : [props.data.location]
+
+  return source
+    .filter((item) => item && typeof item === 'object')
+    .slice(0, 2)
+    .map((item, index) => toTemplateLocationCard(item, index))
 })
-const uberEnabled = computed(() => props.data.location?.uberEnabled !== false)
-const uberUrl = computed(() => {
-  const explicit = normalizeExternalUrl(resolveText(props.data.location?.uberUrl, ''))
-  if (explicit && isValidHttpUrl(explicit)) return explicit
-  return buildUberUrl({
-    mapsUrl: mapsUrl.value,
-    name: locationName.value,
-    address: locationAddress.value,
-    latitude: locationLatitude.value,
-    longitude: locationLongitude.value,
-  })
-})
+
+const primaryLocation = computed<TemplateLocationCard>(() =>
+  locationCards.value[0] ?? toTemplateLocationCard(props.data.location, 0),
+)
+
+const locationName = computed(() => primaryLocation.value.name)
+const locationAddress = computed(() => primaryLocation.value.address)
 
 const dressCode = computed(() => {
   const code = resolveText(props.data.dressCode?.code, '')
@@ -379,12 +460,14 @@ const normalizeWallMessage = (value: unknown, fallbackIndex: number): WallMessag
 }
 
 const wallMessages = ref<WallMessage[]>([])
+const wallExpandedMessageIds = ref<Record<string, boolean>>({})
 
 const hydrateWallMessagesFromProps = () => {
   const source = Array.isArray(props.data.wall?.messages) ? props.data.wall?.messages : []
   wallMessages.value = source
     .map((item, index) => normalizeWallMessage(item, index))
     .filter((item) => item.message.trim().length > 0 && item.isVisible !== false)
+  wallExpandedMessageIds.value = {}
 
   const explicitReceived = Number(props.data.wall?.receivedCount)
   if (Number.isFinite(explicitReceived) && explicitReceived >= 0) {
@@ -409,6 +492,16 @@ const wallReachedLimit = computed(() => {
   return wallReceivedCount.value >= limit
 })
 
+const wallUsageLabel = computed(() => {
+  const used = Math.max(0, wallReceivedCount.value)
+  const limit = wallMessageLimit.value
+  if (limit === null) {
+    return `${used} ${used === 1 ? 'mensaje' : 'mensajes'}`
+  }
+
+  return `${used}/${limit} mensajes`
+})
+
 const wallLimitTooltip = computed(() => {
   if (!wallReachedLimit.value) return wallConfig.value.addLabel
 
@@ -425,7 +518,71 @@ const wallCanSubmit = computed(() => {
   if (props.editable) return false
   if (!isSectionVisible('wall')) return false
   if (wallReachedLimit.value) return false
-  return wallGuestName.value.trim().length >= 2 && wallGuestMessage.value.trim().length >= 2 && !wallSubmitting.value
+  return wallGuestName.value.trim().length >= 2
+    && wallGuestMessage.value.trim().length >= 2
+    && wallGuestMessage.value.length <= WALL_MESSAGE_MAX_LENGTH
+    && !wallSubmitting.value
+})
+
+const wallGuestMessageLength = computed(() => wallGuestMessage.value.length)
+
+const wallGuestInitial = (name: string): string => {
+  const normalized = name.trim()
+  if (!normalized) return '?'
+  return normalized.charAt(0).toUpperCase()
+}
+
+const wallMessageKey = (item: WallMessage, index: number): string => `${item.id}-${index}`
+
+const wallIsExpanded = (item: WallMessage, index: number): boolean =>
+  Boolean(wallExpandedMessageIds.value[wallMessageKey(item, index)])
+
+const toggleWallMessageExpanded = (item: WallMessage, index: number): void => {
+  const key = wallMessageKey(item, index)
+  wallExpandedMessageIds.value[key] = !Boolean(wallExpandedMessageIds.value[key])
+}
+
+const wallMessageToCodePoints = (value: string): string[] => Array.from(value ?? '')
+
+const wallMessageIsLong = (message: string): boolean =>
+  wallMessageToCodePoints(message).length > WALL_MESSAGE_PREVIEW_LENGTH
+
+const wallMessageDisplayText = (message: string, expanded: boolean): string => {
+  if (expanded || !wallMessageIsLong(message)) {
+    return message
+  }
+
+  const truncated = wallMessageToCodePoints(message).slice(0, WALL_MESSAGE_PREVIEW_LENGTH).join('').trimEnd()
+  return `${truncated}…`
+}
+
+const isPreviewViewportForced = computed(() =>
+  props.previewViewport === 'mobile'
+  || props.previewViewport === 'tablet'
+  || props.previewViewport === 'desktop',
+)
+
+const usesEmbeddedOverlay = computed(() => props.editable || props.constrainedOverlay)
+
+const previewViewportClassName = computed(() => {
+  if (!isPreviewViewportForced.value) return ''
+  const viewport = props.previewViewport
+  if (viewport !== 'mobile' && viewport !== 'tablet' && viewport !== 'desktop') return ''
+  return `snow-template--preview-${viewport}`
+})
+
+const previewZoomValue = computed(() => {
+  const value = Number(props.previewZoomPercent ?? 100)
+  if (!Number.isFinite(value)) return 100
+  return value
+})
+
+const previewButtonsFontClass = computed(() => {
+  if (!isPreviewViewportForced.value) return ''
+  const viewport = props.previewViewport
+  const isTabletOrDesktop = viewport === 'tablet' || viewport === 'desktop'
+  if (!isTabletOrDesktop) return ''
+  return previewZoomValue.value <= 80 ? 'snow-template--preview-buttons-16' : ''
 })
 
 const galleryItems = computed(() => {
@@ -461,14 +618,28 @@ const normalizedGalleryLightboxIndex = computed(() =>
 const galleryHasMultipleItems = computed(() => galleryItems.value.length > 1)
 const galleryIsCompactSet = computed(() => galleryItems.value.length <= 2)
 const galleryIsSingleItem = computed(() => galleryItems.value.length === 1)
+const galleryIsMobileMode = computed(() => galleryViewportMode.value === 'mobile')
+const galleryIsTabletMode = computed(() => galleryViewportMode.value === 'tablet')
 const galleryDesktopSlides = computed<GalleryDisplaySlide[]>(() => {
   const total = galleryItems.value.length
   if (total <= 0) return []
 
   const centerIndex = normalizedGalleryCarouselIndex.value
 
-  if (isMobileGalleryViewport.value) {
+  if (galleryViewportMode.value === 'mobile') {
     return [{ index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'center' }]
+  }
+
+  if (galleryViewportMode.value === 'tablet') {
+    if (total === 1) {
+      return [{ index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'center' }]
+    }
+
+    const nextIndex = normalizeGalleryIndex(centerIndex + 1, total)
+    return [
+      { index: centerIndex, item: galleryItems.value[centerIndex]!, role: 'left' },
+      { index: nextIndex, item: galleryItems.value[nextIndex]!, role: 'right' },
+    ]
   }
 
   if (total === 1) {
@@ -593,7 +764,7 @@ const checkinEventDateText = computed(() => {
     hour12: false,
   }).format(date)
 
-  return `Te esperamos para celebrar juntos el ${formattedDate}.`
+  return formattedDate
 })
 
 const checkinEntryText = computed(() => {
@@ -710,11 +881,56 @@ const toggleMute = () => {
 }
 
 const openFaq = () => {
+  faqReviewedForRsvp.value = true
   faqModalOpen.value = true
 }
 
 const closeFaq = () => {
   faqModalOpen.value = false
+}
+
+const submitRsvp = async () => {
+  if (props.editable) return
+  if (!rsvpEnabled.value) {
+    notifyError('La confirmación de asistencia no está disponible para esta invitación.')
+    return
+  }
+
+  if (rsvpNeedsFaqReview.value) {
+    notifyError(rsvpGateHint.value)
+    return
+  }
+
+  if (!rsvpCanSubmit.value) {
+    notifyError('Completa nombre y apellido para confirmar asistencia.')
+    return
+  }
+
+  rsvpSubmitting.value = true
+  try {
+    const response = await createPublicInvitationRsvpResponse({
+      first_name: rsvpFirstName.value.trim(),
+      last_name: rsvpLastName.value.trim(),
+      dietary_restrictions: rsvpDietaryRestrictions.value.trim() || null,
+    })
+
+    const fullName = response.response.fullName || `${response.response.firstName} ${response.response.lastName}`.trim()
+    rsvpSuccessMessage.value = `¡Gracias ${fullName}! Tu asistencia quedó confirmada.`
+    rsvpFirstName.value = ''
+    rsvpLastName.value = ''
+    rsvpDietaryRestrictions.value = ''
+    notifySuccess('Tu asistencia quedó confirmada.')
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos registrar tu confirmación en este momento.')
+  } finally {
+    rsvpSubmitting.value = false
+  }
+}
+
+const handleRsvpPrimaryAction = () => {
+  if (props.editable) return
+  void submitRsvp()
 }
 
 const formatWallDate = (rawIso?: string | null): string => {
@@ -819,7 +1035,28 @@ const handleWindowKeydown = (event: KeyboardEvent) => {
 }
 
 const syncGalleryViewportMode = () => {
-  isMobileGalleryViewport.value = window.innerWidth <= MOBILE_GALLERY_BREAKPOINT
+  if (isPreviewViewportForced.value) {
+    const viewport = props.previewViewport
+    if (viewport === 'mobile' || viewport === 'tablet' || viewport === 'desktop') {
+      galleryViewportMode.value = viewport
+      return
+    }
+    galleryViewportMode.value = 'desktop'
+    return
+  }
+
+  const width = window.innerWidth
+  if (width <= MOBILE_GALLERY_BREAKPOINT) {
+    galleryViewportMode.value = 'mobile'
+    return
+  }
+
+  if (width <= TABLET_GALLERY_BREAKPOINT) {
+    galleryViewportMode.value = 'tablet'
+    return
+  }
+
+  galleryViewportMode.value = 'desktop'
 }
 
 const startBackgroundMusic = async () => {
@@ -921,6 +1158,13 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => [props.previewViewport, props.editable, props.constrainedOverlay],
+  () => {
+    syncGalleryViewportMode()
+  },
+)
+
 watch([musicAudioUrl, () => props.sectionVisibility.music], () => {
   void syncMusicState()
 })
@@ -939,7 +1183,9 @@ watch(
 </script>
 
 <template>
-  <article class="snow-template" :class="{ 'snow-template--public': !editable }">
+  <article
+    class="snow-template"
+    :class="[{ 'snow-template--public': !editable }, previewViewportClassName, previewButtonsFontClass]">
     <header v-if="isSectionVisible('hero')" class="snow-hero">
       <p class="snow-tag">Wedding Snow</p>
 
@@ -1029,56 +1275,6 @@ watch(
         @input="updateText('story_description', $event)" @blur="finishEdit" @keydown.esc.prevent="finishEdit" />
     </section>
 
-    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall">
-      <div class="snow-wall__head">
-        <p class="section-kicker">{{ wallConfig.title }}</p>
-        <button v-if="!editable && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
-          :class="{ 'is-disabled': wallReachedLimit }"
-          :aria-label="wallReachedLimit ? 'Muro completo' : wallConfig.addLabel"
-          :aria-disabled="wallReachedLimit ? 'true' : 'false'"
-          :title="wallLimitTooltip"
-          :data-tooltip="wallReachedLimit ? wallLimitTooltip : null"
-          @click="openWallComposer">
-          <span aria-hidden="true">+</span>
-        </button>
-      </div>
-
-      <p class="snow-wall__description">{{ wallConfig.description }}</p>
-
-      <form v-if="!wallHasMessages && !editable && !wallReachedLimit" class="snow-wall__form" @submit.prevent="submitWallMessage">
-        <label>
-          <span>Nombre</span>
-          <input v-model="wallGuestName" type="text" maxlength="120" placeholder="Tu nombre" />
-        </label>
-        <label>
-          <span>Mensaje</span>
-          <textarea v-model="wallGuestMessage" rows="3" maxlength="1200"
-            placeholder="Escribe aquí tu mensaje"></textarea>
-        </label>
-        <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
-          {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
-        </button>
-      </form>
-
-      <p v-if="!wallHasMessages && !editable && wallReachedLimit" class="snow-wall__empty">
-        {{ wallLimitTooltip }}
-      </p>
-
-      <p v-if="!wallHasMessages && editable" class="snow-wall__empty">
-        {{ wallConfig.emptyStateLabel }}
-      </p>
-
-      <div v-if="wallHasMessages" class="snow-wall__grid">
-        <article v-for="(item, index) in wallPreviewMessages" :key="`wall-${item.id}-${index}`" class="snow-wall-note">
-          <header>
-            <strong>{{ item.guestName }}</strong>
-            <time>{{ formatWallDate(item.postedAt) }}</time>
-          </header>
-          <p>{{ item.message }}</p>
-        </article>
-      </div>
-    </section>
-
     <section v-if="isSectionVisible('gallery') && galleryItems.length > 0" class="snow-card">
       <p class="section-kicker">Galería</p>
       <div class="snow-gallery-carousel">
@@ -1100,6 +1296,8 @@ watch(
           <div class="snow-gallery-strip" :class="{
             'snow-gallery-strip--compact': galleryIsCompactSet,
             'snow-gallery-strip--single': galleryIsSingleItem,
+            'snow-gallery-strip--tablet': galleryIsTabletMode,
+            'snow-gallery-strip--mobile': galleryIsMobileMode,
           }">
             <button v-for="slide in galleryDesktopSlides"
               :key="`gallery-slide-${slide.item.id}-${slide.role}-${slide.index}`" type="button"
@@ -1119,56 +1317,166 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('location')" class="snow-card snow-location">
-      <p class="section-kicker">Ubicación</p>
-      <strong>{{ locationName }}</strong>
-      <p>{{ locationAddress }}</p>
-      <div class="snow-actions-inline">
-        <a class="snow-link" :href="mapsUrl" target="_blank" rel="noopener noreferrer">Google Maps</a>
-        <a v-if="uberEnabled" class="snow-link" :href="uberUrl" target="_blank" rel="noopener noreferrer">
-          Pedir Uber
-        </a>
+    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall">
+      <div class="snow-wall__head">
+        <p class="section-kicker">{{ wallConfig.title }}</p>
+        <button v-if="!editable && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
+          :class="{ 'is-disabled': wallReachedLimit }"
+          :aria-label="wallReachedLimit ? 'Muro completo' : wallConfig.addLabel"
+          :aria-disabled="wallReachedLimit ? 'true' : 'false'" :title="wallLimitTooltip"
+          :data-tooltip="wallReachedLimit ? wallLimitTooltip : null" @click="openWallComposer">
+          <span aria-hidden="true">+</span>
+        </button>
+      </div>
+
+      <p class="snow-wall__description">{{ wallConfig.description }}</p>
+      <div class="snow-wall__meta">
+        <span class="snow-wall__chip">{{ wallUsageLabel }}</span>
+        <span v-if="!wallReachedLimit" class="snow-wall__chip snow-wall__chip--soft">Espacio para dedicatorias</span>
+      </div>
+
+      <form v-if="!wallHasMessages && !editable && !wallReachedLimit" class="snow-wall__form"
+        @submit.prevent="submitWallMessage">
+        <label>
+          <span>Nombre</span>
+          <input v-model="wallGuestName" type="text" maxlength="120" placeholder="Tu nombre" />
+        </label>
+        <label>
+          <span>Mensaje</span>
+          <textarea v-model="wallGuestMessage" rows="3" :maxlength="WALL_MESSAGE_MAX_LENGTH"
+            placeholder="Escribe aquí tu mensaje"></textarea>
+          <small class="snow-wall__counter">{{ wallGuestMessageLength }}/{{ WALL_MESSAGE_MAX_LENGTH }}</small>
+        </label>
+        <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
+          {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
+        </button>
+      </form>
+
+      <p v-if="!wallHasMessages && !editable && wallReachedLimit" class="snow-wall__empty">
+        {{ wallLimitTooltip }}
+      </p>
+
+      <p v-if="!wallHasMessages && editable" class="snow-wall__empty">
+        {{ wallConfig.emptyStateLabel }}
+      </p>
+
+      <div v-if="wallHasMessages" class="snow-wall__grid">
+        <article v-for="(item, index) in wallPreviewMessages" :key="`wall-${item.id}-${index}`" class="snow-wall-note">
+          <header>
+            <div class="snow-wall-note__author">
+              <span class="snow-wall-note__avatar">{{ wallGuestInitial(item.guestName) }}</span>
+              <strong>{{ item.guestName }}</strong>
+            </div>
+            <time>{{ formatWallDate(item.postedAt) }}</time>
+          </header>
+          <p>{{ wallMessageDisplayText(item.message, wallIsExpanded(item, index)) }}</p>
+          <button v-if="wallMessageIsLong(item.message)" type="button" class="snow-wall-note__more"
+            @click="toggleWallMessageExpanded(item, index)">
+            {{ wallIsExpanded(item, index) ? 'Ver menos' : 'Ver más' }}
+          </button>
+        </article>
       </div>
     </section>
 
-    <section v-if="isSectionVisible('saveDate')" class="snow-card">
-      <p class="section-kicker">Save the date</p>
-      <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">
-        {{ saveDateLabel }}
-      </a>
-      <button v-else type="button" class="snow-action" disabled>
-        {{ saveDateLabel }} (se activa al publicar)
-      </button>
+    <section v-if="isSectionVisible('location')" class="snow-card snow-location">
+      <p class="section-kicker">Ubicación</p>
+      <div class="snow-location-grid" :class="{ 'snow-location-grid--single': locationCards.length <= 1 }">
+        <article v-for="(locationCard, index) in locationCards" :key="locationCard.id || `location-${index}`"
+          class="snow-location-card">
+          <strong>{{ locationCard.name }}</strong>
+          <p>{{ locationCard.address }}</p>
+          <div class="snow-actions-inline">
+            <a class="snow-link" :href="locationCard.mapsUrl" target="_blank" rel="noopener noreferrer">Google Maps</a>
+            <a v-if="locationCard.uberEnabled" class="snow-link" :href="locationCard.uberUrl" target="_blank"
+              rel="noopener noreferrer">
+              Pedir Uber
+            </a>
+          </div>
+        </article>
+      </div>
     </section>
 
-    <section v-if="isSectionVisible('dressCode')" class="snow-card">
-      <p class="section-kicker">Dress code</p>
-      <h2>{{ dressCode.title }}</h2>
-      <p>{{ dressCode.description }}</p>
-    </section>
+    <div v-if="isSectionVisible('saveDate') || isSectionVisible('dressCode')" class="snow-dual-grid">
+      <section v-if="isSectionVisible('saveDate')" class="snow-card snow-card--half">
+        <p class="section-kicker">Save the date</p>
+        <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">
+          {{ saveDateLabel }}
+        </a>
+        <button v-else type="button" class="snow-action" disabled>
+          {{ saveDateLabel }} (se activa al publicar)
+        </button>
+      </section>
+
+      <section v-if="isSectionVisible('dressCode')" class="snow-card snow-card--half">
+        <p class="section-kicker">Dress code</p>
+        <h2>{{ dressCode.title }}</h2>
+        <p>{{ dressCode.description }}</p>
+      </section>
+    </div>
 
     <section v-if="isSectionVisible('rsvp')" class="snow-card snow-rsvp">
       <p class="section-kicker">Confirmación</p>
-      <form class="snow-rsvp-form" @submit.prevent>
-        <label>
-          <span>{{ rsvpLabels.firstName }}</span>
-          <input type="text" />
-        </label>
-        <label>
-          <span>{{ rsvpLabels.lastName }}</span>
-          <input type="text" />
-        </label>
-        <label>
-          <span>{{ rsvpLabels.dietaryRestrictions }}</span>
-          <input type="text" />
-        </label>
-      </form>
-      <button v-if="!isEditing('rsvp_label')" class="snow-rsvp__button editable" type="button"
-        @dblclick="startEdit('rsvp_label')">
-        {{ rsvpLabel }}
-      </button>
-      <input v-else class="inline-input" :value="rsvpLabel" autofocus @input="updateText('rsvp_label', $event)"
-        @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
+      <div class="snow-rsvp-layout">
+        <div class="snow-rsvp-main">
+          <p class="snow-rsvp__intro">
+            Confirma tu asistencia para que podamos prepararlo todo para ti.
+          </p>
+
+          <form class="snow-rsvp-form" @submit.prevent="submitRsvp">
+            <label>
+              <span>{{ rsvpLabels.firstName }}</span>
+              <input v-model="rsvpFirstName" type="text" maxlength="120" :disabled="props.editable || rsvpSubmitting" />
+            </label>
+            <label>
+              <span>{{ rsvpLabels.lastName }}</span>
+              <input v-model="rsvpLastName" type="text" maxlength="120" :disabled="props.editable || rsvpSubmitting" />
+            </label>
+            <label>
+              <span>{{ rsvpLabels.dietaryRestrictions }}</span>
+              <input v-model="rsvpDietaryRestrictions" type="text" maxlength="255"
+                :disabled="props.editable || rsvpSubmitting" />
+            </label>
+
+            <p class="snow-rsvp__hint">{{ rsvpGateHint }}</p>
+          </form>
+
+          <button v-if="!isEditing('rsvp_label')" class="snow-rsvp__button editable" type="button"
+            :disabled="!props.editable && !rsvpCanSubmit"
+            :aria-disabled="!props.editable && !rsvpCanSubmit ? 'true' : 'false'"
+            :title="!props.editable && !rsvpCanSubmit ? rsvpGateHint : rsvpLabel" @click="handleRsvpPrimaryAction"
+            @dblclick="startEdit('rsvp_label')">
+            {{
+              props.editable
+                ? rsvpLabel
+                : (rsvpSubmitting ? 'Confirmando...' : rsvpLabel)
+            }}
+          </button>
+          <input v-else class="inline-input" :value="rsvpLabel" autofocus @input="updateText('rsvp_label', $event)"
+            @blur="finishEdit" @keydown.enter.prevent="finishEdit" />
+
+          <p v-if="rsvpSuccessMessage && !props.editable" class="snow-rsvp__success">{{ rsvpSuccessMessage }}</p>
+        </div>
+
+        <aside v-if="isSectionVisible('faq')" class="snow-rsvp-side">
+          <div v-if="faqReadRequiredForRsvp && !faqReviewedForRsvp" class="snow-rsvp__faq-gate">
+            <strong>Antes de confirmar, revisa las preguntas importantes.</strong>
+            <p>Así evitamos dudas de último momento y tu experiencia será más simple.</p>
+            <button type="button" class="snow-action snow-action--cta" @click="openFaq">
+              Leer preguntas importantes
+            </button>
+          </div>
+
+          <div v-else class="snow-faq snow-faq--side">
+            <h3>Preguntas frecuentes</h3>
+            <p class="snow-faq__lead">
+              Ya puedes revisar toda la información clave antes de confirmar.
+            </p>
+            <button class="snow-action snow-action--cta" type="button" @click="openFaq">
+              Abrir preguntas frecuentes
+            </button>
+          </div>
+        </aside>
+      </div>
     </section>
 
     <audio ref="audioRef" preload="auto" loop playsinline></audio>
@@ -1183,15 +1491,23 @@ watch(
       <span>{{ musicMuted ? 'Activar música' : 'Silenciar música' }}</span>
     </button>
 
-    <section v-if="isSectionVisible('faq')" class="snow-card">
-      <p class="section-kicker">Ayuda</p>
-      <button class="snow-action" type="button" @click="openFaq">
-        Preguntas frecuentes
+    <section v-if="isSectionVisible('faq') && !isSectionVisible('rsvp')" class="snow-card snow-faq">
+      <p class="section-kicker">Información importante</p>
+      <h3>Preguntas frecuentes que conviene leer antes de confirmar</h3>
+      <p class="snow-faq__lead">
+        Te recomendamos leerlas para llegar al evento con todo claro.
+      </p>
+      <button class="snow-action snow-action--cta" type="button" @click="openFaq">
+        Leer preguntas frecuentes
       </button>
     </section>
 
-    <div v-if="faqModalOpen" class="snow-modal-backdrop" @click.self="closeFaq">
-      <div class="snow-modal">
+    <div
+      v-if="faqModalOpen"
+      class="snow-modal-backdrop"
+      :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
+      @click.self="closeFaq">
+      <div class="snow-modal" :class="{ 'snow-modal--embedded': usesEmbeddedOverlay }">
         <header class="snow-modal__head">
           <h3>Preguntas frecuentes</h3>
           <button type="button" aria-label="Salir de preguntas frecuentes" title="Salir" @click="closeFaq">
@@ -1211,8 +1527,12 @@ watch(
       </div>
     </div>
 
-    <div v-if="wallComposerOpen" class="snow-modal-backdrop" @click.self="closeWallComposer">
-      <div class="snow-modal snow-modal--wall">
+    <div
+      v-if="wallComposerOpen"
+      class="snow-modal-backdrop"
+      :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
+      @click.self="closeWallComposer">
+      <div class="snow-modal snow-modal--wall" :class="{ 'snow-modal--embedded': usesEmbeddedOverlay }">
         <header class="snow-modal__head">
           <h3>{{ wallConfig.addLabel }}</h3>
           <button type="button" aria-label="Salir de añadir mensaje" title="Salir" @click="closeWallComposer">
@@ -1230,8 +1550,9 @@ watch(
             </label>
             <label>
               <span>Mensaje</span>
-              <textarea v-model="wallGuestMessage" rows="4" maxlength="1200"
+              <textarea v-model="wallGuestMessage" rows="4" :maxlength="WALL_MESSAGE_MAX_LENGTH"
                 placeholder="Escribe aquí tu mensaje"></textarea>
+              <small class="snow-wall__counter">{{ wallGuestMessageLength }}/{{ WALL_MESSAGE_MAX_LENGTH }}</small>
             </label>
             <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
               {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
@@ -1296,7 +1617,8 @@ watch(
         <p class="section-kicker">{{ props.checkinPreview ? 'Vista previa check-in' : 'Bienvenida interactiva' }}</p>
         <h3>{{ checkinTitle }}</h3>
         <p>{{ checkinMessage }}</p>
-        <p v-if="checkinEventDateText" class="snow-checkin-overlay__meta">{{ checkinEventDateText }}</p>
+        <p v-if="checkinEventDateText" class="snow-checkin-overlay__meta">Te esperamos para celebrar juntos el <span
+            style="display: block">{{ checkinEventDateText }}</span></p>
         <p v-if="checkinEntryText" class="snow-checkin-overlay__meta">{{ checkinEntryText }}</p>
         <button class="snow-action" type="button" @click="closeCheckinOverlay">{{ checkinButton }}</button>
       </div>
@@ -1337,8 +1659,8 @@ watch(
 .snow-wall {
   position: relative;
   overflow: hidden;
-  border-color: rgba(120, 84, 52, 0.2);
-  background: linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%)
+  border-color: rgba(122, 79, 217, 0.24);
+  background: linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%);
 }
 
 .snow-wall::before {
@@ -1346,9 +1668,10 @@ watch(
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 10% 22%, rgba(255, 255, 255, 0.1) 0 20%, transparent 24%),
-    radial-gradient(circle at 85% 68%, rgba(255, 255, 255, 0.07) 0 17%, transparent 22%);
-  opacity: 0.75;
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 24px),
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.4), transparent 34%),
+    radial-gradient(circle at 82% 76%, rgba(255, 255, 255, 0.28), transparent 31%);
+  opacity: 0.66;
   pointer-events: none;
 }
 
@@ -1365,8 +1688,33 @@ watch(
 }
 
 .snow-wall__description {
-  margin: 0 0 0.8rem;
-  color: rgba(45, 24, 10, 0.86);
+  margin: 0;
+  color: rgba(45, 24, 10, 0.88);
+}
+
+.snow-wall__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0.62rem 0 0.85rem;
+}
+
+.snow-wall__chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.58rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #3b1f63;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(122, 79, 217, 0.22);
+}
+
+.snow-wall__chip--soft {
+  color: #6a557e;
+  border-color: rgba(110, 90, 136, 0.22);
 }
 
 .snow-wall__add {
@@ -1481,6 +1829,14 @@ watch(
   font-weight: 700;
 }
 
+.snow-wall__counter {
+  justify-self: end;
+  margin-top: -2px;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
 .snow-wall__form input,
 .snow-wall__form textarea {
   border-radius: 12px;
@@ -1499,8 +1855,8 @@ watch(
 .snow-wall__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 40px;
+  gap: 16px;
+  margin-top: 0.25rem;
 }
 
 .snow-wall-note {
@@ -1509,29 +1865,30 @@ watch(
   --pin-color: #db4f57;
   position: relative;
   isolation: isolate;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 1px solid rgba(102, 70, 43, 0.14);
-  padding: 16px 14px 12px;
+  padding: 16px 14px 14px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0px, transparent 34px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0px, transparent 34px),
+    repeating-linear-gradient(0deg, rgba(105, 78, 47, 0.08) 0 1px, transparent 1px 23px),
     linear-gradient(180deg, var(--note-bg) 0%, var(--note-edge) 100%);
   box-shadow:
-    0 16px 26px rgba(45, 24, 10, 0.24),
-    0 3px 8px rgba(45, 24, 10, 0.18);
+    0 18px 28px rgba(45, 24, 10, 0.22),
+    0 5px 12px rgba(45, 24, 10, 0.14);
   transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
-  transform: rotate(-1.4deg);
+  transform: rotate(-1.2deg);
 }
 
 .snow-wall-note::before {
   content: '';
   position: absolute;
   inset: -8px 8px 8px -8px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(238, 247, 255, 0.82);
   border: 1px solid rgba(102, 70, 43, 0.12);
   z-index: -2;
-  transform: rotate(-3.2deg);
-  box-shadow: 0 8px 16px rgba(45, 24, 10, 0.1);
+  transform: rotate(-2.8deg);
+  box-shadow: 0 10px 18px rgba(45, 24, 10, 0.12);
 }
 
 .snow-wall-note::after {
@@ -1570,16 +1927,16 @@ watch(
   --note-bg: #d8f6cf;
   --note-edge: #c6edbc;
   --pin-color: #2f65cc;
-  transform: rotate(1.1deg);
+  transform: rotate(1.2deg);
 }
 
 .snow-wall-note:hover,
 .snow-wall-note:focus-within {
-  transform: translateY(-3px) scale(1.016);
+  transform: translateY(-4px) scale(1.02);
   box-shadow:
-    0 22px 32px rgba(45, 24, 10, 0.3),
-    0 8px 14px rgba(45, 24, 10, 0.2);
-  filter: saturate(1.03);
+    0 24px 34px rgba(45, 24, 10, 0.3),
+    0 8px 16px rgba(45, 24, 10, 0.2);
+  filter: saturate(1.06);
 }
 
 .snow-wall-note header {
@@ -1591,21 +1948,66 @@ watch(
   padding-top: 8px;
 }
 
+.snow-wall-note__author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snow-wall-note__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(130deg, #7a4fd9 0%, #f06aa6 100%);
+  box-shadow: 0 4px 10px rgba(122, 79, 217, 0.38);
+}
+
 .snow-wall-note strong {
-  font-size: 0.84rem;
-  color: rgba(44, 23, 8, 0.95);
+  font-size: 0.83rem;
+  color: rgba(44, 23, 8, 0.96);
 }
 
 .snow-wall-note time {
   font-size: 0.71rem;
-  color: rgba(84, 58, 35, 0.78);
+  color: rgba(84, 58, 35, 0.8);
+  padding-top: 2px;
 }
 
 .snow-wall-note p {
   margin: 0;
   color: rgba(44, 23, 8, 0.92);
   white-space: pre-wrap;
-  line-height: 1.45;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.52;
+}
+
+.snow-wall-note__more {
+  margin-top: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: #40207a;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(64, 32, 122, 0.45);
+  text-underline-offset: 2px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.snow-wall-note__more:hover,
+.snow-wall-note__more:focus-visible {
+  color: #2f65cc;
+  text-decoration-color: rgba(47, 101, 204, 0.6);
 }
 
 .snow-modal--wall {
@@ -1761,6 +2163,23 @@ watch(
   max-width: 820px;
 }
 
+.snow-gallery-strip--tablet {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 860px;
+  padding: 0 18px;
+}
+
+.snow-gallery-strip--mobile {
+  grid-template-columns: 1fr;
+  max-width: none;
+  padding: 0 12px;
+}
+
+.snow-gallery-strip--mobile .snow-gallery-card--left,
+.snow-gallery-strip--mobile .snow-gallery-card--right {
+  display: none;
+}
+
 .snow-gallery-card {
   border: 0;
   margin: 0;
@@ -1827,7 +2246,9 @@ watch(
 }
 
 .snow-gallery-strip--compact .snow-gallery-card,
-.snow-gallery-strip--single .snow-gallery-card {
+.snow-gallery-strip--single .snow-gallery-card,
+.snow-gallery-strip--tablet .snow-gallery-card,
+.snow-gallery-strip--mobile .snow-gallery-card {
   opacity: 1;
   transform: none;
   aspect-ratio: 3 / 4;
@@ -2104,6 +2525,33 @@ watch(
   margin-bottom: 0.35rem;
 }
 
+.snow-location-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.snow-location-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.snow-location-card {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+}
+
+.snow-dual-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.snow-card--half {
+  min-height: 100%;
+}
+
 .snow-actions-inline {
   margin-top: 0.7rem;
   display: flex;
@@ -2128,17 +2576,92 @@ watch(
   border: 0;
   border-radius: 999px;
   padding: 0.75rem 1.1rem;
-  background: #0f172a;
+  background: linear-gradient(120deg, #0f172a 0%, #1e293b 100%);
   color: #fff;
   font-weight: 700;
   cursor: pointer;
   margin-top: 0.92rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  min-height: 44px;
+}
+
+.snow-rsvp__button.editable,
+.snow-rsvp__button.editable:hover,
+.snow-rsvp__button.editable:focus-visible {
+  cursor: pointer !important;
+  outline: none;
+}
+
+.snow-rsvp__button:not(:disabled):hover,
+.snow-rsvp__button:not(:disabled):focus-visible {
+  cursor: pointer;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.24);
+}
+
+.snow-rsvp__button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .snow-rsvp-form {
   display: grid;
   gap: 0.72rem;
   margin-top: 0.6rem;
+}
+
+.snow-rsvp-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.snow-rsvp-main,
+.snow-rsvp-side {
+  min-width: 0;
+}
+
+.snow-rsvp__intro {
+  margin: 0;
+  color: #475569;
+}
+
+.snow-rsvp__faq-gate {
+  margin-top: 0.65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(250, 204, 21, 0.2), transparent 45%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.93));
+  padding: 0.8rem 0.85rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.snow-rsvp__faq-gate strong {
+  color: #1e293b;
+}
+
+.snow-rsvp__faq-gate p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.snow-rsvp__hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.86rem;
+  color: #64748b;
+}
+
+.snow-rsvp__success {
+  margin: 0.65rem 0 0 !important;
+  border-radius: 12px;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  background: rgba(240, 253, 244, 0.94);
+  color: #166534;
+  font-weight: 700;
 }
 
 .snow-rsvp-form label {
@@ -2159,6 +2682,46 @@ watch(
   padding: 0.5rem 0.65rem;
   font: inherit;
   margin-top: 0.12rem;
+}
+
+.snow-rsvp-form input:disabled {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.snow-faq h3 {
+  margin: 0.2rem 0 0;
+  color: #0f172a;
+  font-size: 1.15rem;
+}
+
+.snow-faq--side {
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 252, 0.94));
+}
+
+.snow-faq__lead {
+  margin: 0.55rem 0 0;
+  color: #475569;
+}
+
+.snow-action--cta {
+  margin-top: 0.74rem;
+  box-shadow: 0 0 0 rgba(15, 23, 42, 0.18);
+  animation: faq-cta-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes faq-cta-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(15, 23, 42, 0.18);
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(15, 23, 42, 0);
+  }
 }
 
 .editable {
@@ -2209,6 +2772,12 @@ watch(
   padding: 1rem;
 }
 
+.snow-modal-backdrop--embedded {
+  position: absolute;
+  z-index: 130;
+  border-radius: inherit;
+}
+
 .snow-modal {
   width: min(640px, 94vw);
   max-height: min(82vh, 760px);
@@ -2217,6 +2786,11 @@ watch(
   display: grid;
   grid-template-rows: auto 1fr;
   overflow: hidden;
+}
+
+.snow-modal--embedded {
+  width: min(640px, calc(100% - 1rem));
+  max-height: calc(100% - 1rem);
 }
 
 .snow-modal--checkin {
@@ -2483,25 +3057,398 @@ watch(
   }
 }
 
+.snow-template--preview-tablet,
+.snow-template--preview-mobile {
+  --snow-thumb-size: 56px;
+}
+
+.snow-template--preview-tablet .snow-location-grid,
+.snow-template--preview-tablet .snow-dual-grid,
+.snow-template--preview-tablet .snow-rsvp-layout,
+.snow-template--preview-mobile .snow-location-grid,
+.snow-template--preview-mobile .snow-dual-grid,
+.snow-template--preview-mobile .snow-rsvp-layout {
+  grid-template-columns: 1fr;
+}
+
+.snow-template--preview-tablet .snow-rsvp__button,
+.snow-template--preview-mobile .snow-rsvp__button {
+  width: 100%;
+}
+
+.snow-template--preview-tablet .snow-gallery-strip,
+.snow-template--preview-mobile .snow-gallery-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: none;
+  padding: 0 12px;
+}
+
+.snow-template--preview-mobile .snow-gallery-strip:not(.snow-gallery-strip--compact) .snow-gallery-card--left,
+.snow-template--preview-mobile .snow-gallery-strip:not(.snow-gallery-strip--compact) .snow-gallery-card--right {
+  display: none;
+}
+
+.snow-template--preview-tablet .snow-gallery-strip--compact,
+.snow-template--preview-mobile .snow-gallery-strip--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 12px;
+}
+
+.snow-template--preview-tablet .snow-gallery-strip--single,
+.snow-template--preview-mobile .snow-gallery-strip--single {
+  grid-template-columns: 1fr;
+  padding: 0 12px;
+}
+
+.snow-template--preview-tablet .snow-gallery-card,
+.snow-template--preview-mobile .snow-gallery-card {
+  aspect-ratio: 3 / 4;
+}
+
+.snow-template--preview-tablet .snow-gallery-card--left,
+.snow-template--preview-tablet .snow-gallery-card--right,
+.snow-template--preview-tablet .snow-gallery-card--center,
+.snow-template--preview-mobile .snow-gallery-card--left,
+.snow-template--preview-mobile .snow-gallery-card--right,
+.snow-template--preview-mobile .snow-gallery-card--center {
+  transform: none;
+  opacity: 1;
+  filter: saturate(1);
+}
+
+.snow-template--preview-tablet .snow-gallery-nav,
+.snow-template--preview-mobile .snow-gallery-nav {
+  width: 34px;
+  height: 34px;
+}
+
+.snow-template--preview-tablet .snow-gallery-nav--prev,
+.snow-template--preview-mobile .snow-gallery-nav--prev {
+  left: 2px;
+}
+
+.snow-template--preview-tablet .snow-gallery-nav--next,
+.snow-template--preview-mobile .snow-gallery-nav--next {
+  right: 2px;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox,
+.snow-template--preview-mobile .snow-gallery-lightbox {
+  padding: 0.45rem;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__panel,
+.snow-template--preview-mobile .snow-gallery-lightbox__panel {
+  width: min(100%, calc(100% - 0.4rem));
+  max-height: calc(100% - 0.4rem);
+  height: calc(100% - 0.4rem);
+  border-radius: 12px;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__stage,
+.snow-template--preview-mobile .snow-gallery-lightbox__stage {
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+  padding: 0.55rem;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__stage figure,
+.snow-template--preview-mobile .snow-gallery-lightbox__stage figure {
+  border-radius: 10px;
+  padding-inline: 2rem;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__nav,
+.snow-template--preview-mobile .snow-gallery-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  z-index: 2;
+}
+
+.snow-template--preview-tablet .snow-gallery-nav,
+.snow-template--preview-tablet .snow-gallery-carousel__open,
+.snow-template--preview-mobile .snow-gallery-nav,
+.snow-template--preview-mobile .snow-gallery-carousel__open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__nav--prev,
+.snow-template--preview-mobile .snow-gallery-lightbox__nav--prev {
+  left: 0.45rem;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__nav--next,
+.snow-template--preview-mobile .snow-gallery-lightbox__nav--next {
+  right: 0.45rem;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__stage img,
+.snow-template--preview-mobile .snow-gallery-lightbox__stage img {
+  max-height: min(62vh, 520px);
+  border-radius: 10px;
+}
+
+.snow-template--preview-tablet .snow-gallery-lightbox__thumbs,
+.snow-template--preview-mobile .snow-gallery-lightbox__thumbs {
+  padding: 0.58rem 0.62rem 0.65rem;
+}
+
+.snow-template--preview-tablet .snow-countdown,
+.snow-template--preview-mobile .snow-countdown {
+  width: 100%;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 0.45rem 0.42rem;
+}
+
+.snow-template--preview-tablet .snow-countdown__unit,
+.snow-template--preview-mobile .snow-countdown__unit {
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 0.42rem 0.4rem;
+}
+
+.snow-template--preview-tablet .snow-countdown__divider,
+.snow-template--preview-mobile .snow-countdown__divider {
+  font-size: 0.9rem;
+  padding-bottom: 0.2rem;
+}
+
+.snow-template--preview-tablet .snow-wall__grid,
+.snow-template--preview-mobile .snow-wall__grid {
+  grid-template-columns: 1fr;
+}
+
+.snow-template--preview-tablet .snow-wall-note,
+.snow-template--preview-mobile .snow-wall-note {
+  transform: none;
+}
+
+.snow-template--preview-tablet .snow-music-fab,
+.snow-template--preview-mobile .snow-music-fab {
+  right: 12px;
+  bottom: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.snow-template--preview-tablet .snow-music-fab span:last-child,
+.snow-template--preview-mobile .snow-music-fab span:last-child {
+  display: none;
+}
+
+.snow-template--preview-tablet .snow-checkin-overlay,
+.snow-template--preview-mobile .snow-checkin-overlay {
+  padding: 0.7rem;
+}
+
+.snow-template--preview-tablet .snow-checkin-overlay__card,
+.snow-template--preview-mobile .snow-checkin-overlay__card {
+  width: min(520px, calc(100% - 0.75rem));
+  max-height: calc(100% - 0.75rem);
+  border-radius: 18px;
+  padding: 1rem 0.9rem;
+}
+
+.snow-template--preview-tablet .snow-checkin-overlay__card h3,
+.snow-template--preview-mobile .snow-checkin-overlay__card h3 {
+  font-size: clamp(1.3rem, 5.4vw, 1.9rem);
+}
+
+.snow-template--preview-mobile {
+  --snow-thumb-size: 52px;
+}
+
+.snow-template--preview-mobile .snow-gallery-strip,
+.snow-template--preview-mobile .snow-gallery-strip--compact,
+.snow-template--preview-mobile .snow-gallery-strip--single {
+  grid-template-columns: 1fr;
+  padding: 0 4px;
+}
+
+.snow-template--preview-tablet .snow-gallery-strip--tablet {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 12px;
+}
+
+.snow-template--preview-mobile .snow-gallery-strip--tablet,
+.snow-template--preview-mobile .snow-gallery-strip--mobile {
+  grid-template-columns: 1fr;
+  padding: 0 4px;
+}
+
+.snow-template--preview-mobile .snow-gallery-nav {
+  width: 32px;
+  height: 32px;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox {
+  padding: 0;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__panel {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__head {
+  padding: 0.62rem;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__stage {
+  padding: 0.5rem;
+  gap: 0.45rem;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__stage figure {
+  padding-inline: 1.75rem;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__stage img {
+  max-height: min(64vh, 460px);
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__nav {
+  width: 32px;
+  height: 32px;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__nav--prev {
+  left: 0.3rem;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__nav--next {
+  right: 0.3rem;
+}
+
+.snow-template--preview-mobile .snow-gallery-lightbox__thumbs {
+  padding: 0.5rem;
+  gap: 6px;
+}
+
+.snow-template--preview-mobile .snow-wall__form input,
+.snow-template--preview-mobile .snow-wall__form textarea {
+  font-size: 0.88rem;
+}
+
+.snow-template--preview-desktop .snow-location-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.snow-template--preview-desktop .snow-location-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.snow-template--preview-desktop .snow-dual-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.snow-template--preview-desktop .snow-rsvp-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.snow-template--preview-desktop .snow-rsvp__button {
+  width: auto;
+  min-width: 220px;
+}
+
+.snow-template--preview-desktop .snow-gallery-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 980px;
+  padding: 0 54px;
+}
+
+.snow-template--preview-desktop .snow-gallery-strip--single {
+  grid-template-columns: 1fr;
+  max-width: 620px;
+}
+
+.snow-template--preview-desktop .snow-gallery-strip--compact,
+.snow-template--preview-desktop .snow-gallery-strip--tablet {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 820px;
+  padding: 0 12px;
+}
+
+.snow-template--preview-desktop .snow-gallery-card--left,
+.snow-template--preview-desktop .snow-gallery-card--right {
+  opacity: 0.82;
+  transform: translateY(22px) scale(0.88);
+}
+
+.snow-template--preview-desktop .snow-gallery-card--center {
+  z-index: 2;
+  transform: translateY(12px) scale(1.04);
+  filter: saturate(1.03);
+  box-shadow: 0 26px 44px rgba(15, 23, 42, 0.3);
+}
+
+.snow-template--preview-desktop .snow-gallery-card--center:hover {
+  transform: translateY(8px) scale(1.06);
+}
+
+.snow-template--preview-buttons-16 .snow-action,
+.snow-template--preview-buttons-16 .snow-link,
+.snow-template--preview-buttons-16 .snow-rsvp__button,
+.snow-template--preview-buttons-16 .snow-gallery-carousel__open {
+  font-size: 16px;
+}
+
+@media (min-width: 980px) {
+  .snow-rsvp-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .snow-rsvp__button {
+    width: auto;
+    min-width: 220px;
+  }
+}
+
 @media (max-width: 900px) {
   .snow-template {
     --snow-thumb-size: 56px;
   }
 
-  .snow-gallery-strip {
+  .snow-location-grid,
+  .snow-dual-grid,
+  .snow-rsvp-layout {
     grid-template-columns: 1fr;
-    max-width: none;
-    padding: 0 40px;
   }
 
-  .snow-gallery-strip:not(.snow-gallery-strip--compact) .snow-gallery-card--left,
-  .snow-gallery-strip:not(.snow-gallery-strip--compact) .snow-gallery-card--right {
-    display: none;
+  .snow-rsvp__button {
+    width: 100%;
+  }
+
+  .snow-gallery-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+    padding: 0 12px;
   }
 
   .snow-gallery-strip--compact {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 0 12px;
+  }
+
+  .snow-gallery-strip--tablet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 12px;
+  }
+
+  .snow-gallery-strip--mobile {
+    grid-template-columns: 1fr;
+    padding: 0 4px;
   }
 
   .snow-gallery-strip--single {
@@ -2720,5 +3667,68 @@ watch(
   .snow-wall__form textarea {
     font-size: 0.88rem;
   }
+}
+
+/* Preview tabs (Mis invitaciones / editor) must match published grid semantics exactly,
+   regardless of the real device viewport running the UI shell. */
+.snow-template.snow-template--preview-desktop .snow-location-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.snow-template.snow-template--preview-desktop .snow-location-grid--single {
+  grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-desktop .snow-dual-grid,
+.snow-template.snow-template--preview-desktop .snow-rsvp-layout,
+.snow-template.snow-template--preview-desktop .snow-wall__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.snow-template.snow-template--preview-desktop .snow-gallery-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.snow-template.snow-template--preview-desktop .snow-gallery-strip--compact,
+.snow-template.snow-template--preview-desktop .snow-gallery-strip--tablet {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.snow-template.snow-template--preview-desktop .snow-gallery-strip--single,
+.snow-template.snow-template--preview-desktop .snow-gallery-strip--mobile {
+  grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-tablet .snow-location-grid,
+.snow-template.snow-template--preview-tablet .snow-dual-grid,
+.snow-template.snow-template--preview-tablet .snow-rsvp-layout,
+.snow-template.snow-template--preview-tablet .snow-wall__grid {
+  grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-tablet .snow-gallery-strip,
+.snow-template.snow-template--preview-tablet .snow-gallery-strip--compact,
+.snow-template.snow-template--preview-tablet .snow-gallery-strip--tablet {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.snow-template.snow-template--preview-tablet .snow-gallery-strip--single,
+.snow-template.snow-template--preview-tablet .snow-gallery-strip--mobile {
+  grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-mobile .snow-location-grid,
+.snow-template.snow-template--preview-mobile .snow-dual-grid,
+.snow-template.snow-template--preview-mobile .snow-rsvp-layout,
+.snow-template.snow-template--preview-mobile .snow-wall__grid {
+  grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-mobile .snow-gallery-strip,
+.snow-template.snow-template--preview-mobile .snow-gallery-strip--compact,
+.snow-template.snow-template--preview-mobile .snow-gallery-strip--single,
+.snow-template.snow-template--preview-mobile .snow-gallery-strip--tablet,
+.snow-template.snow-template--preview-mobile .snow-gallery-strip--mobile {
+  grid-template-columns: 1fr !important;
 }
 </style>

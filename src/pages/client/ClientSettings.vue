@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useCatalogStore } from '@/stores/catalogs'
@@ -10,13 +10,6 @@ import {
   type PublicOnboardingProfile,
 } from '@/services/publicOnboarding'
 import { getTenantDashboardSummary, listTenantInvitations } from '@/services/tenantInvitations'
-import {
-  getClientBillingLabel,
-  getClientPlanName,
-  getClientPlanStatusLabel,
-  getNextStepLabel,
-  getSelectedTemplateName,
-} from '@/utils/clientPanel'
 import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
 
 const session = useSessionStore()
@@ -68,34 +61,6 @@ const syncForm = (nextProfile: PublicOnboardingProfile | null) => {
   form.email = nextProfile?.registration?.email ?? session.user?.email ?? ''
   form.country_code = nextProfile?.registration?.country_code ?? ''
 }
-
-const summaryCards = computed(() => [
-  {
-    label: 'Plan',
-    value: getClientPlanName(session.user),
-    hint: getClientBillingLabel(session.user),
-  },
-  {
-    label: 'Estado comercial',
-    value: getClientPlanStatusLabel(session.user),
-    hint: 'Te muestra si tu plan ya esta listo o si aun queda un paso pendiente.',
-  },
-  {
-    label: 'Estilo elegido',
-    value: getSelectedTemplateName(profile.value),
-    hint: 'Es la base visual que elegiste hasta ahora.',
-  },
-  {
-    label: 'Siguiente paso',
-    value: getNextStepLabel(profile.value),
-    hint: 'Te indica lo siguiente que conviene hacer.',
-  },
-  {
-    label: 'Invitaciones activas',
-    value: String(tenantSummary.value.total_invitations),
-    hint: `Borradores: ${tenantSummary.value.draft_invitations} · Publicadas: ${tenantSummary.value.published_invitations}`,
-  },
-])
 
 const loadProfile = async () => {
   isLoading.value = true
@@ -204,10 +169,10 @@ onMounted(() => {
   <section class="client-page container" aria-labelledby="client-settings-title">
     <header class="client-page-head bo-card">
       <div>
-        <p class="client-kicker">Cuenta y setup</p>
+        <p class="client-kicker">Cuenta y seguridad</p>
         <h1 id="client-settings-title">Configuracion</h1>
         <p class="client-lead">
-          Aqui puedes revisar tus datos, el estado de tu plan y la informacion clave para seguir avanzando con tu evento.
+          Administra tus datos de cuenta, revisa tu resumen y configura la seguridad de acceso.
         </p>
       </div>
 
@@ -218,14 +183,6 @@ onMounted(() => {
 
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
     <p v-else-if="isLoading" class="client-inline-note">Cargando configuracion...</p>
-
-    <section class="summary-grid" aria-label="Resumen de configuracion">
-      <article v-for="item in summaryCards" :key="item.label" class="bo-card summary-card">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-        <p>{{ item.hint }}</p>
-      </article>
-    </section>
 
     <section class="settings-grid">
       <article class="bo-card settings-card">
@@ -361,7 +318,6 @@ onMounted(() => {
 }
 
 .client-page-head,
-.summary-card,
 .settings-card {
   padding: 22px;
 }
@@ -389,7 +345,6 @@ onMounted(() => {
 
 .client-lead,
 .client-inline-note,
-.summary-card p,
 .section-head p {
   margin: 0;
   color: #6a5a84;
@@ -400,26 +355,6 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.summary-card {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.summary-card span {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(90, 48, 140, 0.65);
-  font-weight: 700;
-}
-
-.summary-card strong,
 .structure-list strong {
   color: var(--brand-ink);
 }
@@ -578,10 +513,6 @@ onMounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .settings-grid {
     grid-template-columns: 1fr;
   }
@@ -590,10 +521,6 @@ onMounted(() => {
 @media (max-width: 720px) {
   .client-page-head {
     flex-direction: column;
-  }
-
-  .summary-grid {
-    grid-template-columns: 1fr;
   }
 
   .client-actions,

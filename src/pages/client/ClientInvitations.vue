@@ -415,8 +415,9 @@ watch(showDeletePrompt, (isOpen) => {
       </div>
 
       <div class="client-actions">
-        <BaseButton as="RouterLink" to="/panel/estadisticas" variant="ghost">Ver estadisticas</BaseButton>
-        <BaseButton as="RouterLink" to="/panel/configuracion" variant="ghost">Ir a configuracion</BaseButton>
+        <BaseButton as="RouterLink" to="/panel/estadisticas" variant="primary" class="stats-action-btn">
+          Ver estadísticas
+        </BaseButton>
       </div>
     </header>
 
@@ -507,7 +508,7 @@ watch(showDeletePrompt, (isOpen) => {
         role="dialog"
         aria-modal="true"
         @click.self="closeCreatePreviewModal">
-        <div class="template-preview-modal-card">
+        <div class="template-preview-modal-card template-preview-modal-card--immersive">
           <header class="template-preview-modal-head">
             <div>
               <p class="client-kicker">Vista previa</p>
@@ -539,6 +540,7 @@ watch(showDeletePrompt, (isOpen) => {
                 {{ option.label }}
               </button>
             </div>
+            <p class="template-preview-hint">Vista inmersiva: desliza para recorrer la plantilla completa en cada resolución.</p>
           </div>
 
           <div class="template-preview-stage template-preview-stage--modal">
@@ -553,6 +555,7 @@ watch(showDeletePrompt, (isOpen) => {
                 :data="createPreviewData"
                 :invitation-title="createForm.title || selectedTemplate?.name || 'Mi invitación'"
                 :type-event-name="selectedTypeEventName || 'Evento'"
+                :preview-viewport="createPreviewDevice"
                 :constrained-overlay="true" />
             </div>
           </div>
@@ -606,13 +609,13 @@ watch(showDeletePrompt, (isOpen) => {
           </thead>
           <tbody>
             <tr v-for="item in invitations" :key="item.id">
-              <td>#{{ item.id }}</td>
-              <td>{{ item.title ?? 'Sin titulo' }}</td>
-              <td>{{ item.slug ?? '-' }}</td>
-              <td>{{ formatStatusLabel(item.status, 'Sin estado') }}</td>
-              <td>{{ item.created_at ? new Date(item.created_at).toLocaleDateString() : '-' }}</td>
-              <td>{{ item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '-' }}</td>
-              <td>{{ item.updated_at ? new Date(item.updated_at).toLocaleString() : '-' }}</td>
+              <td data-label="ID">#{{ item.id }}</td>
+              <td data-label="Título">{{ item.title ?? 'Sin título' }}</td>
+              <td data-label="Slug">{{ item.slug ?? '-' }}</td>
+              <td data-label="Estado">{{ formatStatusLabel(item.status, 'Sin estado') }}</td>
+              <td data-label="Creada">{{ item.created_at ? new Date(item.created_at).toLocaleDateString() : '-' }}</td>
+              <td data-label="Expira">{{ item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '-' }}</td>
+              <td data-label="Actualizada">{{ item.updated_at ? new Date(item.updated_at).toLocaleString() : '-' }}</td>
               <td class="actions-cell">
                 <BaseButton
                   v-if="item.id"
@@ -783,6 +786,19 @@ watch(showDeletePrompt, (isOpen) => {
   gap: 0.75rem;
 }
 
+.stats-action-btn {
+  min-height: 42px;
+  padding-inline: 1rem;
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+}
+
+.stats-action-btn:hover,
+.stats-action-btn:focus-visible {
+  transform: translateY(-1px);
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -913,7 +929,20 @@ watch(showDeletePrompt, (isOpen) => {
 
 .template-preview-toolbar {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 251, 255, 0.95) 100%);
+}
+
+.template-preview-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  text-align: center;
 }
 
 .device-tabs {
@@ -950,7 +979,12 @@ watch(showDeletePrompt, (isOpen) => {
 }
 
 .template-preview-stage--modal {
-  min-height: clamp(420px, 66vh, 760px);
+  min-height: 0;
+  height: 100%;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(148, 163, 184, 0.22), transparent 38%),
+    #f8fafc;
 }
 
 .preview-placeholder {
@@ -966,21 +1000,30 @@ watch(showDeletePrompt, (isOpen) => {
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   background: #f1f5f9;
-  max-height: 420px;
+  margin: 0 auto;
+  max-height: none;
+}
+
+.template-preview-modal-card--immersive .template-preview-frame {
+  min-height: calc(100dvh - 250px);
 }
 
 .template-preview-frame--mobile {
-  width: min(390px, 100%);
+  width: 390px;
+  max-width: none;
   margin: 0 auto;
 }
 
 .template-preview-frame--tablet {
-  width: min(820px, 100%);
+  width: 860px;
+  max-width: none;
   margin: 0 auto;
 }
 
 .template-preview-frame--desktop {
-  width: 100%;
+  width: 1366px;
+  max-width: none;
+  margin: 0 auto;
 }
 
 .template-preview-modal-backdrop {
@@ -994,7 +1037,7 @@ watch(showDeletePrompt, (isOpen) => {
 }
 
 .template-preview-modal-card {
-  width: min(1280px, 100%);
+  width: min(1366px, 100%);
   height: calc(100dvh - 24px);
   margin: auto;
   border-radius: 18px;
@@ -1096,7 +1139,7 @@ watch(showDeletePrompt, (isOpen) => {
 .filters-row {
   display: grid;
   gap: 12px;
-  grid-template-columns: 220px minmax(260px, 420px);
+  grid-template-columns: repeat(2, minmax(220px, 260px));
   justify-content: start;
   align-items: end;
 }
@@ -1129,7 +1172,7 @@ watch(showDeletePrompt, (isOpen) => {
 }
 
 .field-search input {
-  width: min(420px, 100%);
+  width: 100%;
 }
 
 .empty-box {
@@ -1285,12 +1328,80 @@ watch(showDeletePrompt, (isOpen) => {
   }
 }
 
+@media (max-width: 900px) {
+  .table-wrap {
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .invitation-table,
+  .invitation-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .invitation-table thead {
+    display: none;
+  }
+
+  .invitation-table tr {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  }
+
+  .invitation-table td {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 6px;
+    padding: 0;
+    border-bottom: 0;
+    font-size: 0.85rem;
+    align-items: start;
+  }
+
+  .invitation-table td::before {
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(90, 48, 140, 0.78);
+  }
+
+  .actions-cell {
+    grid-template-columns: 1fr;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 4px;
+  }
+
+  .actions-cell::before {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
   .client-page-head {
     flex-direction: column;
   }
 
   .client-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .stats-action-btn {
     width: 100%;
   }
 
@@ -1324,6 +1435,23 @@ watch(showDeletePrompt, (isOpen) => {
   .template-preview-modal-card {
     height: calc(100dvh - 16px);
     border-radius: 14px;
+  }
+
+  .template-preview-toolbar {
+    padding: 8px 10px 10px;
+    gap: 0.4rem;
+  }
+
+  .template-preview-hint {
+    font-size: 0.75rem;
+  }
+
+  .template-preview-stage--modal {
+    padding: 8px;
+  }
+
+  .template-preview-modal-card--immersive .template-preview-frame {
+    min-height: calc(100dvh - 224px);
   }
 
   .delete-modal-card {
