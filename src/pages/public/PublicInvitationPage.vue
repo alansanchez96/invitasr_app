@@ -15,6 +15,23 @@ const invitationTitle = ref('')
 const typeEventName = ref('')
 
 const invitationSubdomain = computed(() => resolveInvitationSubdomainFromHost())
+const appName = String(import.meta.env.VITE_APP_NAME ?? 'InvitaSR')
+
+const syncDocumentTitle = (title: string, typeEvent: string) => {
+  const normalizedTitle = String(title ?? '').trim()
+  if (normalizedTitle) {
+    document.title = normalizedTitle
+    return
+  }
+
+  const normalizedTypeEvent = String(typeEvent ?? '').trim()
+  if (normalizedTypeEvent) {
+    document.title = `Invitación de ${normalizedTypeEvent}`
+    return
+  }
+
+  document.title = appName
+}
 
 const loadInvitation = async () => {
   isLoading.value = true
@@ -64,6 +81,7 @@ const loadInvitation = async () => {
     sectionVisibility.value = nextSectionVisibility
     invitationTitle.value = String(payload.invitation?.title ?? '').trim()
     typeEventName.value = String(payload.typeEvent?.name ?? '').trim()
+    syncDocumentTitle(invitationTitle.value, typeEventName.value)
   } catch (error) {
     const source = error as { message?: string; status?: number; statusCode?: number }
     const statusCode = Number(source?.statusCode ?? source?.status ?? 500)
