@@ -2,23 +2,30 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import {
+  useInvitationEditorViewport,
+  type InvitationEditorResponsiveDevice as ResponsiveDevice,
+} from '@/composables/invitation-editor/useInvitationEditorViewport'
+import {
+  useInvitationEditorGallery,
+  type PendingGallerySnapshotItem,
+} from '@/composables/invitation-editor/useInvitationEditorGallery'
+import { useInvitationEditorWallPreview } from '@/composables/invitation-editor/useInvitationEditorWallPreview'
+import { useInvitationEditorHistory } from '@/composables/invitation-editor/useInvitationEditorHistory'
+import { useInvitationEditorWall } from '@/composables/invitation-editor/useInvitationEditorWall'
+import {
+  useInvitationEditorPersistence,
+  useInvitationEditorSaveWorkflow,
+} from '@/composables/invitation-editor/useInvitationEditorPersistence'
+import { useInvitationEditorTemplateCapabilities } from '@/composables/invitation-editor/useInvitationEditorTemplateCapabilities'
 import { listCatalogTemplates, type CatalogTemplateItem } from '@/services/catalogs'
 import {
   checkTenantInvitationSubdomainAvailability,
   getTenantInvitation,
-  getTenantInvitationGallery,
-  getTenantInvitationWallMessages,
   publishTenantInvitation,
-  syncTenantInvitationGalleryImages,
-  deleteTenantInvitationWallMessage,
   resolveTenantInvitationLocation,
-  updateTenantInvitationWallMessage,
   updateTenantInvitation,
   type TenantInvitationItem,
-  type TenantInvitationGalleryImage,
-  type TenantInvitationGallerySummary,
-  type TenantInvitationWallMessage,
-  type TenantInvitationWallSummary,
   type TenantTemplateSummary,
   type TenantTypeEventSummary,
 } from '@/services/tenantInvitations'
@@ -27,7 +34,6 @@ import { loadTemplateModule, loadTemplateModuleByRendererKey } from '@/templates
 import type { InvitationTemplateModule, WeddingTemplateData } from '@/templates/types'
 import { notifyError, notifySuccess } from '@/utils/toast'
 
-type ResponsiveDevice = 'mobile' | 'tablet' | 'desktop'
 type JsonRecord = Record<string, unknown>
 type TextOverridesMap = Record<string, string>
 
@@ -64,15 +70,6 @@ type CurrencyOption = {
   label: string
 }
 
-type PendingGallerySnapshotItem = {
-  id: string
-  file: File
-  name: string
-  shortName: string
-  extension: string
-  sizeBytes: number
-}
-
 type EditorSnapshot = {
   title: string
   slug: string
@@ -90,26 +87,6 @@ type EditorSnapshot = {
   removedGalleryImageIds: number[]
   pendingDeleteWallMessageIds: number[]
   pendingWallMessageVisibilityById: Record<number, boolean>
-}
-
-type PendingGalleryImage = {
-  id: string
-  file: File
-  previewUrl: string
-  name: string
-  shortName: string
-  extension: string
-  sizeBytes: number
-}
-
-type GalleryVisualItem = {
-  id: string
-  kind: 'persisted' | 'pending'
-  imageId?: number
-  name: string
-  shortName: string
-  statusLabel: string
-  statusClass: 'ready' | 'processing' | 'failed' | 'pending'
 }
 
 type DraftLocationItem = {
@@ -130,15 +107,6 @@ const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 
-const ZOOM_MIN_PERCENT = 50
-const ZOOM_MAX_PERCENT = 140
-const ZOOM_STEP_PERCENT = 5
-const DEVICE_ZOOM_PRESET: Record<ResponsiveDevice, number> = {
-  mobile: 130,
-  tablet: 115,
-  desktop: 100,
-}
-
 const invitation = ref<TenantInvitationItem | null>(null)
 const template = ref<TenantTemplateSummary | null>(null)
 const typeEvent = ref<TenantTypeEventSummary | null>(null)
@@ -154,28 +122,39 @@ const settingsDraft = ref<JsonRecord>({})
 const featureOverridesDraft = ref<JsonRecord>({})
 const sectionVisibilityDraft = ref<Record<string, boolean>>({})
 const activeTextField = ref<string | null>(null)
-const previewDevice = ref<ResponsiveDevice>('mobile')
-const previewZoomPercent = ref(DEVICE_ZOOM_PRESET.mobile)
+const {
+  previewDevice,
+  previewZoomPercent,
+  effectivePreviewDevice,
+  effectivePreviewDeviceLabel,
+  isZoomShiftingViewport,
+  previewZoomLabel,
+  previewViewportClass,
+  previewFrameStyle,
+  deviceOptions,
+  zoomMinPercent: ZOOM_MIN_PERCENT,
+  zoomMaxPercent: ZOOM_MAX_PERCENT,
+  zoomStepPercent: ZOOM_STEP_PERCENT,
+  adjustPreviewZoom,
+  resetPreviewZoom,
+  handleZoomInput,
+  selectPreviewDevice,
+  handlePreviewWheelZoom,
+} = useInvitationEditorViewport()
 const showCheckinPreview = ref(false)
 const isCheckinConfigEditing = ref(false)
 const isSidebarOpen = ref(false)
 const collapsedOptionalSections = ref<Record<string, boolean>>({})
-const lastSavedSerializedState = ref('')
 
 const isLoading = ref(false)
-const isSaving = ref(false)
-const isPublishing = ref(false)
-const isChangingTemplate = ref(false)
 const isLoadingTemplates = ref(false)
 const loadError = ref<string | null>(null)
 const editorValidationError = ref<string | null>(null)
 const slugInputError = ref<string | null>(null)
 const slugAvailabilityState = ref<'idle' | 'checking' | 'available' | 'unavailable' | 'invalid'>('idle')
 const slugAvailabilityReason = ref<string | null>(null)
-const undoStack = ref<EditorSnapshot[]>([])
 const isHydratingSnapshot = ref(true)
 const isApplyingUndo = ref(false)
-const snapshotRegistry = new Map<string, EditorSnapshot>()
 const skipNextLeaveConfirm = ref(false)
 const showLeavePrompt = ref(false)
 const pendingNavigationPath = ref<string | null>(null)
@@ -185,76 +164,89 @@ const pendingDeleteWallMessageId = ref<number | null>(null)
 const pendingDeleteWallMessageGuestName = ref('')
 const pendingDeleteWallMessageText = ref('')
 const isImmersivePreviewOpen = ref(false)
-const isLoadingGallery = ref(false)
-const isUploadingGallery = ref(false)
-const isLoadingWallMessages = ref(false)
-const wallMessages = ref<TenantInvitationWallMessage[]>([])
-const wallSummary = ref<TenantInvitationWallSummary>({
-  enabled: false,
-  limit: null,
-  used: 0,
-  visible_count: 0,
-  remaining: null,
-})
 const wallEditorExpandedMessageIds = ref<Record<number, boolean>>({})
-const updatingWallMessageIds = ref<number[]>([])
-const pendingDeleteWallMessageIds = ref<number[]>([])
-const pendingWallMessageVisibilityById = ref<Record<number, boolean>>({})
+const {
+  wallEditorMessageIsLong,
+  wallEditorMessageExpanded,
+  wallEditorDisplayText,
+  toggleWallEditorMessageExpanded,
+} = useInvitationEditorWallPreview(wallEditorExpandedMessageIds)
 const galleryInputRef = ref<HTMLInputElement | null>(null)
-const gallerySummary = ref<TenantInvitationGallerySummary>({
-  enabled: false,
-  limit: null,
-  used: 0,
-  remaining: null,
-})
-const galleryImages = ref<TenantInvitationGalleryImage[]>([])
-const pendingGalleryImages = ref<PendingGalleryImage[]>([])
-const removedGalleryImageIds = ref<number[]>([])
 let slugAvailabilityTimer: ReturnType<typeof setTimeout> | null = null
 let slugAvailabilityCheckId = 0
-let galleryProcessingRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const invitationId = computed(() => Number(route.params.invitationId))
+const invitationRecordId = computed(() => invitation.value?.id ?? null)
 const isDraft = computed(() => String(invitation.value?.status ?? '').toLowerCase() === 'draft')
+const {
+  isLoadingGallery,
+  isUploadingGallery,
+  gallerySummary,
+  galleryImages,
+  pendingGalleryImages,
+  removedGalleryImageIds,
+  activeGalleryImages,
+  hasPendingGalleryChanges,
+  galleryRemainingSlots,
+  canAddGalleryImages,
+  galleryCounterLabel,
+  galleryVisualItems,
+  galleryProcessingHint,
+  resolveGalleryVariantUrl,
+  getGalleryItemStatusTitle,
+  clonePendingGallerySnapshotItems,
+  toPendingGallerySnapshotItems,
+  hydratePendingGalleryImages,
+  replacePendingGalleryImages,
+  clearGalleryPendingChanges,
+  restoreAllRemovedGalleryImages,
+  removeGalleryVisualItem,
+  loadGalleryData,
+  persistPendingGalleryImages,
+  queueGalleryFiles,
+  liveGalleryItems,
+} = useInvitationEditorGallery({
+  invitationId: invitationRecordId,
+  notifyError,
+})
+const {
+  isLoadingWallMessages,
+  wallMessages,
+  wallSummary,
+  updatingWallMessageIds,
+  pendingDeleteWallMessageIds,
+  pendingWallMessageVisibilityById,
+  wallMessagesInEditor,
+  wallUsedCountInEditor,
+  wallVisibleCountInEditor,
+  hasPendingWallMessageDeletes,
+  hasPendingWallMessageVisibilityChanges,
+  syncWallSummaryWithEditorState,
+  syncWallMessagesIntoContent,
+  setPendingDeleteWallMessageIds,
+  setPendingWallMessageVisibilityById,
+  loadWallMessagesData,
+  updateWallMessageVisibility,
+  queueDeleteWallMessage: queueDeleteWallMessageById,
+  persistPendingWallMessageDeletes,
+  persistPendingWallMessageVisibilityChanges,
+} = useInvitationEditorWall({
+  invitationId: invitationRecordId,
+  contentDraft,
+  notifyError,
+  toRecord: (value) => toRecord(value),
+  cloneRecord: (value) => cloneRecord(value),
+  getByPath: (source, path) => getByPath(source, path),
+  setByPath: (source, path, value) => setByPath(source, path, value),
+  asText: (value, fallback = '') => asText(value, fallback),
+})
 const isDeletingPendingWallMessage = computed(() => {
   const messageId = pendingDeleteWallMessageId.value
   if (!messageId) return false
   return updatingWallMessageIds.value.includes(messageId)
 })
-const wallMessagesInEditor = computed(() =>
-  wallMessages.value
-    .filter((item) => !pendingDeleteWallMessageIds.value.includes(item.id))
-    .map((item) => {
-      const override = pendingWallMessageVisibilityById.value[item.id]
-      if (typeof override !== 'boolean') return item
 
-      const nextStatus = override ? 'visible' : 'hidden'
-      return {
-        ...item,
-        status: nextStatus,
-        is_visible: override,
-      }
-    }),
-)
-const wallUsedCountInEditor = computed(() => wallMessagesInEditor.value.length)
-const wallVisibleCountInEditor = computed(() =>
-  wallMessagesInEditor.value.filter((item) => item.is_visible).length,
-)
-const hasPendingWallMessageDeletes = computed(() => pendingDeleteWallMessageIds.value.length > 0)
-const hasPendingWallMessageVisibilityChanges = computed(
-  () => Object.keys(pendingWallMessageVisibilityById.value).length > 0,
-)
-
-const supportsInlineEditor = computed(() => {
-  const rendererKey = String(template.value?.renderer_key ?? '').trim()
-  return rendererKey === 'wedding_snow' || rendererKey === 'wedding_base_basic'
-})
-
-const deviceOptions: Array<{ value: ResponsiveDevice; label: string }> = [
-  { value: 'mobile', label: 'Mobile' },
-  { value: 'tablet', label: 'Tablet' },
-  { value: 'desktop', label: 'Desktop' },
-]
+const { supportsInlineEditor } = useInvitationEditorTemplateCapabilities(templateModule, template)
 
 const musicOptions: MusicOption[] = [
   {
@@ -357,7 +349,6 @@ const checkinCurrencyOptions: CurrencyOption[] = [
 
 const MAX_LOCATIONS_PER_INVITATION = 2
 const DEFAULT_LOCATION_MAPS_URL = 'https://maps.google.com/?q=Estancia+Nevada+Bariloche'
-const WALL_EDITOR_MESSAGE_PREVIEW_LENGTH = 160
 
 const editableFieldBindings: Record<string, EditableFieldBinding> = {
   hero_title: { paths: ['hero.title', 'couple.headline'], fallback: 'Nos casamos' },
@@ -530,34 +521,6 @@ const formatWallMessageDate = (rawIso: string | null | undefined): string => {
     minute: '2-digit',
     hour12: false,
   }).format(parsed).replace(',', ' ·')
-}
-
-const wallEditorMessageToCodePoints = (value: string): string[] => Array.from(value ?? '')
-
-const wallEditorMessageIsLong = (message: string): boolean =>
-  wallEditorMessageToCodePoints(message).length > WALL_EDITOR_MESSAGE_PREVIEW_LENGTH
-
-const wallEditorMessageExpanded = (messageId: number): boolean =>
-  Boolean(wallEditorExpandedMessageIds.value[messageId])
-
-const wallEditorDisplayText = (messageId: number, message: string): string => {
-  if (wallEditorMessageExpanded(messageId) || !wallEditorMessageIsLong(message)) {
-    return message
-  }
-
-  const truncated = wallEditorMessageToCodePoints(message)
-    .slice(0, WALL_EDITOR_MESSAGE_PREVIEW_LENGTH)
-    .join('')
-    .trimEnd()
-
-  return truncated ? `${truncated}…` : ''
-}
-
-const toggleWallEditorMessageExpanded = (messageId: number) => {
-  wallEditorExpandedMessageIds.value = {
-    ...wallEditorExpandedMessageIds.value,
-    [messageId]: !wallEditorMessageExpanded(messageId),
-  }
 }
 
 const isWallMessageUpdating = (messageId: number): boolean =>
@@ -874,291 +837,8 @@ const hasPendingTemplateChange = computed(() => {
   return Number(selectedTemplateId.value) !== Number(invitation.value.template_id)
 })
 
-const canUndo = computed(() => undoStack.value.length > 0)
-const activeGalleryImages = computed(() =>
-  galleryImages.value.filter((image) => !removedGalleryImageIds.value.includes(Number(image.id))),
-)
-const hasPendingGalleryChanges = computed(
-  () => pendingGalleryImages.value.length > 0 || removedGalleryImageIds.value.length > 0,
-)
-const galleryUsedCount = computed(() => activeGalleryImages.value.length + pendingGalleryImages.value.length)
-const galleryLimit = computed(() => gallerySummary.value.limit)
-const galleryRemainingSlots = computed(() => {
-  if (galleryLimit.value === null || galleryLimit.value >= 999) return null
-  return Math.max(0, galleryLimit.value - galleryUsedCount.value)
-})
-const canAddGalleryImages = computed(() => {
-  if (!gallerySummary.value.enabled) return false
-  if (galleryRemainingSlots.value === null) return true
-  return galleryRemainingSlots.value > 0
-})
-const galleryCounterLabel = computed(() => {
-  if (galleryLimit.value === null || galleryLimit.value >= 999) {
-    return `${galleryUsedCount.value} imágenes`
-  }
-  return `${galleryUsedCount.value} / ${galleryLimit.value} imágenes`
-})
-
-const resolveGalleryVariantUrl = (
-  image: TenantInvitationGalleryImage,
-  keys: string[],
-): string => {
-  const variants = image.variant_urls ?? null
-  for (const key of keys) {
-    const candidate = typeof variants?.[key] === 'string' ? variants[key] : ''
-    if (candidate.trim()) return candidate
-  }
-  return String(image.public_url ?? '').trim()
-}
-
-const liveGalleryItems = computed<WeddingTemplateData['gallery']>(() => {
-  const persisted: WeddingTemplateData['gallery'] = []
-  activeGalleryImages.value.forEach((image, index) => {
-    const galleryUrl = resolveGalleryVariantUrl(image, [
-      'gallery_medium',
-      'hero_banner',
-      'product_image',
-      'lightbox_max',
-      'thumbnail_large',
-    ])
-    if (!galleryUrl.trim()) return
-
-    const thumbnailUrl = resolveGalleryVariantUrl(image, [
-      'thumbnail_small',
-      'thumbnail_medium',
-      'thumbnail_large',
-      'gallery_medium',
-    ])
-    const lightboxUrl = resolveGalleryVariantUrl(image, [
-      'lightbox_max',
-      'hero_banner',
-      'product_image',
-      'gallery_medium',
-    ])
-
-    persisted.push({
-      id: `gallery-db-${image.id}`,
-      imageUrl: galleryUrl,
-      galleryUrl,
-      thumbnailUrl,
-      lightboxUrl,
-      alt: asText(image.original_name, `Foto ${index + 1}`),
-    })
-  })
-
-  const queued: WeddingTemplateData['gallery'] = []
-  pendingGalleryImages.value.forEach((image, index) => {
-    if (!image.previewUrl.trim()) return
-    queued.push({
-      id: image.id,
-      imageUrl: image.previewUrl,
-      galleryUrl: image.previewUrl,
-      thumbnailUrl: image.previewUrl,
-      lightboxUrl: image.previewUrl,
-      alt: asText(image.name, `Foto ${persisted.length + index + 1}`),
-    })
-  })
-
-  return [...persisted, ...queued]
-})
-const galleryVisualItems = computed<GalleryVisualItem[]>(() => {
-  const persisted: GalleryVisualItem[] = activeGalleryImages.value.map((image): GalleryVisualItem => {
-    const status = String(image.processing_status ?? 'pending').toLowerCase()
-    const statusClass: GalleryVisualItem['statusClass'] = status === 'ready'
-      ? 'ready'
-      : status === 'failed'
-        ? 'failed'
-        : status === 'processing'
-          ? 'processing'
-          : 'pending'
-    const statusLabel = statusClass === 'ready'
-      ? 'Lista'
-      : statusClass === 'failed'
-        ? 'Error'
-        : statusClass === 'processing'
-          ? 'Procesando'
-          : 'Pendiente'
-
-    return {
-      id: `saved-${image.id}`,
-      kind: 'persisted',
-      imageId: image.id,
-      name: image.original_name,
-      shortName: truncateGalleryFileName(image.original_name),
-      statusClass,
-      statusLabel,
-    }
-  })
-
-  const queued: GalleryVisualItem[] = pendingGalleryImages.value.map((image): GalleryVisualItem => ({
-    id: image.id,
-    kind: 'pending',
-    name: image.name,
-    shortName: image.shortName,
-    statusClass: 'pending',
-    statusLabel: 'Sin guardar',
-  }))
-
-  return [...persisted, ...queued]
-})
-
-const hasGalleryProcessingPending = computed(() =>
-  activeGalleryImages.value.some((image) => {
-    const status = String(image.processing_status ?? 'pending').toLowerCase()
-    return status === 'pending' || status === 'processing'
-  }),
-)
-
-const galleryProcessingHint = computed(() => {
-  if (!hasGalleryProcessingPending.value) return null
-  return 'Estamos optimizando tus imágenes en segundo plano. Esta lista se actualizará sola.'
-})
-
-const getGalleryItemStatusTitle = (item: GalleryVisualItem): string => {
-  if (item.statusClass === 'failed') {
-    const image = item.kind === 'persisted'
-      ? galleryImages.value.find((row) => Number(row.id) === Number(item.imageId))
-      : null
-    const reason = image?.processing_error?.trim()
-    return reason ? `Error al procesar: ${reason}` : 'No pudimos procesar esta imagen.'
-  }
-
-  if (item.statusClass === 'processing' || item.statusClass === 'pending') {
-    return 'Estamos preparando esta imagen para optimizar la carga.'
-  }
-
-  return 'Imagen lista.'
-}
-
-const clonePendingGallerySnapshotItems = (items: PendingGallerySnapshotItem[]): PendingGallerySnapshotItem[] =>
-  items.map((item) => ({
-    id: item.id,
-    file: item.file,
-    name: item.name,
-    shortName: item.shortName,
-    extension: item.extension,
-    sizeBytes: item.sizeBytes,
-  }))
-
-const toPendingGallerySnapshotItems = (items: PendingGalleryImage[]): PendingGallerySnapshotItem[] =>
-  items.map((item) => ({
-    id: item.id,
-    file: item.file,
-    name: item.name,
-    shortName: item.shortName,
-    extension: item.extension,
-    sizeBytes: item.sizeBytes,
-  }))
-
-const hydratePendingGalleryImages = (items: PendingGallerySnapshotItem[]): PendingGalleryImage[] =>
-  clonePendingGallerySnapshotItems(items).map((item) => ({
-    ...item,
-    previewUrl: URL.createObjectURL(item.file),
-  }))
-
-const replacePendingGalleryImages = (items: PendingGalleryImage[]) => {
-  const nextPreviewUrls = new Set(items.map((item) => item.previewUrl))
-  for (const image of pendingGalleryImages.value) {
-    if (image.previewUrl && !nextPreviewUrls.has(image.previewUrl)) {
-      URL.revokeObjectURL(image.previewUrl)
-    }
-  }
-  pendingGalleryImages.value = items
-}
-
-const removeGalleryVisualItem = (item: GalleryVisualItem) => {
-  if (item.kind === 'pending') {
-    const pendingRow = pendingGalleryImages.value.find((row) => row.id === item.id)
-    if (pendingRow?.previewUrl) {
-      URL.revokeObjectURL(pendingRow.previewUrl)
-    }
-    pendingGalleryImages.value = pendingGalleryImages.value.filter((row) => row.id !== item.id)
-    return
-  }
-
-  const imageId = Number(item.imageId)
-  if (!Number.isFinite(imageId) || imageId <= 0) return
-  if (removedGalleryImageIds.value.includes(imageId)) return
-  removedGalleryImageIds.value = [...removedGalleryImageIds.value, imageId]
-}
-
-const clearGalleryPendingChanges = () => {
-  replacePendingGalleryImages([])
-  removedGalleryImageIds.value = []
-}
-
-const restoreAllRemovedGalleryImages = () => {
-  removedGalleryImageIds.value = []
-}
-
-const scheduleGalleryProcessingRefresh = () => {
-  if (galleryProcessingRefreshTimer) {
-    clearTimeout(galleryProcessingRefreshTimer)
-    galleryProcessingRefreshTimer = null
-  }
-
-  if (!hasGalleryProcessingPending.value) return
-  if (hasPendingGalleryChanges.value) return
-  if (!invitation.value?.id) return
-
-  galleryProcessingRefreshTimer = setTimeout(async () => {
-    await loadGalleryData({ silent: true })
-  }, 4000)
-}
-
-watch([hasGalleryProcessingPending, hasPendingGalleryChanges], () => {
-  scheduleGalleryProcessingRefresh()
-})
-
-watch(removedGalleryImageIds, (nextValue) => {
-  if (nextValue.length === 0) return
-
-  const activeIds = new Set(galleryImages.value.map((item) => Number(item.id)))
-  const validIds = nextValue.filter((id, index, collection) =>
-    activeIds.has(Number(id)) && collection.indexOf(id) === index,
-  )
-
-  if (validIds.length !== nextValue.length) {
-    removedGalleryImageIds.value = validIds
-  }
-})
-
-watch(galleryImages, () => {
-  if (!removedGalleryImageIds.value.length) return
-
-  const activeIds = new Set(galleryImages.value.map((item) => Number(item.id)))
-  const validIds = removedGalleryImageIds.value.filter((id) => activeIds.has(Number(id)))
-  if (validIds.length !== removedGalleryImageIds.value.length) {
-    removedGalleryImageIds.value = validIds
-  }
-})
-
 watch(wallMessages, () => {
   const activeIds = new Set(wallMessages.value.map((item) => Number(item.id)))
-  if (pendingDeleteWallMessageIds.value.length) {
-    const validDeleteIds = pendingDeleteWallMessageIds.value.filter((id) => activeIds.has(Number(id)))
-    if (validDeleteIds.length !== pendingDeleteWallMessageIds.value.length) {
-      pendingDeleteWallMessageIds.value = validDeleteIds
-    }
-  }
-
-  if (Object.keys(pendingWallMessageVisibilityById.value).length) {
-    const nextVisibilityMap = Object.entries(pendingWallMessageVisibilityById.value).reduce<Record<number, boolean>>(
-      (carry, [rawId, rawVisible]) => {
-        const id = Number(rawId)
-        if (!Number.isFinite(id) || !activeIds.has(id)) return carry
-        carry[id] = Boolean(rawVisible)
-        return carry
-      },
-      {},
-    )
-
-    const currentEntries = Object.keys(pendingWallMessageVisibilityById.value).length
-    const nextEntries = Object.keys(nextVisibilityMap).length
-    if (currentEntries !== nextEntries) {
-      pendingWallMessageVisibilityById.value = nextVisibilityMap
-    }
-  }
 
   if (Object.keys(wallEditorExpandedMessageIds.value).length) {
     const nextExpandedMap = Object.entries(wallEditorExpandedMessageIds.value).reduce<Record<number, boolean>>(
@@ -1179,25 +859,6 @@ watch(wallMessages, () => {
     }
   }
 })
-
-const resolvePreviewDeviceByZoom = (zoomValue: number): ResponsiveDevice => {
-  if (zoomValue <= 100) return 'desktop'
-  if (zoomValue <= 125) return 'tablet'
-  return 'mobile'
-}
-
-const effectivePreviewDevice = computed<ResponsiveDevice>(() => resolvePreviewDeviceByZoom(previewZoomPercent.value))
-
-const effectivePreviewDeviceLabel = computed(() => {
-  const row = deviceOptions.find((item) => item.value === effectivePreviewDevice.value)
-  return row?.label ?? 'Desktop'
-})
-
-const isZoomShiftingViewport = computed(() => previewZoomPercent.value !== DEVICE_ZOOM_PRESET[previewDevice.value])
-const previewZoomScale = computed(() => previewZoomPercent.value / 100)
-const previewZoomLabel = computed(() => `${previewZoomPercent.value}%`)
-const previewViewportClass = computed(() => `preview-frame--${previewDevice.value}`)
-const previewFrameStyle = computed(() => ({ zoom: String(previewZoomScale.value) }))
 
 const slugAvailabilityMessage = computed(() => {
   if (slugInputError.value) return slugInputError.value
@@ -1282,70 +943,6 @@ const cloneSnapshot = (snapshot: EditorSnapshot): EditorSnapshot => ({
     : {},
 })
 
-const registerSnapshotState = (serializedState: string, snapshot?: EditorSnapshot) => {
-  if (!serializedState) return
-  snapshotRegistry.set(serializedState, snapshot ? cloneSnapshot(snapshot) : createSnapshot())
-  if (snapshotRegistry.size <= 220) return
-
-  const overflow = snapshotRegistry.size - 220
-  for (let index = 0; index < overflow; index += 1) {
-    const oldest = snapshotRegistry.keys().next()
-    if (oldest.done) break
-    snapshotRegistry.delete(oldest.value)
-  }
-}
-
-const clampZoom = (value: number): number => {
-  const bounded = Math.min(ZOOM_MAX_PERCENT, Math.max(ZOOM_MIN_PERCENT, value))
-  return Math.round(bounded / ZOOM_STEP_PERCENT) * ZOOM_STEP_PERCENT
-}
-
-const setPreviewZoom = (value: number) => {
-  previewZoomPercent.value = clampZoom(value)
-}
-
-const adjustPreviewZoom = (delta: number) => {
-  setPreviewZoom(previewZoomPercent.value + delta)
-}
-
-const resetPreviewZoom = () => {
-  setPreviewZoom(DEVICE_ZOOM_PRESET[previewDevice.value])
-}
-
-const handleZoomInput = (event: Event) => {
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  const value = Number(target.value)
-  if (!Number.isFinite(value)) return
-  setPreviewZoom(value)
-}
-
-const selectPreviewDevice = (device: ResponsiveDevice) => {
-  previewDevice.value = device
-  setPreviewZoom(DEVICE_ZOOM_PRESET[device])
-}
-
-const handlePreviewWheelZoom = (event: WheelEvent) => {
-  if (!(event.ctrlKey || event.metaKey)) return
-  event.preventDefault()
-  if (event.deltaY === 0) return
-  adjustPreviewZoom(event.deltaY > 0 ? -ZOOM_STEP_PERCENT : ZOOM_STEP_PERCENT)
-}
-
-const resolveSnapshotBySerializedState = (serializedState: string): EditorSnapshot | null => {
-  const registered = snapshotRegistry.get(serializedState)
-  if (registered) return cloneSnapshot(registered)
-  return snapshotFromSerializedState(serializedState)
-}
-
-const pushUndoSnapshot = (snapshot: EditorSnapshot | null) => {
-  if (!snapshot) return
-  undoStack.value.push(cloneSnapshot(snapshot))
-  if (undoStack.value.length > 80) {
-    undoStack.value.splice(0, undoStack.value.length - 80)
-  }
-}
-
 const applySnapshot = async (snapshot: EditorSnapshot) => {
   title.value = snapshot.title
   slug.value = snapshot.slug
@@ -1365,17 +962,17 @@ const applySnapshot = async (snapshot: EditorSnapshot) => {
   removedGalleryImageIds.value = Array.isArray(snapshot.removedGalleryImageIds)
     ? snapshot.removedGalleryImageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
     : []
-  pendingDeleteWallMessageIds.value = Array.isArray(snapshot.pendingDeleteWallMessageIds)
+  setPendingDeleteWallMessageIds(Array.isArray(snapshot.pendingDeleteWallMessageIds)
     ? snapshot.pendingDeleteWallMessageIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
-    : []
-  pendingWallMessageVisibilityById.value = snapshot.pendingWallMessageVisibilityById && typeof snapshot.pendingWallMessageVisibilityById === 'object'
+    : [])
+  setPendingWallMessageVisibilityById(snapshot.pendingWallMessageVisibilityById && typeof snapshot.pendingWallMessageVisibilityById === 'object'
     ? Object.entries(snapshot.pendingWallMessageVisibilityById).reduce<Record<number, boolean>>((carry, [rawId, rawValue]) => {
       const id = Number(rawId)
       if (!Number.isFinite(id) || id <= 0) return carry
       carry[id] = Boolean(rawValue)
       return carry
     }, {})
-    : {}
+    : {})
   syncWallSummaryWithEditorState()
   syncWallMessagesIntoContent()
   await loadTemplateRenderer()
@@ -1429,19 +1026,6 @@ const closeSidebar = () => {
   isSidebarOpen.value = false
 }
 
-const undoLastChange = async () => {
-  const snapshot = undoStack.value.pop()
-  if (!snapshot) return
-
-  isApplyingUndo.value = true
-  try {
-    await applySnapshot(snapshot)
-    registerSnapshotState(serializedEditorState.value, snapshot)
-  } finally {
-    isApplyingUndo.value = false
-  }
-}
-
 const closeLeavePrompt = () => {
   showLeavePrompt.value = false
   pendingNavigationPath.value = null
@@ -1484,13 +1068,6 @@ const openImmersivePreview = () => {
 
 const closeImmersivePreview = () => {
   isImmersivePreviewOpen.value = false
-}
-
-const truncateGalleryFileName = (fileName: string): string => {
-  const normalized = String(fileName ?? '').trim()
-  if (!normalized) return 'imagen'
-  if (normalized.length <= 8) return normalized
-  return `${normalized.slice(0, 8)}...`
 }
 
 const faqItems = computed(() => {
@@ -2009,10 +1586,7 @@ const syncEditor = async () => {
     await loadTemplateRenderer()
     await loadGalleryData()
     await loadWallMessagesData()
-    undoStack.value = []
-    lastSavedSerializedState.value = serializedEditorState.value
-    snapshotRegistry.clear()
-    registerSnapshotState(lastSavedSerializedState.value)
+    markStateAsSaved()
   } finally {
     isHydratingSnapshot.value = false
   }
@@ -2044,116 +1618,6 @@ const loadData = async () => {
   }
 }
 
-const loadGalleryData = async (options?: { silent?: boolean }) => {
-  if (!invitation.value?.id) return
-
-  if (!options?.silent) {
-    isLoadingGallery.value = true
-  }
-  try {
-    const response = await getTenantInvitationGallery(invitation.value.id)
-    gallerySummary.value = response.gallery
-    galleryImages.value = response.items
-    scheduleGalleryProcessingRefresh()
-  } catch (error) {
-    if (!options?.silent) {
-      const payload = error as { message?: string }
-      notifyError(payload?.message ?? 'No pudimos cargar la galería.')
-    }
-  } finally {
-    if (!options?.silent) {
-      isLoadingGallery.value = false
-    }
-  }
-}
-
-const syncWallMessagesIntoContent = () => {
-  const nextContent = cloneRecord(contentDraft.value)
-  const currentWall = toRecord(getByPath(nextContent, 'wall'))
-
-  const visibleMessages = wallMessagesInEditor.value
-    .filter((item) => item.is_visible)
-    .map((item) => ({
-      id: String(item.id),
-      guestName: item.guest_name,
-      message: item.message,
-      status: item.status,
-      isVisible: item.is_visible,
-      postedAt: item.posted_at,
-    }))
-
-  const nextWall = {
-    title: asText(currentWall.title, 'Muro de mensajes'),
-    description: asText(currentWall.description, 'Deja unas palabras lindas para este gran día.'),
-    addLabel: asText(currentWall.addLabel, 'Añadir mensaje'),
-    emptyStateLabel: asText(currentWall.emptyStateLabel, 'Sé la primera persona en dejar un mensaje.'),
-    limit: wallSummary.value.limit,
-    receivedCount: wallUsedCountInEditor.value,
-    messages: visibleMessages,
-  }
-
-  setByPath(nextContent, 'wall', nextWall)
-  contentDraft.value = nextContent
-}
-
-const syncWallSummaryWithEditorState = () => {
-  wallSummary.value = {
-    ...wallSummary.value,
-    used: wallUsedCountInEditor.value,
-    visible_count: wallVisibleCountInEditor.value,
-    remaining: wallSummary.value.limit === null
-      ? null
-      : Math.max(0, Number(wallSummary.value.limit ?? 0) - wallUsedCountInEditor.value),
-  }
-}
-
-const loadWallMessagesData = async (options?: { silent?: boolean }) => {
-  if (!invitation.value?.id) return
-
-  if (!options?.silent) {
-    isLoadingWallMessages.value = true
-  }
-
-  try {
-    const response = await getTenantInvitationWallMessages(invitation.value.id)
-    pendingDeleteWallMessageIds.value = []
-    pendingWallMessageVisibilityById.value = {}
-    wallSummary.value = response.wall
-    wallMessages.value = response.items
-    syncWallSummaryWithEditorState()
-    syncWallMessagesIntoContent()
-  } catch (error) {
-    if (!options?.silent) {
-      const payload = error as { message?: string }
-      notifyError(payload?.message ?? 'No pudimos cargar el muro de mensajes.')
-    }
-  } finally {
-    if (!options?.silent) {
-      isLoadingWallMessages.value = false
-    }
-  }
-}
-
-const updateWallMessageVisibility = async (messageId: number, visible: boolean) => {
-  const source = wallMessages.value.find((item) => item.id === messageId)
-  if (!source) return
-  if (pendingDeleteWallMessageIds.value.includes(messageId)) return
-
-  if (visible === source.is_visible) {
-    const nextMap = { ...pendingWallMessageVisibilityById.value }
-    delete nextMap[messageId]
-    pendingWallMessageVisibilityById.value = nextMap
-  } else {
-    pendingWallMessageVisibilityById.value = {
-      ...pendingWallMessageVisibilityById.value,
-      [messageId]: visible,
-    }
-  }
-
-  syncWallSummaryWithEditorState()
-  syncWallMessagesIntoContent()
-}
-
 const openDeleteWallMessagePrompt = (messageId: number) => {
   if (pendingDeleteWallMessageIds.value.includes(messageId)) return
 
@@ -2182,111 +1646,10 @@ const queueDeleteWallMessage = () => {
     return
   }
 
-  pendingDeleteWallMessageIds.value = [...pendingDeleteWallMessageIds.value, messageId]
-  syncWallSummaryWithEditorState()
-  syncWallMessagesIntoContent()
+  const queued = queueDeleteWallMessageById(messageId)
   closeDeleteWallMessagePrompt()
-  notifySuccess('Mensaje marcado para eliminar. Se aplicará al guardar cambios.')
-}
-
-const persistPendingWallMessageDeletes = async () => {
-  if (!invitation.value?.id) return
-  const pendingIds = pendingDeleteWallMessageIds.value
-    .map((item) => Number(item))
-    .filter((item, index, list) => Number.isFinite(item) && item > 0 && list.indexOf(item) === index)
-  if (!pendingIds.length) return
-
-  const deletedIds: number[] = []
-  let firstError: unknown = null
-
-  for (const messageId of pendingIds) {
-    try {
-      await deleteTenantInvitationWallMessage(invitation.value.id, messageId)
-      deletedIds.push(messageId)
-    } catch (error) {
-      if (!firstError) {
-        firstError = error
-      }
-    }
-  }
-
-  if (deletedIds.length) {
-    wallMessages.value = wallMessages.value.filter((item) => !deletedIds.includes(item.id))
-    pendingDeleteWallMessageIds.value = pendingDeleteWallMessageIds.value.filter((id) => !deletedIds.includes(id))
-    const nextVisibilityMap = { ...pendingWallMessageVisibilityById.value }
-    for (const id of deletedIds) {
-      delete nextVisibilityMap[id]
-    }
-    pendingWallMessageVisibilityById.value = nextVisibilityMap
-    syncWallSummaryWithEditorState()
-    syncWallMessagesIntoContent()
-  }
-
-  if (firstError) {
-    throw firstError
-  }
-}
-
-const persistPendingWallMessageVisibilityChanges = async () => {
-  if (!invitation.value?.id) return
-
-  const pendingEntries = Object.entries(pendingWallMessageVisibilityById.value)
-    .map(([rawId, rawVisible]) => ({ id: Number(rawId), visible: Boolean(rawVisible) }))
-    .filter(({ id }) => Number.isFinite(id) && id > 0)
-    .filter(({ id }) => !pendingDeleteWallMessageIds.value.includes(id))
-    .filter(({ id }) => wallMessages.value.some((item) => item.id === id))
-
-  if (!pendingEntries.length) return
-
-  const updatedIds: number[] = []
-  let firstError: unknown = null
-
-  for (const entry of pendingEntries) {
-    try {
-      const response = await updateTenantInvitationWallMessage(invitation.value.id, entry.id, entry.visible)
-      wallMessages.value = wallMessages.value.map((item) => (
-        item.id === entry.id ? response.message : item
-      ))
-      updatedIds.push(entry.id)
-    } catch (error) {
-      if (!firstError) {
-        firstError = error
-      }
-    }
-  }
-
-  if (updatedIds.length) {
-    const nextMap = { ...pendingWallMessageVisibilityById.value }
-    for (const id of updatedIds) {
-      delete nextMap[id]
-    }
-    pendingWallMessageVisibilityById.value = nextMap
-    syncWallSummaryWithEditorState()
-    syncWallMessagesIntoContent()
-  }
-
-  if (firstError) {
-    throw firstError
-  }
-}
-
-const persistPendingGalleryImages = async () => {
-  if (!invitation.value?.id) return
-  if (!hasPendingGalleryChanges.value) return
-
-  isUploadingGallery.value = true
-  try {
-    const response = await syncTenantInvitationGalleryImages(invitation.value.id, {
-      files: pendingGalleryImages.value.map((item) => item.file),
-      removeImageIds: removedGalleryImageIds.value,
-    })
-
-    gallerySummary.value = response.gallery
-    galleryImages.value = response.items
-    clearGalleryPendingChanges()
-    scheduleGalleryProcessingRefresh()
-  } finally {
-    isUploadingGallery.value = false
+  if (queued) {
+    notifySuccess('Mensaje marcado para eliminar. Se aplicará al guardar cambios.')
   }
 }
 
@@ -2387,60 +1750,12 @@ const clearGalleryInputValue = () => {
   }
 }
 
-const validateGalleryFileType = (file: File): boolean => {
-  const mime = String(file.type ?? '').toLowerCase()
-  const lowerName = file.name.toLowerCase()
-  const extension = lowerName.includes('.') ? lowerName.split('.').pop() ?? '' : ''
-  const validMime = mime === 'image/jpeg' || mime === 'image/png'
-  const validExtension = extension === 'jpg' || extension === 'jpeg' || extension === 'png'
-  return validMime || validExtension
-}
-
 const onGalleryFilesSelected = (event: Event) => {
   const target = event.target as HTMLInputElement | null
   const selectedFiles = target?.files ? Array.from(target.files) : []
-  if (!selectedFiles.length) return
-
-  if (!gallerySummary.value.enabled) {
-    notifyError('Activa la galería para agregar imágenes.')
-    clearGalleryInputValue()
-    return
+  if (selectedFiles.length) {
+    queueGalleryFiles(selectedFiles)
   }
-
-  const validatedFiles = selectedFiles.filter((file) => validateGalleryFileType(file))
-  if (validatedFiles.length !== selectedFiles.length) {
-    notifyError('Solo se permiten imágenes JPG, JPEG o PNG.')
-  }
-
-  const remainingSlots = galleryRemainingSlots.value
-  const allowedFiles = remainingSlots === null
-    ? validatedFiles
-    : validatedFiles.slice(0, Math.max(0, remainingSlots))
-
-  if (!allowedFiles.length) {
-    notifyError('Ya alcanzaste el límite de imágenes de tu plan.')
-    clearGalleryInputValue()
-    return
-  }
-
-  if (allowedFiles.length < validatedFiles.length) {
-    notifyError('Algunas imágenes quedaron fuera por el límite de tu plan.')
-  }
-
-  const pendingRows = allowedFiles.map((file) => {
-    const extension = file.name.toLowerCase().split('.').pop() ?? ''
-    return {
-      id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-      name: file.name,
-      shortName: truncateGalleryFileName(file.name),
-      extension,
-      sizeBytes: file.size,
-    } as PendingGalleryImage
-  })
-
-  pendingGalleryImages.value = [...pendingGalleryImages.value, ...pendingRows]
   clearGalleryInputValue()
 }
 
@@ -2523,96 +1838,31 @@ const validateSlugBeforeSave = async (): Promise<string | null> => {
 
   return null
 }
+const { validateBeforeSave, buildProjectedContentForSave } = useInvitationEditorSaveWorkflow({
+  resolvedSectionVisibility,
+  faqItems,
+  countdownDatetime,
+  contentDraft,
+  locationItemsDraft,
+  checkinShowEventDate,
+  checkinShowEntryValue,
+  checkinCurrencyCodes: checkinCurrencyOptions.map((option) => option.code),
+  maxLocationsPerInvitation: MAX_LOCATIONS_PER_INVITATION,
+  defaultLocationMapsUrl: DEFAULT_LOCATION_MAPS_URL,
+  getByPath,
+  setByPath,
+  cloneRecord,
+  asText,
+  normalizeExternalUrl,
+  isValidHttpUrl,
+  formatDateTimeLabel24h,
+  normalizeDraftLocationItem,
+  createDefaultDraftLocation,
+  projectTextOverridesIntoContent,
+  resolveLocation: resolveTenantInvitationLocation,
+})
 
-const validateBeforeSave = (): string | null => {
-  if (resolvedSectionVisibility.value.faq) {
-    if (!faqItems.value.length) {
-      return 'Agrega al menos una pregunta y respuesta en FAQ o desactiva esa sección.'
-    }
-
-    const hasInvalidFaq = faqItems.value.some(
-      (item) => !item.question.trim() || !item.answer.trim(),
-    )
-
-    if (hasInvalidFaq) {
-      return 'Cada pregunta frecuente debe tener pregunta y respuesta.'
-    }
-  }
-
-  if (resolvedSectionVisibility.value.countdown && !countdownDatetime.value) {
-    return 'Selecciona una fecha para la cuenta regresiva.'
-  }
-
-  if (resolvedSectionVisibility.value.countdown) {
-    const countdownTargetIso = asText(getByPath(contentDraft.value, 'countdown.targetDateIso'))
-    const countdownDate = countdownTargetIso ? new Date(countdownTargetIso) : null
-    if (!countdownDate || Number.isNaN(countdownDate.getTime()) || countdownDate.getTime() < Date.now()) {
-      return 'La cuenta regresiva debe tener una fecha futura.'
-    }
-  }
-
-  if (resolvedSectionVisibility.value.location) {
-    const draftLocations = locationItemsDraft.value.slice(0, MAX_LOCATIONS_PER_INVITATION)
-    if (!draftLocations.length) {
-      return 'Agrega al menos una ubicación para continuar.'
-    }
-
-    for (let index = 0; index < draftLocations.length; index += 1) {
-      const locationItem = draftLocations[index]
-      if (!locationItem) continue
-
-      const suffix = draftLocations.length > 1 ? ` en la ubicación ${index + 1}` : ''
-      const mapsUrl = normalizeExternalUrl(asText(locationItem.mapsUrl))
-      if (!mapsUrl) {
-        return `Agrega el enlace de Google Maps${suffix}.`
-      }
-      if (!isValidHttpUrl(mapsUrl)) {
-        return `El enlace de Google Maps${suffix} no es válido.`
-      }
-
-      if (locationItem.uberEnabled) {
-        const uberUrl = normalizeExternalUrl(asText(locationItem.uberUrl))
-        if (uberUrl && !isValidHttpUrl(uberUrl)) {
-          return `El enlace de Uber${suffix} no es válido.`
-        }
-      }
-    }
-  }
-
-  if (resolvedSectionVisibility.value.checkin) {
-    if (checkinShowEventDate.value) {
-      const checkinDateIso = asText(getByPath(contentDraft.value, 'checkin.eventDateIso')) || asText(getByPath(contentDraft.value, 'event.date.iso'))
-      const checkinDate = checkinDateIso ? new Date(checkinDateIso) : null
-      if (!checkinDate || Number.isNaN(checkinDate.getTime())) {
-        return 'La fecha del check-in interactivo no es válida.'
-      }
-    }
-
-    if (checkinShowEntryValue.value) {
-      const amount = Number(getByPath(contentDraft.value, 'checkin.entry.amount') ?? 0)
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return 'Ingresa un valor de entrada mayor a 0 para el check-in interactivo.'
-      }
-
-      const currency = asText(getByPath(contentDraft.value, 'checkin.entry.currency')).toUpperCase()
-      const allowed = checkinCurrencyOptions.map((option) => option.code)
-      if (!allowed.includes(currency)) {
-        return 'Selecciona una moneda válida para el valor de entrada.'
-      }
-    }
-  }
-
-  return null
-}
-
-const markStateAsSaved = () => {
-  lastSavedSerializedState.value = serializedEditorState.value
-  undoStack.value = []
-  snapshotRegistry.clear()
-  registerSnapshotState(lastSavedSerializedState.value)
-}
-
-const saveChanges = async () => {
+const performSaveChanges = async () => {
   if (!invitation.value?.id) return
   const slugValidationError = await validateSlugBeforeSave()
   if (slugValidationError) {
@@ -2627,94 +1877,12 @@ const saveChanges = async () => {
     return
   }
 
-  isSaving.value = true
-
   try {
     const hadGalleryChanges = hasPendingGalleryChanges.value
     const hadPendingWallVisibilityChanges = hasPendingWallMessageVisibilityChanges.value
     const hadPendingWallDeletes = hasPendingWallMessageDeletes.value
 
-    const projectedContent = projectTextOverridesIntoContent(cloneRecord(contentDraft.value))
-    setByPath(
-      projectedContent,
-      'faq',
-      faqItems.value.map((item, index) => ({
-        id: asText(item.id, `faq-${index + 1}`),
-        question: item.question,
-        answer: item.answer,
-      })),
-    )
-
-    const countdownIso = asText(getByPath(projectedContent, 'countdown.targetDateIso'))
-    if (countdownIso) {
-      const countdownDate = new Date(countdownIso)
-      if (!Number.isNaN(countdownDate.getTime())) {
-        setByPath(projectedContent, 'event.date.iso', countdownDate.toISOString())
-        setByPath(projectedContent, 'event.date.label', formatDateTimeLabel24h(countdownDate))
-      }
-    }
-
-    if (resolvedSectionVisibility.value.location) {
-      const draftLocations = locationItemsDraft.value.slice(0, MAX_LOCATIONS_PER_INVITATION)
-      const normalizedLocations: DraftLocationItem[] = []
-
-      for (let index = 0; index < draftLocations.length; index += 1) {
-        const draftLocation = normalizeDraftLocationItem(draftLocations[index], index)
-        const normalizedMapsUrl = normalizeExternalUrl(asText(draftLocation.mapsUrl))
-        const normalizedUberUrl = normalizeExternalUrl(asText(draftLocation.uberUrl))
-
-        const nextLocation: DraftLocationItem = {
-          ...draftLocation,
-          mapsUrl: normalizedMapsUrl || draftLocation.mapsUrl,
-          mapsCanonicalUrl: asText(
-            draftLocation.mapsCanonicalUrl,
-            normalizedMapsUrl || draftLocation.mapsUrl || DEFAULT_LOCATION_MAPS_URL,
-          ),
-          mapsSourceUrl: asText(
-            draftLocation.mapsSourceUrl,
-            normalizedMapsUrl || draftLocation.mapsUrl || DEFAULT_LOCATION_MAPS_URL,
-          ),
-          uberUrl: normalizedUberUrl || '',
-        }
-
-        try {
-          const resolvedLocation = await resolveTenantInvitationLocation({
-            maps_url: normalizedMapsUrl || null,
-            place_id: asText(nextLocation.placeId) || null,
-            name: asText(nextLocation.name) || null,
-            address: asText(nextLocation.address) || null,
-            formatted_address: asText(nextLocation.formattedAddress) || null,
-            latitude: nextLocation.latitude,
-            longitude: nextLocation.longitude,
-            uber_enabled: nextLocation.uberEnabled,
-            uber_url: normalizedUberUrl || null,
-          })
-
-          if (resolvedLocation.name) nextLocation.name = resolvedLocation.name
-          if (resolvedLocation.address) nextLocation.address = resolvedLocation.address
-          if (resolvedLocation.formattedAddress) nextLocation.formattedAddress = resolvedLocation.formattedAddress
-          if (resolvedLocation.mapsUrl) nextLocation.mapsUrl = resolvedLocation.mapsUrl
-          if (resolvedLocation.mapsCanonicalUrl) nextLocation.mapsCanonicalUrl = resolvedLocation.mapsCanonicalUrl
-          if (resolvedLocation.mapsSourceUrl) nextLocation.mapsSourceUrl = resolvedLocation.mapsSourceUrl
-          if (resolvedLocation.placeId) nextLocation.placeId = resolvedLocation.placeId
-          if (typeof resolvedLocation.latitude === 'number') nextLocation.latitude = resolvedLocation.latitude
-          if (typeof resolvedLocation.longitude === 'number') nextLocation.longitude = resolvedLocation.longitude
-          if (typeof resolvedLocation.uberEnabled === 'boolean') nextLocation.uberEnabled = resolvedLocation.uberEnabled
-          if (resolvedLocation.uberUrl) nextLocation.uberUrl = resolvedLocation.uberUrl
-        } catch {
-          // Si falla la resolución canónica, continúa con la URL enviada por el cliente.
-        }
-
-        normalizedLocations.push(normalizeDraftLocationItem(nextLocation, index))
-      }
-
-      const persistedLocations = normalizedLocations.length
-        ? normalizedLocations
-        : [createDefaultDraftLocation(0)]
-
-      setByPath(projectedContent, 'locations', persistedLocations)
-      setByPath(projectedContent, 'location', persistedLocations[0] ?? createDefaultDraftLocation(0))
-    }
+    const projectedContent = await buildProjectedContentForSave()
     contentDraft.value = projectedContent
 
     const response = await updateTenantInvitation(invitation.value.id, {
@@ -2782,15 +1950,12 @@ const saveChanges = async () => {
   } catch (error) {
     const payload = error as { message?: string }
     notifyError(payload?.message ?? 'No pudimos guardar la invitación.')
-  } finally {
-    isSaving.value = false
   }
 }
 
-const applyTemplateChange = async () => {
+const performApplyTemplateChange = async () => {
   if (!invitation.value?.id || !selectedTemplateId.value || !isDraft.value || !hasPendingTemplateChange.value) return
 
-  isChangingTemplate.value = true
   try {
     const response = await updateTenantInvitation(invitation.value.id, {
       template_id: Number(selectedTemplateId.value),
@@ -2803,14 +1968,11 @@ const applyTemplateChange = async () => {
   } catch (error) {
     const payload = error as { message?: string }
     notifyError(payload?.message ?? 'No pudimos cambiar el estilo de la invitación.')
-  } finally {
-    isChangingTemplate.value = false
   }
 }
 
-const publishInvitation = async () => {
+const performPublishInvitation = async () => {
   if (!invitation.value?.id) return
-  isPublishing.value = true
 
   try {
     const response = await publishTenantInvitation(invitation.value.id)
@@ -2820,10 +1982,20 @@ const publishInvitation = async () => {
   } catch (error) {
     const payload = error as { message?: string }
     notifyError(payload?.message ?? 'No pudimos publicar la invitación.')
-  } finally {
-    isPublishing.value = false
   }
 }
+const {
+  isSaving,
+  isPublishing,
+  isChangingTemplate,
+  saveChanges,
+  applyTemplateChange,
+  publishInvitation,
+} = useInvitationEditorPersistence({
+  save: performSaveChanges,
+  applyTemplateChange: performApplyTemplateChange,
+  publishInvitation: performPublishInvitation,
+})
 
 const serializedEditorState = computed(() =>
   JSON.stringify({
@@ -2844,10 +2016,21 @@ const serializedEditorState = computed(() =>
     pendingWallMessageVisibilityById: pendingWallMessageVisibilityById.value,
   }),
 )
-
-const hasUnsavedChanges = computed(
-  () => Boolean(lastSavedSerializedState.value) && serializedEditorState.value !== lastSavedSerializedState.value,
-)
+const {
+  canUndo,
+  hasUnsavedChanges,
+  markStateAsSaved,
+  undoLastChange,
+} = useInvitationEditorHistory<EditorSnapshot>({
+  serializedState: serializedEditorState,
+  isHydratingSnapshot,
+  isApplyingUndo,
+  isLoading,
+  createSnapshot,
+  cloneSnapshot,
+  resolveSnapshotFromSerializedState: snapshotFromSerializedState,
+  applySnapshot,
+})
 
 const isTargetEditable = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false
@@ -2950,15 +2133,6 @@ watch(effectivePreviewDevice, (nextDevice) => {
   previewDevice.value = nextDevice
 })
 
-watch(serializedEditorState, (nextState, previousState) => {
-  if (!nextState) return
-  registerSnapshotState(nextState)
-  if (!previousState) return
-  if (isHydratingSnapshot.value || isApplyingUndo.value || isLoading.value) return
-  const previousSnapshot = resolveSnapshotBySerializedState(previousState)
-  pushUndoSnapshot(previousSnapshot)
-})
-
 watch(isImmersivePreviewOpen, (isOpen) => {
   document.body.style.overflow = isOpen ? 'hidden' : ''
 })
@@ -2981,15 +2155,6 @@ onBeforeUnmount(() => {
   if (slugAvailabilityTimer) {
     clearTimeout(slugAvailabilityTimer)
     slugAvailabilityTimer = null
-  }
-  if (galleryProcessingRefreshTimer) {
-    clearTimeout(galleryProcessingRefreshTimer)
-    galleryProcessingRefreshTimer = null
-  }
-  for (const image of pendingGalleryImages.value) {
-    if (image.previewUrl) {
-      URL.revokeObjectURL(image.previewUrl)
-    }
   }
   document.body.style.overflow = ''
 })

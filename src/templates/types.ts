@@ -204,7 +204,18 @@ export type InvitationTemplateRendererProps<TEventType extends InvitationTemplat
   data: InvitationTemplateDataMap[TEventType]
 }
 
+export type InvitationTemplatePreviewDataContext = {
+  invitationTitle?: string
+  typeEventName?: string
+}
+
+export type InvitationTemplateCapabilities = {
+  inlineEditor?: boolean
+}
+
 export type InvitationTemplateModule<TEventType extends InvitationTemplateEventType = InvitationTemplateEventType> = {
   manifest: InvitationTemplateManifest
   component: Component<InvitationTemplateRendererProps<TEventType>>
+  capabilities?: InvitationTemplateCapabilities
+  createPreviewData?: (context?: InvitationTemplatePreviewDataContext) => InvitationTemplateDataMap[TEventType]
 }

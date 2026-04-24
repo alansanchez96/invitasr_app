@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { weddingTemplateMocks } from '@/templates/mockWeddingTemplateData'
+import { resolveWeddingTemplatePreviewData } from '@/templates/previewData'
 import { listRegisteredTemplateIds, loadTemplateModule } from '@/templates/registry'
 import type { InvitationTemplateModule, WeddingTemplateData } from '@/templates/types'
 
@@ -32,15 +32,11 @@ const loadPreview = async () => {
     return
   }
 
-  const mockData = weddingTemplateMocks[templateId.value]
-  if (!mockData) {
-    loadError.value = `Falta mock data para el template ${templateId.value}.`
-    isLoading.value = false
-    return
-  }
-
   templateModule.value = loadedModule
-  templateData.value = mockData
+  templateData.value = resolveWeddingTemplatePreviewData(loadedModule, {
+    invitationTitle: loadedModule.manifest.name,
+    typeEventName: loadedModule.manifest.eventType,
+  })
   isLoading.value = false
 }
 

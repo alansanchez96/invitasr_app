@@ -1,4 +1,5 @@
 import type { InvitationTemplateManifest, InvitationTemplateModule } from '@/templates/types'
+import { createWeddingSnowPreviewData } from '@/templates/basic/boda/wedding-snow/previewData'
 
 type InvitationTemplateLoader = () => Promise<InvitationTemplateModule>
 
@@ -9,7 +10,14 @@ export const templateRegistry: Record<number, InvitationTemplateLoader> = {
       import('@/templates/basic/boda/wedding-snow/manifest'),
     ])
 
-    return { component, manifest }
+    return {
+      component,
+      manifest,
+      capabilities: {
+        inlineEditor: true,
+      },
+      createPreviewData: createWeddingSnowPreviewData,
+    }
   },
 }
 
