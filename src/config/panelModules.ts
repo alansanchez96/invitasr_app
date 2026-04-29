@@ -55,7 +55,8 @@ export const clientModuleGroups: PanelModuleGroup[] = [
   {
     title: 'Cuenta',
     items: [
-      { label: 'Configuracion', href: '/panel/configuracion' },
+      { label: 'Datos de la cuenta', href: '/panel/configuracion' },
+      { label: 'Seguridad', href: '/panel/seguridad' },
       { label: 'Notificaciones', href: '/panel/notificaciones' },
     ],
   },

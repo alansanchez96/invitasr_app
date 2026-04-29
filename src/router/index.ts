@@ -26,6 +26,7 @@ import ClientStats from '@/pages/client/ClientStats.vue'
 import ClientInvitations from '@/pages/client/ClientInvitations.vue'
 import ClientInvitationEditor from '@/pages/client/ClientInvitationEditor.vue'
 import ClientSettings from '@/pages/client/ClientSettings.vue'
+import ClientSecurity from '@/pages/client/ClientSecurity.vue'
 import ClientBilling from '@/pages/client/ClientBilling.vue'
 import ClientGuestList from '@/pages/client/ClientGuestList.vue'
 import ClientNotifications from '@/pages/client/ClientNotifications.vue'
@@ -315,6 +316,17 @@ const router = createRouter({
           component: ClientSettings,
           meta: {
             title: 'Mi panel · Configuracion',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'seguridad',
+          name: 'client-security',
+          component: ClientSecurity,
+          meta: {
+            title: 'Mi panel · Seguridad',
             requiresAuth: true,
             requiresClient: true,
             requiresActiveClientPlan: true,
