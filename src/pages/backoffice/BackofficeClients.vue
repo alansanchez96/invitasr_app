@@ -88,6 +88,34 @@ const sortFieldMap: Record<SortKey, SortField> = {
   created_at: 'created_at',
 }
 
+const activeSortLabel = computed(() => {
+  if (sortField.value === 'client_name') {
+    return `Cliente ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortField.value === 'email') {
+    return `Correo ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortField.value === 'status') {
+    return sortDir.value === 'asc'
+      ? 'Estado: activos primero'
+      : 'Estado: inactivos primero'
+  }
+  if (sortField.value === 'db_name') {
+    return `Base de datos ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortField.value === 'country_code') {
+    return `País ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortField.value === 'created_at') {
+    return sortDir.value === 'asc'
+      ? 'Creación: más antiguos primero'
+      : 'Creación: más recientes primero'
+  }
+  return sortDir.value === 'asc'
+    ? 'Orden por ID: menor a mayor'
+    : 'Orden por ID: mayor a menor'
+})
+
 const isSortActive = (key: SortKey) => sortField.value === sortFieldMap[key]
 
 const getAriaSort = (key: SortKey) => {
@@ -181,6 +209,10 @@ const fetchList = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const refreshList = () => {
+  fetchList()
 }
 
 const openClient = async (item: ClientListItem) => {
@@ -366,6 +398,25 @@ watch(
             </svg>
           </button>
         </div>
+        <div class="filters-table-controls">
+          <div class="filters-per-page">
+            <select id="clients-per-page" aria-label="Cantidad de filas" v-model.number="filters.perPage">
+              <option v-for="option in perPageOptions" :key="option" :value="option">{{ option }}</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            class="filters-refresh"
+            :disabled="isLoading"
+            aria-label="Recargar datos"
+            title="Recargar datos"
+            @click="refreshList">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" :class="{ 'is-spinning': isLoading }" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+        </div>
         <label class="filters-option">
           <input type="checkbox" v-model="showCreatedAt" />
           Mostrar fecha de creacion en el listado
@@ -376,7 +427,10 @@ watch(
     <section class="bo-content" :class="{ 'is-detail-open': hasSelection }">
       <div class="bo-card bo-table">
         <div class="bo-table-header">
-          <h2>Listado</h2>
+          <div>
+            <h2>Listado</h2>
+            <p class="bo-sort-helper">{{ activeSortLabel }}</p>
+          </div>
           <span class="bo-muted">Total: {{ total }}</span>
         </div>
 
@@ -533,12 +587,6 @@ watch(
           </div>
           <div class="pagination-right">
             <span>Pagina {{ filters.page }} de {{ lastPage }}</span>
-            <label class="per-page">
-              <span>Resultados:</span>
-              <select v-model.number="filters.perPage">
-                <option v-for="option in perPageOptions" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </label>
           </div>
         </div>
       </div>
@@ -758,6 +806,71 @@ watch(
   accent-color: #7a4fd9;
 }
 
+.filters-table-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-self: end;
+  margin-left: auto;
+}
+
+.filters-per-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b6b80;
+  font-weight: 700;
+}
+
+.filters-per-page select {
+  border-radius: 10px;
+  border: 1px solid #e2ddf7;
+  padding: 6px 10px;
+  background: #fbfaff;
+  font-weight: 700;
+  color: #4c1d95;
+}
+
+.filters-refresh {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #e2ddf7;
+  background: #fff;
+  color: #5b33a2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.filters-refresh svg {
+  width: 16px;
+  height: 16px;
+}
+
+.filters-refresh:hover,
+.filters-refresh:focus-visible {
+  background: #f6f2ff;
+  border-color: #cdbcf2;
+}
+
+.filters-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.filters-refresh .is-spinning {
+  animation: spin-refresh 0.8s linear infinite;
+}
+
+@keyframes spin-refresh {
+  to { transform: rotate(360deg); }
+}
+
 .bo-page.container {
   width: 100%;
   max-width: 1320px;
@@ -951,6 +1064,11 @@ watch(
     grid-template-columns: 1fr;
   }
 
+  .filters-table-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .bo-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -985,7 +1103,28 @@ watch(
 .bo-table-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.bo-table-header h2 {
+  margin: 0;
+}
+
+.bo-sort-helper {
+  margin: 6px 0 0;
+  min-height: 32px;
+  display: inline-flex;
   align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 57, 187, 0.2);
+  background: rgba(247, 243, 255, 0.9);
+  color: #4f357f;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 12px;
 }
 
 .bo-pagination {
@@ -999,7 +1138,7 @@ watch(
   flex-wrap: wrap;
 }
 
-.bo-pagination button {
+.pagination-left > button {
   background: none;
   border: none;
   font-weight: 600;
@@ -1060,23 +1199,8 @@ watch(
   margin-left: auto;
 }
 
-.per-page {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.per-page select {
-  border-radius: 10px;
-  border: 1px solid #e2ddf7;
-  padding: 6px 10px;
-  background: #fbfaff;
-  font-weight: 600;
-  color: #4c1d95;
-}
-
-.bo-pagination button:disabled {
+.pagination-left > button:disabled,
+.filters-refresh:disabled {
   color: #bdb7d6;
   cursor: not-allowed;
 }
@@ -1205,6 +1329,10 @@ watch(
     justify-content: center;
     flex-wrap: nowrap;
   }
+
+  .bo-table-header {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1264,6 +1392,15 @@ watch(
     font-size: 14px;
   }
 
+  .filters-per-page {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filters-per-page select {
+    min-width: 96px;
+  }
+
   .filters-option {
     font-size: 12px;
   }
@@ -1280,11 +1417,6 @@ watch(
   }
 
   .pagination-right {
-    font-size: 12px;
-  }
-
-  .per-page select {
-    padding: 5px 8px;
     font-size: 12px;
   }
 }

@@ -18,6 +18,9 @@ import { resolveWeddingTemplatePreviewData } from '@/templates/previewData'
 import type { InvitationTemplateModule, WeddingTemplateData } from '@/templates/types'
 import { notifyError, notifySuccess } from '@/utils/toast'
 
+type InvitationSortField = 'id' | 'title' | 'status' | 'created_at' | 'updated_at'
+type InvitationSortDirection = 'asc' | 'desc'
+
 const session = useSessionStore()
 
 const isLoading = ref(false)
@@ -40,6 +43,9 @@ const pagination = reactive({
   total: 0,
   lastPage: 1,
 })
+const perPageOptions = [10, 15, 25, 50]
+const sortBy = ref<InvitationSortField>('updated_at')
+const sortDir = ref<InvitationSortDirection>('desc')
 const filters = reactive({
   status: '' as '' | 'draft' | 'published',
   search: '',
@@ -95,6 +101,47 @@ const createPreviewData = computed<WeddingTemplateData>(() =>
     typeEventName: selectedTypeEventName.value,
   }),
 )
+
+const activeSortLabel = computed(() => {
+  if (sortBy.value === 'title') {
+    return `Título ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortBy.value === 'status') {
+    return sortDir.value === 'asc'
+      ? 'Estado: borrador primero'
+      : 'Estado: publicadas primero'
+  }
+  if (sortBy.value === 'created_at') {
+    return sortDir.value === 'asc'
+      ? 'Creación: más antiguas primero'
+      : 'Creación: más recientes primero'
+  }
+  if (sortBy.value === 'updated_at') {
+    return sortDir.value === 'asc'
+      ? 'Actualización: más antiguas primero'
+      : 'Actualización: más recientes primero'
+  }
+  return sortDir.value === 'asc'
+    ? 'Orden: primeras invitaciones primero'
+    : 'Orden: últimas invitaciones primero'
+})
+
+const toggleSort = (field: InvitationSortField) => {
+  if (sortBy.value === field) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+    return
+  }
+
+  sortBy.value = field
+  sortDir.value = field === 'status' || field === 'title' ? 'asc' : 'desc'
+}
+
+const isSortActive = (field: InvitationSortField) => sortBy.value === field
+
+const sortIndicator = (field: InvitationSortField) => {
+  if (sortBy.value !== field) return '↕'
+  return sortDir.value === 'asc' ? '↑' : '↓'
+}
 
 const loadCreateTemplatePreview = async () => {
   createTemplatePreviewModule.value = null
@@ -237,6 +284,8 @@ const loadData = async () => {
         perPage: pagination.perPage,
         status: filters.status,
         search: filters.search,
+        orderField: sortBy.value,
+        orderDirection: sortDir.value,
       }),
     ])
 
@@ -277,6 +326,10 @@ const nextPage = () => {
 
 const prevPage = () => {
   goToPage(pagination.page - 1)
+}
+
+const refreshData = () => {
+  void loadData()
 }
 
 const createInvitation = async () => {
@@ -388,6 +441,19 @@ watch(
   () => [filters.status, filters.search],
   () => {
     scheduleFilterRefresh()
+  },
+)
+
+watch([sortBy, sortDir], () => {
+  pagination.page = 1
+  void loadData()
+})
+
+watch(
+  () => pagination.perPage,
+  () => {
+    pagination.page = 1
+    void loadData()
   },
 )
 
@@ -539,6 +605,27 @@ watch(showDeletePrompt, (isOpen) => {
           <span>Buscar</span>
           <input v-model="filters.search" type="text" placeholder="Titulo o slug" />
         </label>
+
+        <p class="filters-helper">{{ activeSortLabel }}</p>
+        <div class="filters-actions">
+          <div class="per-page-control">
+            <select id="invitation-list-per-page" aria-label="Cantidad de filas" v-model.number="pagination.perPage" :disabled="isLoading">
+              <option v-for="option in perPageOptions" :key="option" :value="option">{{ option }}</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            class="refresh-icon-btn"
+            :disabled="isLoading"
+            aria-label="Recargar datos"
+            title="Recargar datos"
+            @click="refreshData">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" :class="{ 'is-spinning': isLoading }" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -546,7 +633,7 @@ watch(showDeletePrompt, (isOpen) => {
       <header class="section-head">
         <div>
           <h2>Listado real de invitaciones</h2>
-          <p>Resultados: {{ pagination.total }}</p>
+          <p>Total: {{ pagination.total }}</p>
         </div>
       </header>
 
@@ -558,13 +645,63 @@ watch(showDeletePrompt, (isOpen) => {
         <table class="invitation-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Titulo</th>
+              <th>
+                <button
+                  type="button"
+                  class="sort-head-btn"
+                  :class="{ 'sort-head-btn--active': isSortActive('id') }"
+                  title="ID"
+                  @click="toggleSort('id')">
+                  <span>ID</span>
+                  <span class="sort-head-indicator">{{ sortIndicator('id') }}</span>
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  class="sort-head-btn"
+                  :class="{ 'sort-head-btn--active': isSortActive('title') }"
+                  title="Título"
+                  @click="toggleSort('title')">
+                  <span>Título</span>
+                  <span class="sort-head-indicator">{{ sortIndicator('title') }}</span>
+                </button>
+              </th>
               <th>Slug</th>
-              <th>Estado</th>
-              <th>Creada</th>
+              <th>
+                <button
+                  type="button"
+                  class="sort-head-btn"
+                  :class="{ 'sort-head-btn--active': isSortActive('status') }"
+                  title="Estado"
+                  @click="toggleSort('status')">
+                  <span>Estado</span>
+                  <span class="sort-head-indicator">{{ sortIndicator('status') }}</span>
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  class="sort-head-btn"
+                  :class="{ 'sort-head-btn--active': isSortActive('created_at') }"
+                  title="Creada"
+                  @click="toggleSort('created_at')">
+                  <span>Creada</span>
+                  <span class="sort-head-indicator">{{ sortIndicator('created_at') }}</span>
+                </button>
+              </th>
               <th>Expira</th>
-              <th>Actualizada</th>
+              <th>
+                <button
+                  type="button"
+                  class="sort-head-btn"
+                  :class="{ 'sort-head-btn--active': isSortActive('updated_at') }"
+                  title="Actualizada"
+                  @click="toggleSort('updated_at')">
+                  <span>Actualizada</span>
+                  <span class="sort-head-indicator">{{ sortIndicator('updated_at') }}</span>
+                </button>
+              </th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -660,7 +797,7 @@ watch(showDeletePrompt, (isOpen) => {
 
         <div class="pagination-center">
           <p class="pagination-summary">
-            Página {{ pagination.page }} de {{ totalPages }} · {{ pagination.total }} resultados
+            Página {{ pagination.page }} de {{ totalPages }} · {{ pagination.total }} registros
           </p>
 
           <div class="pagination-pages">
@@ -1037,9 +1174,9 @@ watch(showDeletePrompt, (isOpen) => {
 .filters-row {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(220px, 260px));
-  justify-content: start;
+  grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr) auto auto;
   align-items: end;
+  justify-content: space-between;
 }
 
 .field {
@@ -1073,6 +1210,32 @@ watch(showDeletePrompt, (isOpen) => {
   width: 100%;
 }
 
+.filters-helper {
+  margin: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 57, 187, 0.18);
+  background: rgba(247, 243, 255, 0.86);
+  color: #4f357f;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0 0.85rem;
+}
+
+.filters-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-height: 44px;
+  justify-self: end;
+  margin-left: auto;
+}
+
 .empty-box {
   padding: 16px;
   border-radius: 14px;
@@ -1103,6 +1266,36 @@ watch(showDeletePrompt, (isOpen) => {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #6b5b86;
+}
+
+.sort-head-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sort-head-indicator {
+  font-size: 0.78rem;
+  color: #8a7ca4;
+}
+
+.sort-head-btn--active {
+  color: #4f2d81;
+}
+
+.sort-head-btn--active .sort-head-indicator {
+  color: #4f2d81;
 }
 
 .invitation-table tbody tr:hover td {
@@ -1260,6 +1453,65 @@ watch(showDeletePrompt, (isOpen) => {
   justify-content: center;
   gap: 0.45rem;
   flex-wrap: nowrap;
+}
+
+.per-page-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: #5d4e79;
+  font-weight: 600;
+}
+
+.per-page-control select {
+  min-height: 34px;
+  border-radius: 9px;
+  border: 1px solid #d7cce8;
+  background: #fff;
+  color: #2f2050;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0 0.6rem;
+}
+
+.refresh-icon-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  border: 1px solid #d7cce8;
+  background: #fff;
+  color: #4f2d81;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.refresh-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.refresh-icon-btn:hover,
+.refresh-icon-btn:focus-visible {
+  background: #f6f2ff;
+  border-color: #cdbcf2;
+}
+
+.refresh-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.refresh-icon-btn .is-spinning {
+  animation: spin-refresh 0.8s linear infinite;
+}
+
+@keyframes spin-refresh {
+  to { transform: rotate(360deg); }
 }
 
 .page-btn {
@@ -1436,6 +1688,11 @@ watch(showDeletePrompt, (isOpen) => {
   .client-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .filters-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .stats-action-btn {

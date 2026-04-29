@@ -1,4 +1,4 @@
-import { request } from '@/services/http'
+import { request, requestBlob } from '@/services/http'
 
 export type TenantInvitationStatus = 'draft' | 'published' | ''
 
@@ -29,6 +29,8 @@ export type TenantInvitationListParams = {
   perPage?: number
   status?: TenantInvitationStatus
   search?: string
+  orderField?: 'id' | 'title' | 'status' | 'created_at' | 'updated_at' | string
+  orderDirection?: 'asc' | 'desc' | string
 }
 
 export type TenantTemplateSummary = {
@@ -154,6 +156,12 @@ export type TenantInvitationRsvpListParams = {
   search?: string
   sortBy?: 'id' | 'name' | 'last_name' | 'confirmed_at' | 'confirmation' | 'date' | string
   sortDir?: 'asc' | 'desc' | string
+}
+
+export type TenantInvitationRsvpPdfExportParams = {
+  scope?: 'all' | 'confirmed'
+  sortField?: 'last_name' | 'first_name'
+  lastNameOrder?: 'asc' | 'desc'
 }
 
 export type TenantDashboardSummary = {
@@ -288,6 +296,8 @@ const buildQuery = (params: TenantInvitationListParams) => {
   search.set('perPage', String(params.perPage ?? 10))
   if (params.status && params.status.trim()) search.set('status', params.status.trim())
   if (params.search && params.search.trim()) search.set('search', params.search.trim())
+  if (params.orderField && String(params.orderField).trim()) search.set('orderField', String(params.orderField).trim())
+  if (params.orderDirection && String(params.orderDirection).trim()) search.set('orderDirection', String(params.orderDirection).trim())
   const query = search.toString()
   return query ? `?${query}` : ''
 }
@@ -551,6 +561,30 @@ export const getTenantInvitationRsvpResponses = async (
       per_page: toNumber(toRecord(data.pagination).per_page, 20),
       total: toNumber(toRecord(data.pagination).total, 0),
     },
+  }
+}
+
+export const exportTenantInvitationRsvpPdf = async (
+  params: TenantInvitationRsvpPdfExportParams = {},
+): Promise<{ blob: Blob; fileName: string }> => {
+  const scope = params.scope === 'all' ? 'all' : 'confirmed'
+  const sortField = params.sortField === 'first_name' ? 'first_name' : 'last_name'
+  const lastNameOrder = params.lastNameOrder === 'desc' ? 'desc' : 'asc'
+
+  const payload = await requestBlob(`${TENANT_BASE}/invitations/rsvp-responses/export-pdf`, {
+    method: 'POST',
+    body: {
+      scope,
+      sort_field: sortField,
+      last_name_order: lastNameOrder,
+    },
+  })
+
+  const defaultFileName = `invitados-${scope}-apellido-${lastNameOrder}.pdf`
+
+  return {
+    blob: payload.blob,
+    fileName: payload.fileName?.trim() || defaultFileName,
   }
 }
 

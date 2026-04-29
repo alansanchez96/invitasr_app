@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useSessionStore } from '@/stores/session'
 import {
+  exportTenantInvitationRsvpPdf,
   getTenantInvitationRsvpResponses,
   type TenantInvitationRsvpResponse,
 } from '@/services/tenantInvitations'
+import { notifyError, notifySuccess } from '@/utils/toast'
 
 type ConfirmedGuestRow = {
   id: number
   firstName: string
   lastName: string
+  invitationTitle: string
   dietaryRestrictions: string
   confirmedAt: string | null
 }
@@ -28,13 +31,14 @@ const searchInput = ref('')
 const searchQuery = ref('')
 const sortBy = ref<SortField>('id')
 const sortDir = ref<SortDirection>('asc')
+const perPageOptions = [10, 15, 25, 50]
+const perPage = ref(10)
 
 const currentPage = ref(1)
-const perPage = 10
 const pagination = ref({
   current_page: 1,
   last_page: 1,
-  per_page: perPage,
+  per_page: perPage.value,
   total: 0,
 })
 
@@ -42,6 +46,11 @@ const summary = ref({
   total_confirmed: 0,
   total_invitations: 0,
 })
+const showExportModal = ref(false)
+const isExporting = ref(false)
+const exportScope = ref<'all' | 'confirmed'>('confirmed')
+const exportSortField = ref<'last_name' | 'first_name'>('last_name')
+const exportLastNameOrder = ref<'asc' | 'desc'>('asc')
 const cellPreview = ref({
   visible: false,
   text: '',
@@ -68,6 +77,7 @@ const toRow = (item: TenantInvitationRsvpResponse): ConfirmedGuestRow => ({
   id: Number(item.id ?? 0),
   firstName: String(item.first_name ?? '').trim(),
   lastName: String(item.last_name ?? '').trim(),
+  invitationTitle: String(item.invitation_title ?? 'Invitación').trim() || 'Invitación',
   dietaryRestrictions: String(item.dietary_restrictions ?? '').trim() || 'Sin restricciones',
   confirmedAt: item.confirmed_at ?? null,
 })
@@ -97,8 +107,58 @@ const planLabel = computed(() => {
   if (normalizedPlanName.value === 'planner') return 'Planner'
   return 'Basic'
 })
+const isBasicPlan = computed(() => normalizedPlanName.value === 'basic' || normalizedPlanName.value === '')
+const visibleRowsCount = computed(() => rows.value.length)
 
-const canExportExcel = computed(() => ['pro', 'planner'].includes(normalizedPlanName.value))
+const latestConfirmedAtLabel = computed(() => {
+  let latestTimestamp = 0
+  let latestIso: string | null = null
+
+  for (const row of rows.value) {
+    if (!row.confirmedAt) continue
+    const timestamp = new Date(row.confirmedAt).getTime()
+    if (!Number.isFinite(timestamp)) continue
+    if (timestamp > latestTimestamp) {
+      latestTimestamp = timestamp
+      latestIso = row.confirmedAt
+    }
+  }
+
+  return latestIso ? formatDateTime(latestIso) : 'Sin registros recientes'
+})
+
+const activeSortLabel = computed(() => {
+  if (sortBy.value === 'name') {
+    return `Nombre ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortBy.value === 'last_name') {
+    return `Apellido ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
+  }
+  if (sortBy.value === 'confirmed_at') {
+    return sortDir.value === 'asc'
+      ? 'Fecha: más antiguas primero'
+      : 'Fecha: más recientes primero'
+  }
+  return sortDir.value === 'asc'
+    ? 'Confirmación: primeras respuestas primero'
+    : 'Confirmación: últimas respuestas primero'
+})
+
+const guestDisplayName = (guest: ConfirmedGuestRow) => {
+  const full = `${guest.firstName} ${guest.lastName}`.trim()
+  return full !== '' ? full : 'Invitado confirmado'
+}
+
+const guestInitials = (guest: ConfirmedGuestRow) => {
+  const letters = `${guest.firstName} ${guest.lastName}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((chunk) => chunk.charAt(0).toUpperCase())
+    .join('')
+  return letters || 'IC'
+}
 
 const toggleSort = (field: SortField) => {
   if (sortBy.value === field) {
@@ -124,7 +184,7 @@ const loadGuests = async () => {
   try {
     const result = await getTenantInvitationRsvpResponses({
       page: currentPage.value,
-      perPage,
+      perPage: perPage.value,
       search: searchQuery.value,
       sortBy: sortBy.value,
       sortDir: sortDir.value,
@@ -171,6 +231,56 @@ const goToNextPage = () => {
   goToPage(currentPage.value + 1)
 }
 
+const refreshGuests = () => {
+  void loadGuests()
+}
+
+const openExportModal = () => {
+  if (isBasicPlan.value) {
+    exportScope.value = 'confirmed'
+  }
+  showExportModal.value = true
+}
+
+const closeExportModal = () => {
+  if (isExporting.value) return
+  showExportModal.value = false
+}
+
+const triggerBlobDownload = (blob: Blob, fileName: string) => {
+  if (typeof window === 'undefined') return
+
+  const url = window.URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  anchor.rel = 'noopener'
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  window.URL.revokeObjectURL(url)
+}
+
+const exportGuestsPdf = async () => {
+  isExporting.value = true
+  try {
+    const response = await exportTenantInvitationRsvpPdf({
+      scope: exportScope.value,
+      sortField: exportSortField.value,
+      lastNameOrder: exportLastNameOrder.value,
+    })
+
+    triggerBlobDownload(response.blob, response.fileName)
+    closeExportModal()
+    notifySuccess('Tu archivo se descargó correctamente.')
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos exportar el PDF en este momento.')
+  } finally {
+    isExporting.value = false
+  }
+}
+
 const showCellPreview = (value: string) => {
   const text = String(value ?? '').trim()
   if (!text) return
@@ -187,6 +297,13 @@ const showCellPreview = (value: string) => {
     cellPreview.value.visible = false
     cellPreviewTimer = null
   }, 2200)
+}
+
+const handleWindowHotkeys = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && showExportModal.value) {
+    event.preventDefault()
+    closeExportModal()
+  }
 }
 
 watch(currentPage, () => {
@@ -212,6 +329,21 @@ watch(searchQuery, () => {
   resetToFirstPageOrLoad()
 })
 
+watch(perPage, () => {
+  resetToFirstPageOrLoad()
+})
+
+watch(showExportModal, (isOpen) => {
+  if (typeof document === 'undefined') return
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+})
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleWindowHotkeys)
+  }
+})
+
 onBeforeUnmount(() => {
   if (searchDebounceTimer) {
     clearTimeout(searchDebounceTimer)
@@ -220,6 +352,12 @@ onBeforeUnmount(() => {
   if (cellPreviewTimer) {
     clearTimeout(cellPreviewTimer)
     cellPreviewTimer = null
+  }
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleWindowHotkeys)
   }
 })
 </script>
@@ -236,15 +374,13 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="client-actions">
-        <BaseButton type="button" variant="ghost" class="export-btn export-btn--pdf">
-          Exportar PDF
-        </BaseButton>
+        <span class="plan-pill">Plan {{ planLabel }}</span>
         <BaseButton
-          v-if="canExportExcel"
           type="button"
           variant="ghost"
-          class="export-btn export-btn--excel">
-          Exportar Excel
+          class="export-btn export-btn--pdf"
+          @click="openExportModal">
+          Exportar
         </BaseButton>
       </div>
     </header>
@@ -255,8 +391,16 @@ onBeforeUnmount(() => {
         <strong>{{ summary.total_confirmed }}</strong>
       </article>
       <article class="bo-card stat-card">
-        <span>Plan actual</span>
-        <strong>{{ planLabel }}</strong>
+        <span>Invitaciones con confirmación</span>
+        <strong>{{ summary.total_invitations }}</strong>
+      </article>
+      <article class="bo-card stat-card">
+        <span>Mostrando en esta página</span>
+        <strong>{{ visibleRowsCount }}</strong>
+      </article>
+      <article class="bo-card stat-card">
+        <span>Última confirmación visible</span>
+        <strong>{{ latestConfirmedAtLabel }}</strong>
       </article>
     </section>
 
@@ -264,11 +408,37 @@ onBeforeUnmount(() => {
       <div class="filters-row">
         <label class="field field-search">
           <span>Buscar invitado</span>
-          <input
-            v-model="searchInput"
-            type="search"
-            placeholder="Buscar por nombre o apellido" />
+          <div class="search-shell">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.8-3.8" />
+            </svg>
+            <input
+              v-model="searchInput"
+              type="search"
+              placeholder="Buscar por nombre o apellido" />
+          </div>
         </label>
+        <p class="filters-helper">{{ activeSortLabel }}</p>
+        <div class="filters-actions">
+          <div class="per-page-control">
+            <select id="guest-list-per-page" aria-label="Cantidad de filas" v-model.number="perPage" :disabled="isLoading">
+              <option v-for="option in perPageOptions" :key="option" :value="option">{{ option }}</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            class="refresh-icon-btn"
+            :disabled="isLoading"
+            aria-label="Recargar datos"
+            title="Recargar datos"
+            @click="refreshGuests">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" :class="{ 'is-spinning': isLoading }" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+        </div>
       </div>
     </article>
 
@@ -327,10 +497,14 @@ onBeforeUnmount(() => {
               <td>
                 <button
                   type="button"
-                  class="cell-ellipsis-btn"
-                  :title="guest.firstName || '—'"
-                  @click="showCellPreview(guest.firstName || '—')">
-                  {{ guest.firstName || '—' }}
+                  class="cell-ellipsis-btn cell-identity-btn"
+                  :title="guestDisplayName(guest)"
+                  @click="showCellPreview(`${guestDisplayName(guest)} · ${guest.invitationTitle}`)">
+                  <span class="guest-avatar" aria-hidden="true">{{ guestInitials(guest) }}</span>
+                  <span class="guest-identity">
+                    <strong>{{ guest.firstName || '—' }}</strong>
+                    <small>{{ guest.invitationTitle }}</small>
+                  </span>
                 </button>
               </td>
               <td>
@@ -343,13 +517,13 @@ onBeforeUnmount(() => {
                 </button>
               </td>
               <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
+                <span
+                  class="diet-pill"
+                  :class="{ 'diet-pill--clean': guest.dietaryRestrictions === 'Sin restricciones' }"
                   :title="guest.dietaryRestrictions"
                   @click="showCellPreview(guest.dietaryRestrictions)">
                   {{ guest.dietaryRestrictions }}
-                </button>
+                </span>
               </td>
               <td>
                 <button
@@ -380,7 +554,7 @@ onBeforeUnmount(() => {
 
         <div class="pagination-center">
           <p class="pagination-summary">
-            Página {{ currentPage }} de {{ totalPages }} · {{ pagination.total }} resultados
+            Página {{ currentPage }} de {{ totalPages }} · {{ pagination.total }} registros
           </p>
 
           <div class="pagination-pages">
@@ -412,6 +586,85 @@ onBeforeUnmount(() => {
     <Transition name="cell-preview-fade">
       <div v-if="cellPreview.visible" class="cell-preview-quote" role="status" aria-live="polite">
         <p>{{ cellPreview.text }}</p>
+      </div>
+    </Transition>
+
+    <Transition name="export-modal-fade">
+      <div
+        v-if="showExportModal"
+        class="export-modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        @click.self="closeExportModal">
+        <article class="export-modal-card">
+          <header class="export-modal-head">
+            <div>
+              <p class="client-kicker">Exportación PDF</p>
+              <h2 id="export-modal-title">Configura tu descarga</h2>
+            </div>
+            <button
+              type="button"
+              class="export-modal-close"
+              aria-label="Cerrar"
+              @click="closeExportModal">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m18 6-12 12" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </header>
+
+          <div class="export-modal-body">
+            <section class="export-option-group" aria-label="Tipo de invitados">
+              <p class="export-option-title">Invitados</p>
+              <template v-if="isBasicPlan">
+                <div class="export-chip-fixed" role="status" aria-live="polite">
+                  Invitados confirmados
+                </div>
+              </template>
+              <template v-else>
+                <label class="export-radio">
+                  <input v-model="exportScope" type="radio" value="all" />
+                  <span>Todos los invitados</span>
+                </label>
+                <label class="export-radio">
+                  <input v-model="exportScope" type="radio" value="confirmed" />
+                  <span>Invitados confirmados</span>
+                </label>
+              </template>
+            </section>
+
+            <section class="export-option-group" aria-label="Orden alfabético">
+              <p class="export-option-title">Orden alfabético</p>
+              <label class="export-radio">
+                <input v-model="exportSortField" type="radio" value="last_name" />
+                <span>Ordenar por apellido</span>
+              </label>
+              <label class="export-radio">
+                <input v-model="exportSortField" type="radio" value="first_name" />
+                <span>Ordenar por nombre</span>
+              </label>
+              <label class="export-radio">
+                <input v-model="exportLastNameOrder" type="radio" value="asc" />
+                <span>A - Z</span>
+              </label>
+              <label class="export-radio">
+                <input v-model="exportLastNameOrder" type="radio" value="desc" />
+                <span>Z - A</span>
+              </label>
+            </section>
+          </div>
+
+          <footer class="export-modal-actions">
+            <BaseButton type="button" variant="ghost" :disabled="isExporting" @click="closeExportModal">
+              Cancelar
+            </BaseButton>
+            <BaseButton type="button" variant="primary" :disabled="isExporting" @click="exportGuestsPdf">
+              {{ isExporting ? 'Exportando...' : 'Exportar' }}
+            </BaseButton>
+          </footer>
+        </article>
       </div>
     </Transition>
   </section>
@@ -467,6 +720,20 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.plan-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 57, 187, 0.2);
+  background: rgba(246, 241, 255, 0.92);
+  color: #4a2f7c;
+  font-weight: 700;
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+}
+
 :deep(.export-btn) {
   min-height: 42px;
   padding-inline: 1rem;
@@ -487,13 +754,9 @@ onBeforeUnmount(() => {
   background: linear-gradient(120deg, #cf2f3f, #ec4f5f);
 }
 
-:deep(.export-btn--excel) {
-  background: linear-gradient(120deg, #117744, #1fa765);
-}
-
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -513,6 +776,7 @@ onBeforeUnmount(() => {
 .stat-card strong {
   font-size: 1.35rem;
   color: #1f1442;
+  line-height: 1.2;
 }
 
 .filters-card {
@@ -523,8 +787,10 @@ onBeforeUnmount(() => {
 
 .filters-row {
   display: grid;
-  grid-template-columns: minmax(220px, 320px);
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: end;
   gap: 12px;
+  justify-content: space-between;
 }
 
 .field-search {
@@ -556,10 +822,66 @@ onBeforeUnmount(() => {
 
 .field-search input {
   width: 100%;
+  border: 0;
+  background: transparent;
+  min-height: 42px;
+  padding: 0;
+}
+
+.search-shell {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 107, 255, 0.2);
+  background: #fff;
+  padding: 0 0.9rem;
+}
+
+.search-shell svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #7a66a5;
+  stroke-width: 1.9;
+}
+
+.filters-helper {
+  margin: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 57, 187, 0.18);
+  background: rgba(247, 243, 255, 0.86);
+  color: #4f357f;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0 0.85rem;
+}
+
+.filters-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-height: 44px;
+  justify-self: end;
+  margin-left: auto;
 }
 
 .field input:focus-visible,
 .field select:focus-visible {
+  outline: 2px solid rgba(108, 68, 178, 0.22);
+  outline-offset: 1px;
+}
+
+.search-shell:focus-within {
   outline: 2px solid rgba(108, 68, 178, 0.22);
   outline-offset: 1px;
 }
@@ -585,6 +907,14 @@ td {
   border-bottom: 1px solid #eee5fb;
   font-size: 0.92rem;
   color: #2b2242;
+}
+
+tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+tbody tr:hover td {
+  background: rgba(247, 241, 255, 0.72);
 }
 
 th {
@@ -687,6 +1017,65 @@ th {
   flex-wrap: nowrap;
 }
 
+.per-page-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: #5d4e79;
+  font-weight: 600;
+}
+
+.per-page-control select {
+  min-height: 34px;
+  border-radius: 9px;
+  border: 1px solid #d7cce8;
+  background: #fff;
+  color: #2f2050;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0 0.6rem;
+}
+
+.refresh-icon-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  border: 1px solid #d7cce8;
+  background: #fff;
+  color: #4f2d81;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.refresh-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.refresh-icon-btn:hover,
+.refresh-icon-btn:focus-visible {
+  background: #f6f2ff;
+  border-color: #cdbcf2;
+}
+
+.refresh-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.refresh-icon-btn .is-spinning {
+  animation: spin-refresh 0.8s linear infinite;
+}
+
+@keyframes spin-refresh {
+  to { transform: rotate(360deg); }
+}
+
 .page-btn {
   min-width: 34px;
   height: 34px;
@@ -725,6 +1114,69 @@ th {
   overflow: inherit;
   text-overflow: inherit;
   cursor: help;
+}
+
+.cell-identity-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+}
+
+.guest-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 57, 187, 0.2);
+  background: linear-gradient(135deg, #6f39bb, #c2548d);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.guest-identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.guest-identity strong {
+  font-weight: 700;
+}
+
+.guest-identity small {
+  font-size: 0.76rem;
+  color: #7a6997;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diet-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  background: rgba(255, 247, 237, 0.95);
+  color: #9a4311;
+  font-size: 0.81rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diet-pill--clean {
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(240, 253, 244, 0.95);
+  color: #166534;
 }
 
 .cell-ellipsis-btn:focus-visible {
@@ -777,6 +1229,156 @@ th {
   transform: translateX(-50%) translateY(6px);
 }
 
+.export-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 145;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(12, 16, 31, 0.62);
+  backdrop-filter: blur(7px);
+}
+
+.export-modal-card {
+  width: min(560px, 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(188, 171, 222, 0.42);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(213, 182, 255, 0.25), transparent 62%),
+    linear-gradient(180deg, #ffffff, #f8f7ff);
+  box-shadow: 0 34px 70px rgba(14, 20, 36, 0.42);
+  overflow: hidden;
+}
+
+.export-modal-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(148, 132, 185, 0.24);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.export-modal-head h2 {
+  margin: 0;
+  font-size: 1.24rem;
+  color: #1f133f;
+}
+
+.export-modal-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(123, 108, 160, 0.34);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f133f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.export-modal-close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.export-modal-body {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.export-option-group {
+  border: 1px solid rgba(155, 126, 214, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  align-items: start;
+}
+
+.export-chip-fixed {
+  border-radius: 999px;
+  border: 1px solid rgba(111, 57, 187, 0.22);
+  background: rgba(245, 238, 255, 0.95);
+  color: #4b2a80;
+  font-weight: 700;
+  font-size: 0.86rem;
+  min-height: 40px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1;
+  width: fit-content;
+  align-self: start;
+  justify-self: start;
+  box-shadow: 0 8px 18px rgba(90, 57, 153, 0.1);
+}
+
+.export-option-title {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #5a3d8d;
+}
+
+.export-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(155, 126, 214, 0.18);
+  background: rgba(250, 247, 255, 0.92);
+  padding: 9px 10px;
+  color: #2f1e4f;
+  font-weight: 600;
+}
+
+.export-radio input {
+  accent-color: #6f39bb;
+}
+
+.export-modal-actions {
+  padding: 14px 16px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  border-top: 1px solid rgba(148, 132, 185, 0.24);
+}
+
+.export-modal-fade-enter-active,
+.export-modal-fade-leave-active {
+  transition: opacity 0.24s ease;
+}
+
+.export-modal-fade-enter-from,
+.export-modal-fade-leave-to {
+  opacity: 0;
+}
+
+.export-modal-fade-enter-active .export-modal-card,
+.export-modal-fade-leave-active .export-modal-card {
+  transition: transform 0.24s ease, opacity 0.24s ease;
+}
+
+.export-modal-fade-enter-from .export-modal-card,
+.export-modal-fade-leave-to .export-modal-card {
+  transform: translateY(14px) scale(0.98);
+  opacity: 0.9;
+}
+
 @media (max-width: 980px) {
   table {
     width: max(100%, 780px);
@@ -795,11 +1397,11 @@ th {
   }
 
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .filters-row {
-    grid-template-columns: minmax(200px, 280px);
+    grid-template-columns: 1fr;
   }
 
   .pagination-layout {
@@ -832,6 +1434,11 @@ th {
   .filters-row {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .filters-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .field-search {
@@ -905,6 +1512,33 @@ th {
   .cell-ellipsis-btn {
     cursor: pointer;
   }
+
+  .guest-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 0.68rem;
+  }
+
+  .guest-identity small {
+    font-size: 0.72rem;
+  }
+
+  .diet-pill {
+    max-width: 100%;
+    font-size: 0.76rem;
+  }
+
+  .export-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .export-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .export-modal-actions :deep(.btn) {
+    width: 100%;
+  }
 }
 
 @media (max-width: 560px) {
@@ -946,6 +1580,10 @@ th {
   .page-btn {
     min-width: 34px;
     height: 34px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -127,7 +127,7 @@ onUnmounted(() => {
   position: fixed;
   top: 96px;
   right: 24px;
-  z-index: 120;
+  z-index: 260;
   display: grid;
   gap: 10px;
   pointer-events: none;
