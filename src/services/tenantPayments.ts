@@ -6,9 +6,18 @@ export type TenantPaymentItem = {
   plan_name: string | null
   plan_billing_type: string | null
   amount: string | null
+  original_amount: string | null
   currency: string | null
   status: string | null
   type: string | null
+  purchase_kind: string | null
+  purchase_category: 'plan_purchase' | 'credit_purchase' | 'plan_upgrade' | string | null
+  purchase_label: string | null
+  purchase_description: string | null
+  credit_quantity: number | null
+  discount_percent: number | null
+  from_plan_name: string | null
+  to_plan_name: string | null
   provider: string | null
   paid_at: string | null
   created_at: string | null
@@ -20,7 +29,7 @@ export type TenantPaymentListParams = {
   perPage?: number
   search?: string
   status?: string
-  sortBy?: 'id' | 'plan_name' | 'status' | 'amount' | 'currency' | 'paid_at' | 'created_at' | 'updated_at' | string
+  sortBy?: 'id' | 'plan_name' | 'status' | 'amount' | 'currency' | 'purchase_kind' | 'paid_at' | 'created_at' | 'updated_at' | string
   sortDir?: 'asc' | 'desc' | string
 }
 
@@ -72,9 +81,18 @@ const normalizeItem = (value: unknown): TenantPaymentItem => {
     plan_name: source.plan_name ? String(source.plan_name) : null,
     plan_billing_type: source.plan_billing_type ? String(source.plan_billing_type) : null,
     amount: source.amount == null ? null : String(source.amount),
+    original_amount: source.original_amount == null ? null : String(source.original_amount),
     currency: source.currency ? String(source.currency) : null,
     status: source.status ? String(source.status) : null,
     type: source.type ? String(source.type) : null,
+    purchase_kind: source.purchase_kind ? String(source.purchase_kind) : null,
+    purchase_category: source.purchase_category ? String(source.purchase_category) : null,
+    purchase_label: source.purchase_label ? String(source.purchase_label) : null,
+    purchase_description: source.purchase_description ? String(source.purchase_description) : null,
+    credit_quantity: source.credit_quantity == null ? null : toNumber(source.credit_quantity, 0),
+    discount_percent: source.discount_percent == null ? null : toNumber(source.discount_percent, 0),
+    from_plan_name: source.from_plan_name ? String(source.from_plan_name) : null,
+    to_plan_name: source.to_plan_name ? String(source.to_plan_name) : null,
     provider: source.provider ? String(source.provider) : null,
     paid_at: source.paid_at ? String(source.paid_at) : null,
     created_at: source.created_at ? String(source.created_at) : null,
@@ -115,4 +133,3 @@ export const listTenantPayments = async (
     },
   }
 }
-

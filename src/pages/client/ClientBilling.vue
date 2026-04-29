@@ -4,7 +4,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import { listTenantPayments, type TenantPaymentItem } from '@/services/tenantPayments'
 import { formatStatusLabel } from '@/utils/clientPanel'
 
-type SortField = 'id' | 'plan_name' | 'amount' | 'status' | 'paid_at' | 'created_at' | 'updated_at'
+type SortField = 'id' | 'plan_name' | 'purchase_kind' | 'amount' | 'status' | 'paid_at' | 'created_at' | 'updated_at'
 type SortDirection = 'asc' | 'desc'
 
 const rows = ref<TenantPaymentItem[]>([])
@@ -110,6 +110,11 @@ const activeSortLabel = computed(() => {
       ? 'Monto: menor a mayor'
       : 'Monto: mayor a menor'
   }
+  if (sortBy.value === 'purchase_kind') {
+    return sortDir.value === 'asc'
+      ? 'Concepto: compras primero'
+      : 'Concepto: mejoras primero'
+  }
   if (sortBy.value === 'status') {
     return sortDir.value === 'asc'
       ? 'Estado: pagos aprobados primero'
@@ -161,6 +166,9 @@ const resolveStatusClass = (status: string | null) => {
 }
 
 const paymentInitials = (item: TenantPaymentItem) => {
+  if (item.purchase_category === 'credit_purchase') return 'CR'
+  if (item.purchase_category === 'plan_upgrade') return 'UP'
+
   const plan = String(item.plan_name ?? '')
     .trim()
     .split(/\s+/)
@@ -174,6 +182,40 @@ const paymentInitials = (item: TenantPaymentItem) => {
   const provider = String(item.provider ?? '').trim().slice(0, 2).toUpperCase()
   return provider || 'PG'
 }
+
+const formatPlanName = (name: string | null) => {
+  const normalized = String(name ?? '').trim().toLowerCase()
+  if (normalized === 'basic') return 'Basic'
+  if (normalized === 'pro') return 'Pro'
+  if (normalized === 'planner') return 'Planner'
+  if (!normalized) return 'Sin plan'
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+const resolvePurchaseClass = (item: TenantPaymentItem) => {
+  if (item.purchase_category === 'credit_purchase') return 'purchase-pill--credits'
+  if (item.purchase_category === 'plan_upgrade') return 'purchase-pill--upgrade'
+  return 'purchase-pill--plan'
+}
+
+const purchaseIcon = (item: TenantPaymentItem) => {
+  if (item.purchase_category === 'credit_purchase') return '+'
+  if (item.purchase_category === 'plan_upgrade') return '↑'
+  return '✓'
+}
+
+const purchasePreview = (item: TenantPaymentItem) => {
+  const label = item.purchase_label || 'Pago'
+  const description = item.purchase_description || formatPlanName(item.plan_name)
+  if (item.discount_percent) {
+    return `${label} · ${description} · ${item.discount_percent}% de descuento`
+  }
+  return `${label} · ${description}`
+}
+
+const rowClass = (item: TenantPaymentItem) => ({
+  'payment-row--upgrade': item.purchase_category === 'plan_upgrade',
+})
 
 const formatMoney = (amount: string | null, currency: string | null) => {
   const value = Number(amount ?? '')
@@ -363,7 +405,7 @@ onBeforeUnmount(() => {
             <input
               v-model="searchInput"
               type="search"
-              placeholder="Buscar por ID, plan, estado o fecha" />
+              placeholder="Buscar por ID, plan, concepto, estado o fecha" />
           </div>
         </label>
 
@@ -423,6 +465,12 @@ onBeforeUnmount(() => {
                 </button>
               </th>
               <th>
+                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('purchase_kind') }" @click="toggleSort('purchase_kind')">
+                  <span>Concepto</span>
+                  <span class="sort-head-indicator">{{ sortIndicator('purchase_kind') }}</span>
+                </button>
+              </th>
+              <th>
                 <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('amount') }" @click="toggleSort('amount')">
                   <span>Monto</span>
                   <span class="sort-head-indicator">{{ sortIndicator('amount') }}</span>
@@ -456,15 +504,15 @@ onBeforeUnmount(() => {
           </thead>
           <tbody>
             <tr v-if="!isLoading && !loadError && !rows.length">
-              <td colspan="7" class="empty-row">Todavía no encontramos pagos para mostrar.</td>
+              <td colspan="8" class="empty-row">Todavía no encontramos pagos para mostrar.</td>
             </tr>
-            <tr v-for="item in rows" :key="item.id">
+            <tr v-for="item in rows" :key="item.id" :class="rowClass(item)">
               <td>
                 <button
                   type="button"
                   class="cell-ellipsis-btn cell-identity-btn"
                   :title="`#${item.id}`"
-                  @click="showCellPreview(`#${item.id} · ${item.plan_name || 'Sin plan'}`)">
+                  @click="showCellPreview(`#${item.id} · ${purchasePreview(item)}`)">
                   <span class="payment-avatar" aria-hidden="true">{{ paymentInitials(item) }}</span>
                   <span class="payment-identity">
                     <strong>#{{ item.id }}</strong>
@@ -475,9 +523,24 @@ onBeforeUnmount(() => {
                 <button
                   type="button"
                   class="cell-ellipsis-btn cell-plan-btn"
-                  :title="item.plan_name || 'Sin plan'"
-                  @click="showCellPreview(item.plan_name || 'Sin plan')">
-                  <strong>{{ item.plan_name || 'Sin plan' }}</strong>
+                  :title="formatPlanName(item.plan_name)"
+                  @click="showCellPreview(formatPlanName(item.plan_name))">
+                  <strong>{{ formatPlanName(item.plan_name) }}</strong>
+                </button>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="cell-ellipsis-btn purchase-cell-btn"
+                  :title="purchasePreview(item)"
+                  @click="showCellPreview(purchasePreview(item))">
+                  <span class="purchase-pill" :class="resolvePurchaseClass(item)">
+                    <span class="purchase-icon" aria-hidden="true">{{ purchaseIcon(item) }}</span>
+                    <span class="purchase-copy">
+                      <strong>{{ item.purchase_label || 'Pago' }}</strong>
+                      <small>{{ item.purchase_description || formatPlanName(item.plan_name) }}</small>
+                    </span>
+                  </span>
                 </button>
               </td>
               <td>
@@ -820,7 +883,7 @@ onBeforeUnmount(() => {
 }
 
 table {
-  width: max(100%, 980px);
+  width: max(100%, 1120px);
   border-collapse: collapse;
 }
 
@@ -846,20 +909,25 @@ td:nth-child(2) {
 
 th:nth-child(3),
 td:nth-child(3) {
-  min-width: 124px;
+  min-width: 220px;
 }
 
 th:nth-child(4),
 td:nth-child(4) {
-  min-width: 146px;
+  min-width: 124px;
 }
 
 th:nth-child(5),
-td:nth-child(5),
+td:nth-child(5) {
+  min-width: 146px;
+}
+
 th:nth-child(6),
 td:nth-child(6),
 th:nth-child(7),
-td:nth-child(7) {
+td:nth-child(7),
+th:nth-child(8),
+td:nth-child(8) {
   min-width: 154px;
 }
 
@@ -869,6 +937,18 @@ tbody tr {
 
 tbody tr:hover td {
   background: rgba(247, 241, 255, 0.72);
+}
+
+tbody tr.payment-row--upgrade td {
+  background:
+    linear-gradient(90deg, rgba(248, 243, 255, 0.96), rgba(239, 247, 255, 0.88)),
+    radial-gradient(circle at 2% 50%, rgba(124, 77, 224, 0.14), transparent 32%);
+}
+
+tbody tr.payment-row--upgrade:hover td {
+  background:
+    linear-gradient(90deg, rgba(244, 237, 255, 0.98), rgba(232, 243, 255, 0.94)),
+    radial-gradient(circle at 2% 50%, rgba(124, 77, 224, 0.2), transparent 34%);
 }
 
 th {
@@ -947,6 +1027,11 @@ th {
   flex: 0 0 auto;
 }
 
+.payment-row--upgrade .payment-avatar {
+  background: linear-gradient(135deg, #32205a, #7b4ee0 48%, #e54ab2);
+  box-shadow: 0 8px 24px rgba(111, 57, 187, 0.22);
+}
+
 .payment-identity {
   display: grid;
   gap: 2px;
@@ -996,6 +1081,85 @@ th {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.purchase-cell-btn {
+  cursor: pointer;
+}
+
+.purchase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.42rem 0.6rem;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  box-shadow: 0 10px 26px rgba(54, 31, 86, 0.08);
+}
+
+.purchase-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.purchase-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.purchase-copy strong,
+.purchase-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.purchase-copy strong {
+  color: #24163f;
+  font-size: 0.85rem;
+}
+
+.purchase-copy small {
+  color: #6b5b86;
+  font-size: 0.76rem;
+}
+
+.purchase-pill--plan {
+  background: rgba(248, 243, 255, 0.92);
+  border-color: rgba(111, 57, 187, 0.18);
+}
+
+.purchase-pill--plan .purchase-icon {
+  background: linear-gradient(135deg, #6f39bb, #a855f7);
+}
+
+.purchase-pill--credits {
+  background: rgba(239, 253, 244, 0.94);
+  border-color: rgba(22, 163, 74, 0.2);
+}
+
+.purchase-pill--credits .purchase-icon {
+  background: linear-gradient(135deg, #15803d, #22c55e);
+}
+
+.purchase-pill--upgrade {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(245, 238, 255, 0.96));
+  border-color: rgba(126, 79, 224, 0.25);
+}
+
+.purchase-pill--upgrade .purchase-icon {
+  background: linear-gradient(135deg, #32205a, #7b4ee0 52%, #e54ab2);
 }
 
 .status-pill {
@@ -1179,7 +1343,7 @@ th {
 
 @media (max-width: 980px) {
   table {
-    width: max(100%, 900px);
+    width: max(100%, 1080px);
   }
 
   th,
@@ -1240,7 +1404,7 @@ th {
 
   table {
     width: max-content;
-    min-width: 900px;
+    min-width: 1080px;
     table-layout: auto;
   }
 
@@ -1305,7 +1469,7 @@ th {
 
   table {
     width: max-content;
-    min-width: 860px;
+    min-width: 1040px;
     table-layout: auto;
   }
 
