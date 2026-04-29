@@ -1758,14 +1758,6 @@ watch(isAnyModalOpen, (isOpen) => {
     max-width: 100%;
   }
 
-  .bo-table {
-    overflow-x: auto;
-  }
-
-  .bo-table table {
-    min-width: 920px;
-  }
-
   .modal-form {
     grid-template-columns: 1fr;
   }

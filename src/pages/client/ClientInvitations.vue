@@ -61,6 +61,18 @@ let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const hasInvitations = computed(() => invitations.value.length > 0)
 const hasTemplates = computed(() => templates.value.length > 0)
+const totalPages = computed(() => Math.max(1, Number(pagination.lastPage || 1)))
+const canGoPrev = computed(() => pagination.page > 1)
+const canGoNext = computed(() => pagination.page < totalPages.value)
+const pageItems = computed(() => {
+  const pages: number[] = []
+  const start = Math.max(1, pagination.page - 2)
+  const end = Math.min(totalPages.value, start + 4)
+  for (let page = start; page <= end; page += 1) {
+    pages.push(page)
+  }
+  return pages
+})
 const filteredTemplates = computed(() => {
   const selectedTypeEvent = String(createForm.type_event_id ?? '').trim()
   if (!selectedTypeEvent) return templates.value
@@ -252,16 +264,19 @@ const scheduleFilterRefresh = () => {
   }, 260)
 }
 
-const nextPage = () => {
-  if (pagination.page >= pagination.lastPage) return
-  pagination.page += 1
+const goToPage = (page: number) => {
+  const targetPage = Math.min(totalPages.value, Math.max(1, page))
+  if (targetPage === pagination.page) return
+  pagination.page = targetPage
   void loadData()
 }
 
+const nextPage = () => {
+  goToPage(pagination.page + 1)
+}
+
 const prevPage = () => {
-  if (pagination.page <= 1) return
-  pagination.page -= 1
-  void loadData()
+  goToPage(pagination.page - 1)
 }
 
 const createInvitation = async () => {
@@ -527,7 +542,7 @@ watch(showDeletePrompt, (isOpen) => {
       </div>
     </section>
 
-    <section class="bo-card">
+    <section class="bo-card table-card">
       <header class="section-head">
         <div>
           <h2>Listado real de invitaciones</h2>
@@ -629,12 +644,50 @@ watch(showDeletePrompt, (isOpen) => {
         </table>
       </div>
 
-      <div class="pagination-row">
-        <BaseButton type="button" variant="ghost" :disabled="pagination.page <= 1" @click="prevPage">Anterior</BaseButton>
-        <span>Pagina {{ pagination.page }} de {{ pagination.lastPage }}</span>
-        <BaseButton type="button" variant="ghost" :disabled="pagination.page >= pagination.lastPage" @click="nextPage">Siguiente</BaseButton>
-      </div>
     </section>
+
+    <footer class="bo-card pagination-card">
+      <div class="pagination-layout">
+        <BaseButton
+          type="button"
+          variant="ghost"
+          class="pagination-nav-btn pagination-nav-btn--left"
+          :disabled="!canGoPrev || isLoading"
+          @click="prevPage">
+          <span class="pagination-arrow" aria-hidden="true">←</span>
+          <span class="pagination-label">Anterior</span>
+        </BaseButton>
+
+        <div class="pagination-center">
+          <p class="pagination-summary">
+            Página {{ pagination.page }} de {{ totalPages }} · {{ pagination.total }} resultados
+          </p>
+
+          <div class="pagination-pages">
+            <button
+              v-for="page in pageItems"
+              :key="`invite-page-${page}`"
+              type="button"
+              class="page-btn"
+              :class="{ 'page-btn--active': page === pagination.page }"
+              :disabled="isLoading"
+              @click="goToPage(page)">
+              {{ page }}
+            </button>
+          </div>
+        </div>
+
+        <BaseButton
+          type="button"
+          variant="ghost"
+          class="pagination-nav-btn pagination-nav-btn--right"
+          :disabled="!canGoNext || isLoading"
+          @click="nextPage">
+          <span class="pagination-label">Siguiente</span>
+          <span class="pagination-arrow" aria-hidden="true">→</span>
+        </BaseButton>
+      </div>
+    </footer>
 
     <Transition name="template-preview-modal">
       <div
@@ -699,6 +752,11 @@ watch(showDeletePrompt, (isOpen) => {
   padding: 22px;
 }
 
+.table-card,
+.pagination-card {
+  padding: 20px;
+}
+
 .client-page-head {
   display: flex;
   align-items: flex-start;
@@ -737,6 +795,7 @@ watch(showDeletePrompt, (isOpen) => {
   padding-inline: 1rem;
   border-radius: 12px;
   font-weight: 700;
+  white-space: nowrap;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
 }
 
@@ -1022,13 +1081,7 @@ watch(showDeletePrompt, (isOpen) => {
 }
 
 .table-wrap {
-  min-height: clamp(420px, 56vh, 620px);
-  max-height: clamp(420px, 62vh, 700px);
-  overflow-x: auto;
-  overflow-y: auto;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 14px;
-  background: #fff;
+  width: 100%;
 }
 
 .invitation-table {
@@ -1040,15 +1093,20 @@ watch(showDeletePrompt, (isOpen) => {
 .invitation-table td {
   text-align: left;
   padding: 12px 12px;
-  border-bottom: 1px solid #eee7fb;
-  font-size: 14px;
+  border-bottom: 1px solid #eee5fb;
+  font-size: 0.92rem;
+  color: #2b2242;
 }
 
 .invitation-table th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #f8fafc;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b5b86;
+}
+
+.invitation-table tbody tr:hover td {
+  background: #fbf8ff;
 }
 
 .actions-cell {
@@ -1144,11 +1202,87 @@ watch(showDeletePrompt, (isOpen) => {
   box-shadow: 0 10px 18px rgba(159, 18, 57, 0.3);
 }
 
-.pagination-row {
-  margin-top: 14px;
-  display: flex;
-  justify-content: space-between;
+.pagination-card {
+  display: block;
+}
+
+.pagination-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, auto) minmax(0, 1fr);
   align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+}
+
+.pagination-center {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.pagination-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #5d4e79;
+  text-align: center;
+}
+
+.pagination-nav-btn--left {
+  justify-self: start;
+}
+
+.pagination-nav-btn--right {
+  justify-self: end;
+}
+
+:deep(.pagination-nav-btn) {
+  min-height: 36px;
+  border-radius: 10px;
+  white-space: nowrap;
+  padding-inline: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+}
+
+.pagination-label {
+  line-height: 1;
+}
+
+.pagination-arrow {
+  line-height: 1;
+}
+
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+
+.page-btn {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid #d7cce8;
+  background: #fff;
+  color: #2f2050;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.page-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.page-btn--active {
+  border-color: transparent;
+  background: linear-gradient(120deg, #6f39bb, #c2548d);
+  color: #fff;
 }
 
 @media (max-width: 1100px) {
@@ -1180,6 +1314,7 @@ watch(showDeletePrompt, (isOpen) => {
   .invitation-table tbody {
     display: grid;
     gap: 10px;
+    min-width: 0;
   }
 
   .invitation-table thead {
@@ -1228,11 +1363,74 @@ watch(showDeletePrompt, (isOpen) => {
   .actions-cell::before {
     display: none;
   }
+
+  .pagination-layout {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.55rem;
+  }
+
+  .pagination-summary {
+    font-size: 0.84rem;
+  }
+
+  .pagination-pages {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+
+  :deep(.pagination-nav-btn) {
+    min-height: 34px;
+    padding-inline: 0.7rem;
+  }
 }
 
 @media (max-width: 720px) {
   .client-page-head {
     flex-direction: column;
+  }
+
+  .pagination-layout {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 0.5rem;
+    align-items: start;
+  }
+
+  .pagination-center {
+    gap: 0.35rem;
+  }
+
+  :deep(.pagination-nav-btn) {
+    min-height: 38px;
+    width: 44px;
+    min-width: 44px;
+    padding-inline: 0;
+    border-radius: 12px;
+    justify-content: center;
+  }
+
+  .pagination-label {
+    display: none;
+  }
+
+  .pagination-arrow {
+    font-size: 1rem;
+  }
+
+  .pagination-summary {
+    font-size: 0.8rem;
+  }
+
+  .pagination-pages {
+    max-width: 100%;
+    justify-content: flex-start;
+    scrollbar-width: none;
+    padding-bottom: 0;
+  }
+
+  .pagination-pages::-webkit-scrollbar {
+    display: none;
   }
 
   .client-actions {

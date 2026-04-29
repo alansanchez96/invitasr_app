@@ -1220,14 +1220,6 @@ watch(
     max-width: 100%;
   }
 
-  .bo-table {
-    overflow-x: auto;
-  }
-
-  .bo-table table {
-    min-width: 680px;
-  }
-
   .pagination-right {
     width: 100%;
     justify-content: space-between;

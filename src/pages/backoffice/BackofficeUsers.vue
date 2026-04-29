@@ -687,11 +687,6 @@ watch(
   width: 100%;
   border-collapse: collapse;
   margin-top: 16px;
-  min-width: 760px;
-}
-
-.bo-table {
-  overflow-x: auto;
 }
 
 .bo-table th,
@@ -1124,14 +1119,6 @@ watch(
 
   .bo-page.container {
     max-width: 100%;
-  }
-
-  .bo-table {
-    overflow-x: auto;
-  }
-
-  .bo-table table {
-    min-width: 680px;
   }
 
   .pagination-right {

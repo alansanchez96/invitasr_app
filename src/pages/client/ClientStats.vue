@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import {
-  getTenantDashboardSummary,
-  listTenantInvitations,
-  type TenantInvitationItem,
-} from '@/services/tenantInvitations'
-import { formatStatusLabel, getClientPlanName } from '@/utils/clientPanel'
+import { getTenantDashboardSummary } from '@/services/tenantInvitations'
 import { useSessionStore } from '@/stores/session'
+import { getClientPlanName } from '@/utils/clientPanel'
 
 const session = useSessionStore()
 const isLoading = ref(false)
@@ -16,96 +12,68 @@ const dashboard = ref({
   total_invitations: 0,
   draft_invitations: 0,
   published_invitations: 0,
+  invitation_visits_total: 0,
+  invitation_last_visit_at: null as string | null,
+  total_guests: 0,
+  total_confirmed_guests: 0,
   credits_available: 0,
   last_updated_at: null as string | null,
 })
-const invitations = ref<TenantInvitationItem[]>([])
-const latestStatuses = ref<string[]>([])
 
-const publicationRate = computed(() => {
-  if (dashboard.value.total_invitations <= 0) return 0
-  return Math.round((dashboard.value.published_invitations / dashboard.value.total_invitations) * 100)
-})
+const formatNumber = (value: number) => new Intl.NumberFormat('es-AR').format(Math.max(0, Number(value) || 0))
 
-const stateCards = computed(() => [
-  { label: 'Plan', value: getClientPlanName(session.user) },
-  { label: 'Creditos disponibles', value: String(dashboard.value.credits_available) },
-  { label: 'Total de invitaciones', value: String(dashboard.value.total_invitations) },
-  { label: 'Borradores', value: String(dashboard.value.draft_invitations) },
-  { label: 'Publicadas', value: String(dashboard.value.published_invitations) },
-])
+const formatDateTime = (value: string | null) => {
+  if (!value) return 'Aun no hay visitas'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Aun no hay visitas'
 
-const publishedInvitations = computed(() =>
-  invitations.value.filter((invitation) => String(invitation.status ?? '').toLowerCase() === 'published'),
-)
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
-
-const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
-
-const isSectionEnabled = (invitation: TenantInvitationItem, sectionKey: string) => {
-  const settings = asRecord(invitation.settings)
-  const sectionVisibility = asRecord(settings.section_visibility)
-
-  if (typeof sectionVisibility[sectionKey] === 'boolean') {
-    return Boolean(sectionVisibility[sectionKey])
-  }
-
-  const content = asRecord(invitation.content)
-
-  if (sectionKey === 'gallery') {
-    return asArray(content.gallery).length > 0
-  }
-  if (sectionKey === 'faq') {
-    return asArray(content.faq).length > 0
-  }
-  if (sectionKey === 'location') {
-    return Boolean(asRecord(content.location).mapsUrl)
-  }
-  if (sectionKey === 'checkin') {
-    return Boolean(asRecord(content.checkin).title || asRecord(content.checkin).message)
-  }
-
-  return Boolean(content[sectionKey])
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
 }
 
-const basicFeatureMetrics = computed(() => {
-  const source = publishedInvitations.value
-  const total = source.length || 1
-
-  const countEnabled = (key: string) =>
-    source.filter((invitation) => isSectionEnabled(invitation, key)).length
-
-  const toLabel = (count: number) => `${count}/${source.length} invitaciones publicadas`
-
-  return [
-    { label: 'RSVP activo', value: toLabel(countEnabled('rsvp')), pct: Math.round((countEnabled('rsvp') / total) * 100) },
-    { label: 'Galeria activa', value: toLabel(countEnabled('gallery')), pct: Math.round((countEnabled('gallery') / total) * 100) },
-    { label: 'Muro activo', value: toLabel(countEnabled('wall')), pct: Math.round((countEnabled('wall') / total) * 100) },
-    { label: 'Maps + Uber', value: toLabel(countEnabled('location')), pct: Math.round((countEnabled('location') / total) * 100) },
-    { label: 'Cuenta regresiva', value: toLabel(countEnabled('countdown')), pct: Math.round((countEnabled('countdown') / total) * 100) },
-    { label: 'Save the date', value: toLabel(countEnabled('saveDate')), pct: Math.round((countEnabled('saveDate') / total) * 100) },
-  ]
+const confirmationRate = computed(() => {
+  if (dashboard.value.total_guests <= 0) return 0
+  return Math.round((dashboard.value.total_confirmed_guests / dashboard.value.total_guests) * 100)
 })
+
+const statsCards = computed(() => [
+  {
+    label: 'Visitas a tu invitación',
+    value: formatNumber(dashboard.value.invitation_visits_total),
+    hint: 'Personas que abrieron tu invitación publicada.',
+  },
+  {
+    label: 'Total de invitados',
+    value: formatNumber(dashboard.value.total_guests),
+    hint: 'Respuestas recibidas desde el formulario de asistencia.',
+  },
+  {
+    label: 'Invitados confirmados',
+    value: formatNumber(dashboard.value.total_confirmed_guests),
+    hint: `${confirmationRate.value}% de confirmación sobre el total recibido.`,
+  },
+  {
+    label: 'Última visita registrada',
+    value: formatDateTime(dashboard.value.invitation_last_visit_at),
+    hint: 'Se actualiza cuando alguien abre tu invitación.',
+  },
+])
 
 const loadData = async () => {
   isLoading.value = true
   loadError.value = null
 
   try {
-    const [summary, invitationList] = await Promise.all([
-      getTenantDashboardSummary(),
-      listTenantInvitations({ page: 1, perPage: 100 }),
-    ])
-    dashboard.value = summary
-    invitations.value = invitationList.list
-    latestStatuses.value = invitationList.list
-      .slice(0, 5)
-      .map((invitation) => formatStatusLabel(invitation.status, 'Sin estado'))
+    dashboard.value = await getTenantDashboardSummary()
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar las estadisticas de tu cuenta.'
+    loadError.value = payload?.message ?? 'No pudimos cargar tus estadísticas en este momento.'
   } finally {
     isLoading.value = false
   }
@@ -120,63 +88,37 @@ onMounted(() => {
   <section class="client-page container" aria-labelledby="client-stats-title">
     <header class="client-page-head bo-card">
       <div>
-        <p class="client-kicker">Analitica real</p>
-        <h1 id="client-stats-title">Estadisticas</h1>
+        <p class="client-kicker">Resumen de rendimiento</p>
+        <h1 id="client-stats-title">Estadísticas</h1>
         <p class="client-lead">
-          Estas metricas se calculan con tus invitaciones reales creadas en tu cuenta.
+          Aquí puedes ver cómo avanza tu invitación con métricas claras y en tiempo real.
         </p>
       </div>
 
       <div class="client-actions">
         <BaseButton as="RouterLink" to="/panel/invitaciones" variant="primary">Ver invitaciones</BaseButton>
-        <BaseButton as="RouterLink" to="/panel/configuracion" variant="ghost">Ajustar configuracion</BaseButton>
       </div>
     </header>
 
-    <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
-    <p v-else-if="isLoading" class="client-inline-note">Cargando estadisticas...</p>
-
-    <section class="state-grid" aria-label="Estado base de la cuenta">
-      <article v-for="item in stateCards" :key="item.label" class="bo-card state-card">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
+    <section class="bo-card hero-stat">
+      <div>
+        <p class="hero-stat__kicker">Plan actual</p>
+        <strong class="hero-stat__plan">{{ getClientPlanName(session.user) }}</strong>
+      </div>
+      <p class="hero-stat__text">
+        Este panel muestra las métricas del plan Basic: visitas, invitados y actividad reciente.
+      </p>
     </section>
 
-    <section class="bo-card analytics-panel">
-      <header class="section-head">
-        <div>
-          <h2>Indicadores del plan Basic</h2>
-          <p>Seguimiento real de uso sobre tus invitaciones publicadas.</p>
-        </div>
-      </header>
+    <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
+    <p v-else-if="isLoading" class="client-inline-note">Cargando estadísticas...</p>
 
-      <div class="empty-metric-grid">
-        <article v-for="item in basicFeatureMetrics" :key="item.label" class="empty-metric">
-          <strong>{{ item.label }}</strong>
-          <p>{{ item.value }}</p>
-          <small>{{ item.pct }}% de adopcion</small>
-        </article>
-
-        <article class="empty-metric">
-          <strong>Tasa de publicacion</strong>
-          <p>{{ publicationRate }}% de tus invitaciones ya estan publicadas.</p>
-        </article>
-        <article class="empty-metric">
-          <strong>Ultima actividad</strong>
-          <p>
-            {{
-              dashboard.last_updated_at
-                ? new Date(dashboard.last_updated_at).toLocaleString()
-                : 'Aun no hay actividad registrada.'
-            }}
-          </p>
-        </article>
-        <article class="empty-metric">
-          <strong>Estados recientes</strong>
-          <p>{{ latestStatuses.length ? latestStatuses.join(', ') : 'Sin invitaciones recientes.' }}</p>
-        </article>
-      </div>
+    <section class="stats-grid" aria-label="Indicadores del plan Basic">
+      <article v-for="item in statsCards" :key="item.label" class="bo-card stat-card">
+        <span class="stat-card__label">{{ item.label }}</span>
+        <strong class="stat-card__value">{{ item.value }}</strong>
+        <p class="stat-card__hint">{{ item.hint }}</p>
+      </article>
     </section>
   </section>
 </template>
@@ -191,8 +133,8 @@ onMounted(() => {
 }
 
 .client-page-head,
-.analytics-panel,
-.state-card {
+.hero-stat,
+.stat-card {
   padding: 22px;
 }
 
@@ -200,7 +142,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
 }
 
 .client-kicker {
@@ -212,77 +154,102 @@ onMounted(() => {
   font-weight: 700;
 }
 
-.client-page-head h1,
-.section-head h2 {
+.client-page-head h1 {
   margin: 0;
 }
 
 .client-lead,
-.section-head p,
-.empty-metric p,
-.client-inline-note {
+.client-inline-note,
+.stat-card__hint,
+.hero-stat__text {
   margin: 0;
   color: #6a5a84;
 }
 
 .client-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.state-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
+.hero-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(214, 173, 255, 0.28), transparent 60%),
+    radial-gradient(80% 100% at 0% 100%, rgba(138, 197, 255, 0.2), transparent 55%),
+    #fff;
 }
 
-.state-card {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.state-card span {
+.hero-stat__kicker {
+  margin: 0;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(90, 48, 140, 0.65);
+  color: rgba(90, 48, 140, 0.62);
   font-weight: 700;
 }
 
-.state-card strong,
-.empty-metric strong {
-  color: var(--brand-ink);
+.hero-stat__plan {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: clamp(1.35rem, 2.2vw, 1.8rem);
+  color: #231742;
 }
 
-.section-head {
-  margin-bottom: 1rem;
+.hero-stat__text {
+  max-width: 520px;
+  text-align: right;
 }
 
-.empty-metric-grid {
+.stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
-.empty-metric {
+.stat-card {
   display: grid;
-  gap: 0.45rem;
-  padding: 18px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #fff, #f9f4ff);
-  border: 1px dashed rgba(155, 107, 255, 0.26);
+  gap: 0.48rem;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(251, 247, 255, 0.95));
 }
 
-.empty-metric small {
-  color: #7c6b96;
+.stat-card__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(90, 48, 140, 0.66);
   font-weight: 700;
 }
 
-@media (max-width: 1100px) {
-  .state-grid,
-  .empty-metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.stat-card__value {
+  color: #1f1442;
+  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  line-height: 1.2;
+}
+
+.stat-card__hint {
+  font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stat {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-stat__text {
+    max-width: none;
+    text-align: left;
   }
 }
 
@@ -291,14 +258,13 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .client-actions,
-  .client-actions :deep(.btn) {
+  .client-actions {
     width: 100%;
   }
 
-  .state-grid,
-  .empty-metric-grid {
-    grid-template-columns: 1fr;
+  .client-actions :deep(.btn) {
+    width: 100%;
   }
 }
 </style>
+

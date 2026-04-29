@@ -74,6 +74,7 @@ export type PublicAuthUser = {
   tenant?: {
     id?: number | string
     status?: string | null
+    country_code?: string | null
   } | null
   client_plan?: {
     has_plan?: boolean
@@ -118,6 +119,7 @@ const toRecord = (value: unknown): Record<string, unknown> =>
 const normalizeProfile = (source: Record<string, unknown>): PublicOnboardingProfile => {
   const onboardingRaw = toRecord(source.onboarding)
   const registrationRaw = toRecord(source.registration)
+  const clientRaw = toRecord(source.client)
 
   return {
     onboarding: Object.keys(onboardingRaw).length
@@ -139,7 +141,7 @@ const normalizeProfile = (source: Record<string, unknown>): PublicOnboardingProf
       ? {
           full_name: registrationRaw.full_name as string | undefined,
           email: registrationRaw.email as string | undefined,
-          country_code: registrationRaw.country_code as string | undefined,
+          country_code: (registrationRaw.country_code ?? clientRaw.country_code) as string | undefined,
           register_method: registrationRaw.register_method as string | undefined,
         }
       : null,

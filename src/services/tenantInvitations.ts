@@ -134,6 +134,10 @@ export type TenantInvitationRsvpSummary = {
 
 export type TenantInvitationRsvpDetail = {
   summary: TenantInvitationRsvpSummary
+  sort?: {
+    by: 'id' | 'name' | 'last_name' | 'confirmed_at' | string
+    dir: 'asc' | 'desc' | string
+  }
   items: TenantInvitationRsvpResponse[]
   pagination: {
     current_page: number
@@ -148,12 +152,18 @@ export type TenantInvitationRsvpListParams = {
   perPage?: number
   invitation_id?: number | string
   search?: string
+  sortBy?: 'id' | 'name' | 'last_name' | 'confirmed_at' | 'confirmation' | 'date' | string
+  sortDir?: 'asc' | 'desc' | string
 }
 
 export type TenantDashboardSummary = {
   total_invitations: number
   draft_invitations: number
   published_invitations: number
+  invitation_visits_total: number
+  invitation_last_visit_at: string | null
+  total_guests: number
+  total_confirmed_guests: number
   credits_available: number
   last_updated_at: string | null
 }
@@ -420,6 +430,10 @@ export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummar
     total_invitations: toNumber(data.total_invitations, 0),
     draft_invitations: toNumber(data.draft_invitations, 0),
     published_invitations: toNumber(data.published_invitations, 0),
+    invitation_visits_total: toNumber(data.invitation_visits_total, 0),
+    invitation_last_visit_at: (data.invitation_last_visit_at ?? null) as string | null,
+    total_guests: toNumber(data.total_guests, 0),
+    total_confirmed_guests: toNumber(data.total_confirmed_guests, 0),
     credits_available: toNumber(data.credits_available, 0),
     last_updated_at: (data.last_updated_at ?? null) as string | null,
   }
@@ -501,7 +515,7 @@ export const getTenantInvitationRsvpResponses = async (
 ): Promise<TenantInvitationRsvpDetail> => {
   const search = new URLSearchParams()
   search.set('page', String(params.page ?? 1))
-  search.set('perPage', String(params.perPage ?? 20))
+  search.set('perPage', String(params.perPage ?? 10))
 
   if (params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== '') {
     search.set('invitation_id', String(params.invitation_id))
@@ -511,6 +525,14 @@ export const getTenantInvitationRsvpResponses = async (
     search.set('search', params.search.trim())
   }
 
+  if (params.sortBy && String(params.sortBy).trim()) {
+    search.set('sortBy', String(params.sortBy).trim())
+  }
+
+  if (params.sortDir && String(params.sortDir).trim()) {
+    search.set('sortDir', String(params.sortDir).trim())
+  }
+
   const payload = await request<TenantApiResponse<Record<string, unknown>>>(
     `${TENANT_BASE}/invitations/rsvp-responses?${search.toString()}`,
   )
@@ -518,6 +540,10 @@ export const getTenantInvitationRsvpResponses = async (
 
   return {
     summary: normalizeRsvpSummary(data.summary),
+    sort: {
+      by: String(toRecord(data.sort).by ?? 'id'),
+      dir: String(toRecord(data.sort).dir ?? 'asc'),
+    },
     items: extractList(data.items).map(normalizeRsvpResponse),
     pagination: {
       current_page: toNumber(toRecord(data.pagination).current_page, 1),

@@ -1061,8 +1061,6 @@ watch(
   .bo-card { padding: 16px; }
   .bo-page { gap: 18px; }
   .bo-page.container { max-width: 100%; }
-  .bo-table { overflow-x: auto; }
-  .bo-table table { min-width: 700px; }
   .modal-form { grid-template-columns: 1fr; }
 }
 

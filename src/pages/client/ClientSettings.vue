@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useCatalogStore } from '@/stores/catalogs'
@@ -40,6 +40,12 @@ const securityForm = reactive({
   confirm_password: '',
 })
 const isTwoFactorEnabled = ref(false)
+const selectedCountryName = computed(() => {
+  const countryCode = form.country_code.trim().toUpperCase()
+  if (!countryCode) return 'Sin definir'
+  const match = countries.value.find((country) => String(country.iso ?? '').toUpperCase() === countryCode)
+  return match?.nicename ?? match?.name ?? countryCode
+})
 
 const patchSessionName = (fullName: string, email: string) => {
   const normalized = fullName.trim().replace(/\s+/g, ' ')
@@ -59,7 +65,7 @@ const syncForm = (nextProfile: PublicOnboardingProfile | null) => {
 
   form.full_name = nextProfile?.registration?.full_name ?? sessionFullName
   form.email = nextProfile?.registration?.email ?? session.user?.email ?? ''
-  form.country_code = nextProfile?.registration?.country_code ?? ''
+  form.country_code = nextProfile?.registration?.country_code ?? session.user?.tenant?.country_code ?? ''
 }
 
 const loadProfile = async () => {
@@ -242,6 +248,10 @@ onMounted(() => {
           <li>
             <strong>Invitaciones publicadas</strong>
             <span>{{ tenantSummary.published_invitations }}</span>
+          </li>
+          <li>
+            <strong>Pais configurado</strong>
+            <span>{{ selectedCountryName }}</span>
           </li>
           <li>
             <strong>Ultima actualizacion</strong>

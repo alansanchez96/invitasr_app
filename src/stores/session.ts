@@ -13,6 +13,7 @@ type AuthUser = {
   tenant?: {
     id?: number | string
     status?: string | null
+    country_code?: string | null
   } | null
   client_plan?: {
     has_plan?: boolean
