@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { listTenantPayments, type TenantPaymentItem } from '@/services/tenantPayments'
+import {
+  listTenantSubscriptions,
+  type TenantSubscriptionItem,
+} from '@/services/tenantSubscriptions'
 import { formatStatusLabel } from '@/utils/clientPanel'
 
-type SortField = 'id' | 'plan_name' | 'amount' | 'status' | 'paid_at' | 'created_at' | 'updated_at'
+type SortField =
+  | 'id'
+  | 'current_period_start'
+  | 'current_period_end'
+  | 'status'
+  | 'cancel_at_period_end'
+  | 'canceled_at'
 type SortDirection = 'asc' | 'desc'
 
-const rows = ref<TenantPaymentItem[]>([])
+const rows = ref<TenantSubscriptionItem[]>([])
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 
@@ -27,6 +36,7 @@ const pagination = ref({
   total: 0,
 })
 
+const selectedId = ref<number | null>(null)
 const cellPreview = ref({
   visible: false,
   text: '',
@@ -37,12 +47,11 @@ let cellPreviewTimer: ReturnType<typeof setTimeout> | null = null
 
 const statusOptionsBase = [
   { value: '', label: 'Todos los estados' },
-  { value: 'paid', label: 'Pago aprobado' },
+  { value: 'active', label: 'Activa' },
+  { value: 'trialing', label: 'En prueba' },
   { value: 'pending', label: 'Pendiente' },
-  { value: 'failed', label: 'Fallido' },
-  { value: 'canceled', label: 'Cancelado' },
-  { value: 'refunded', label: 'Reintegrado' },
-  { value: 'unpaid', label: 'Impago' },
+  { value: 'past_due', label: 'Pendiente de pago' },
+  { value: 'canceled', label: 'Cancelada' },
 ]
 
 const statusOptions = computed(() => {
@@ -53,6 +62,11 @@ const statusOptions = computed(() => {
     .map((value) => ({ value, label: formatStatusLabel(value, value) }))
 
   return [...statusOptionsBase, ...dynamic]
+})
+
+const selectedSubscription = computed(() => {
+  if (!selectedId.value) return null
+  return rows.value.find((item) => item.id === selectedId.value) ?? null
 })
 
 const totalPages = computed(() => Math.max(1, pagination.value.last_page || 1))
@@ -68,71 +82,61 @@ const pageItems = computed(() => {
   return pages
 })
 
-const totalApprovedVisible = computed(() =>
-  rows.value.filter((item) => String(item.status ?? '').toLowerCase() === 'paid').length,
+const totalActiveVisible = computed(
+  () => rows.value.filter((item) => String(item.status ?? '').toLowerCase() === 'active').length,
 )
 
-const totalPendingVisible = computed(() =>
-  rows.value.filter((item) => String(item.status ?? '').toLowerCase() === 'pending').length,
+const cancelScheduledVisible = computed(
+  () => rows.value.filter((item) => item.cancel_at_period_end).length,
 )
 
-const totalAmountVisible = computed(() => {
-  let total = 0
-  for (const item of rows.value) {
-    const value = Number(item.amount ?? '')
-    if (!Number.isFinite(value)) continue
-    total += value
-  }
-  return total
-})
+const nextBillingVisibleLabel = computed(() => {
+  let nextTs = Number.POSITIVE_INFINITY
+  let nextIso: string | null = null
+  const now = Date.now()
 
-const latestPaidAtLabel = computed(() => {
-  let latestTs = 0
-  let latestPaymentId: number | null = null
   for (const item of rows.value) {
-    if (!item.paid_at) continue
-    const ts = new Date(item.paid_at).getTime()
-    if (!Number.isFinite(ts)) continue
-    if (ts > latestTs) {
-      latestTs = ts
-      latestPaymentId = Number(item.id)
+    if (!item.current_period_end) continue
+    const ts = new Date(item.current_period_end).getTime()
+    if (!Number.isFinite(ts) || ts < now) continue
+    if (ts < nextTs) {
+      nextTs = ts
+      nextIso = item.current_period_end
     }
   }
-  return latestPaymentId ? `#${latestPaymentId}` : 'Sin pagos acreditados'
+
+  return nextIso ? formatDateTime(nextIso) : 'Sin fecha visible'
 })
 
 const activeSortLabel = computed(() => {
-  if (sortBy.value === 'plan_name') {
-    return `Plan ${sortDir.value === 'asc' ? 'A - Z' : 'Z - A'}`
-  }
-  if (sortBy.value === 'amount') {
+  if (sortBy.value === 'current_period_start') {
     return sortDir.value === 'asc'
-      ? 'Monto: menor a mayor'
-      : 'Monto: mayor a menor'
+      ? 'Periodo: inicios antiguos primero'
+      : 'Periodo: inicios recientes primero'
+  }
+  if (sortBy.value === 'current_period_end') {
+    return sortDir.value === 'asc'
+      ? 'Facturación: próximas primero'
+      : 'Facturación: lejanas primero'
   }
   if (sortBy.value === 'status') {
     return sortDir.value === 'asc'
-      ? 'Estado: pagos aprobados primero'
-      : 'Estado: pendientes o rechazados primero'
+      ? 'Estado: activas primero'
+      : 'Estado: pendientes o canceladas primero'
   }
-  if (sortBy.value === 'paid_at') {
+  if (sortBy.value === 'cancel_at_period_end') {
     return sortDir.value === 'asc'
-      ? 'Pago: más antiguo primero'
-      : 'Pago: más reciente primero'
+      ? 'Cancelación: sin programar primero'
+      : 'Cancelación: programadas primero'
   }
-  if (sortBy.value === 'created_at') {
+  if (sortBy.value === 'canceled_at') {
     return sortDir.value === 'asc'
-      ? 'Creación: más antigua primero'
-      : 'Creación: más reciente primero'
-  }
-  if (sortBy.value === 'updated_at') {
-    return sortDir.value === 'asc'
-      ? 'Actualización: más antigua primero'
-      : 'Actualización: más reciente primero'
+      ? 'Canceladas: antiguas primero'
+      : 'Canceladas: recientes primero'
   }
   return sortDir.value === 'asc'
-    ? 'Cobros: primeros registros primero'
-    : 'Cobros: últimos registros primero'
+    ? 'Suscripciones: primeros registros primero'
+    : 'Suscripciones: últimos registros primero'
 })
 
 const sortIndicator = (field: SortField) => {
@@ -147,54 +151,23 @@ const toggleSort = (field: SortField) => {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
     return
   }
+
   sortBy.value = field
   sortDir.value = field === 'id' ? 'desc' : 'asc'
 }
 
 const resolveStatusClass = (status: string | null) => {
   const normalized = String(status ?? '').trim().toLowerCase()
-  if (normalized === 'paid') return 'status-pill--ok'
-  if (normalized === 'pending') return 'status-pill--pending'
-  if (normalized === 'failed' || normalized === 'canceled' || normalized === 'unpaid') return 'status-pill--danger'
-  if (normalized === 'refunded') return 'status-pill--neutral'
+  if (normalized === 'active') return 'status-pill--ok'
+  if (normalized === 'trialing') return 'status-pill--info'
+  if (normalized === 'pending' || normalized === 'past_due' || normalized === 'unpaid') {
+    return 'status-pill--pending'
+  }
+  if (normalized === 'canceled') return 'status-pill--danger'
   return 'status-pill--neutral'
 }
 
-const paymentInitials = (item: TenantPaymentItem) => {
-  const plan = String(item.plan_name ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((chunk) => chunk.charAt(0).toUpperCase())
-    .join('')
-
-  if (plan) return plan
-
-  const provider = String(item.provider ?? '').trim().slice(0, 2).toUpperCase()
-  return provider || 'PG'
-}
-
-const formatMoney = (amount: string | null, currency: string | null) => {
-  const value = Number(amount ?? '')
-  const code = String(currency ?? 'ARS').toUpperCase()
-  if (!Number.isFinite(value)) return '-'
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: code,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
-const formatAmountVisible = (amount: number) => {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
-
-const formatDateTime = (value: string | null) => {
+const formatDateTime = (value: string | null | undefined) => {
   if (!value) return '-'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return '-'
@@ -206,6 +179,26 @@ const formatDateTime = (value: string | null) => {
     minute: '2-digit',
     hour12: false,
   }).format(parsed)
+}
+
+const formatPeriod = (item: TenantSubscriptionItem) => {
+  const start = formatDateTime(item.current_period_start)
+  const end = formatDateTime(item.current_period_end)
+  if (start === '-' && end === '-') return 'Sin periodo'
+  return `${start} hasta ${end}`
+}
+
+const formatCancelLabel = (item: TenantSubscriptionItem) => {
+  if (item.cancel_at_period_end) return 'Al finalizar el periodo'
+  return 'No programada'
+}
+
+const openDetails = (item: TenantSubscriptionItem) => {
+  selectedId.value = selectedId.value === item.id ? null : item.id
+}
+
+const closeDetails = () => {
+  selectedId.value = null
 }
 
 const showCellPreview = (value: string) => {
@@ -226,12 +219,12 @@ const showCellPreview = (value: string) => {
   }, 2200)
 }
 
-const loadPayments = async () => {
+const loadSubscriptions = async () => {
   isLoading.value = true
   loadError.value = null
 
   try {
-    const result = await listTenantPayments({
+    const result = await listTenantSubscriptions({
       page: currentPage.value,
       perPage: perPage.value,
       search: searchQuery.value,
@@ -247,9 +240,13 @@ const loadPayments = async () => {
       per_page: result.pagination.per_page,
       total: result.pagination.total,
     }
+
+    if (selectedId.value && !result.items.some((item) => item.id === selectedId.value)) {
+      selectedId.value = null
+    }
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar tus pagos.'
+    loadError.value = payload?.message ?? 'No pudimos cargar tus suscripciones.'
   } finally {
     isLoading.value = false
   }
@@ -260,7 +257,7 @@ const resetToFirstPageOrLoad = () => {
     currentPage.value = 1
     return
   }
-  void loadPayments()
+  void loadSubscriptions()
 }
 
 const goToPage = (page: number) => {
@@ -271,10 +268,10 @@ const goToPage = (page: number) => {
 
 const goToPrevPage = () => goToPage(currentPage.value - 1)
 const goToNextPage = () => goToPage(currentPage.value + 1)
-const refreshRows = () => void loadPayments()
+const refreshRows = () => void loadSubscriptions()
 
 watch(currentPage, () => {
-  void loadPayments()
+  void loadSubscriptions()
 }, { immediate: true })
 
 watch([sortBy, sortDir], () => {
@@ -317,37 +314,33 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="client-page container" aria-labelledby="client-payments-title">
+  <section class="client-page container" aria-labelledby="client-subscriptions-title">
     <header class="client-page-head bo-card">
       <div>
-        <p class="client-kicker">Historial de pagos</p>
-        <h1 id="client-payments-title">Mis pagos</h1>
+        <p class="client-kicker">Renovaciones</p>
+        <h1 id="client-subscriptions-title">Suscripciones</h1>
         <p class="client-lead">
-          Revisa tu historial completo de cobros, estado y fechas de cada movimiento.
+          Revisa tus periodos, estados y próximas fechas de facturación.
         </p>
       </div>
     </header>
 
-    <section class="stats-grid" aria-label="Resumen de pagos">
+    <section class="stats-grid" aria-label="Resumen de suscripciones">
       <article class="bo-card stat-card">
-        <span>Total de movimientos</span>
+        <span>Total de registros</span>
         <strong>{{ pagination.total }}</strong>
       </article>
       <article class="bo-card stat-card">
-        <span>Pagos aprobados (vista)</span>
-        <strong>{{ totalApprovedVisible }}</strong>
+        <span>Activas en vista</span>
+        <strong>{{ totalActiveVisible }}</strong>
       </article>
       <article class="bo-card stat-card">
-        <span>Pendientes (vista)</span>
-        <strong>{{ totalPendingVisible }}</strong>
+        <span>Cancelación programada</span>
+        <strong>{{ cancelScheduledVisible }}</strong>
       </article>
       <article class="bo-card stat-card">
-        <span>Monto visible</span>
-        <strong>{{ formatAmountVisible(totalAmountVisible) }}</strong>
-      </article>
-      <article class="bo-card stat-card">
-        <span>Último pago visible</span>
-        <strong>{{ latestPaidAtLabel }}</strong>
+        <span>Próxima facturación visible</span>
+        <strong>{{ nextBillingVisibleLabel }}</strong>
       </article>
     </section>
 
@@ -363,7 +356,7 @@ onBeforeUnmount(() => {
             <input
               v-model="searchInput"
               type="search"
-              placeholder="Buscar por ID, plan, estado o fecha" />
+              placeholder="Buscar por ID, periodo o fecha" />
           </div>
         </label>
 
@@ -381,7 +374,9 @@ onBeforeUnmount(() => {
         <div class="filters-actions">
           <div class="per-page-control">
             <select aria-label="Cantidad de filas" v-model.number="perPage" :disabled="isLoading">
-              <option v-for="option in perPageOptions" :key="option" :value="option">{{ option }}</option>
+              <option v-for="option in perPageOptions" :key="option" :value="option">
+                {{ option }}
+              </option>
             </select>
           </div>
 
@@ -402,130 +397,174 @@ onBeforeUnmount(() => {
     </article>
 
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
-    <p v-else-if="isLoading" class="client-inline-note">Cargando pagos...</p>
+    <p v-else-if="isLoading" class="client-inline-note">Cargando suscripciones...</p>
 
-    <article class="bo-card table-card">
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">Tabla de pagos del cliente</caption>
-          <thead>
-            <tr>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('id') }" @click="toggleSort('id')">
-                  <span>ID</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('id') }}</span>
-                </button>
-              </th>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('plan_name') }" @click="toggleSort('plan_name')">
-                  <span>Plan</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('plan_name') }}</span>
-                </button>
-              </th>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('amount') }" @click="toggleSort('amount')">
-                  <span>Monto</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('amount') }}</span>
-                </button>
-              </th>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('status') }" @click="toggleSort('status')">
-                  <span>Estado</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('status') }}</span>
-                </button>
-              </th>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('paid_at') }" @click="toggleSort('paid_at')">
-                  <span>Fecha de pago</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('paid_at') }}</span>
-                </button>
-              </th>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('created_at') }" @click="toggleSort('created_at')">
-                  <span>Creado</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('created_at') }}</span>
-                </button>
-              </th>
-              <th>
-                <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('updated_at') }" @click="toggleSort('updated_at')">
-                  <span>Actualizado</span>
-                  <span class="sort-head-indicator">{{ sortIndicator('updated_at') }}</span>
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="!isLoading && !loadError && !rows.length">
-              <td colspan="7" class="empty-row">Todavía no encontramos pagos para mostrar.</td>
-            </tr>
-            <tr v-for="item in rows" :key="item.id">
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn cell-identity-btn"
-                  :title="`#${item.id}`"
-                  @click="showCellPreview(`#${item.id} · ${item.plan_name || 'Sin plan'}`)">
-                  <span class="payment-avatar" aria-hidden="true">{{ paymentInitials(item) }}</span>
-                  <span class="payment-identity">
-                    <strong>#{{ item.id }}</strong>
+    <section class="subscriptions-shell" :class="{ 'subscriptions-shell--open': selectedSubscription }">
+      <article class="bo-card table-card">
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Tabla de suscripciones</caption>
+            <thead>
+              <tr>
+                <th>
+                  <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('id') }" @click="toggleSort('id')">
+                    <span>ID</span>
+                    <span class="sort-head-indicator">{{ sortIndicator('id') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('current_period_end') }" @click="toggleSort('current_period_end')">
+                    <span>Periodo</span>
+                    <span class="sort-head-indicator">{{ sortIndicator('current_period_end') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('status') }" @click="toggleSort('status')">
+                    <span>Estado</span>
+                    <span class="sort-head-indicator">{{ sortIndicator('status') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('cancel_at_period_end') }" @click="toggleSort('cancel_at_period_end')">
+                    <span>Cancelación</span>
+                    <span class="sort-head-indicator">{{ sortIndicator('cancel_at_period_end') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('canceled_at') }" @click="toggleSort('canceled_at')">
+                    <span>Cancelado el</span>
+                    <span class="sort-head-indicator">{{ sortIndicator('canceled_at') }}</span>
+                  </button>
+                </th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!isLoading && !loadError && !rows.length">
+                <td colspan="6" class="empty-row">
+                  Todavía no encontramos suscripciones para mostrar.
+                </td>
+              </tr>
+              <tr
+                v-for="item in rows"
+                :key="item.id"
+                :class="{ 'row-selected': item.id === selectedId }">
+                <td>
+                  <button
+                    type="button"
+                    class="cell-ellipsis-btn cell-identity-btn"
+                    :title="`#${item.id}`"
+                    @click="showCellPreview(`#${item.id}`)">
+                    <span class="subscription-avatar" aria-hidden="true">S</span>
+                    <span class="subscription-identity">
+                      <strong>#{{ item.id }}</strong>
+                    </span>
+                  </button>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="cell-ellipsis-btn"
+                    :title="formatPeriod(item)"
+                    @click="showCellPreview(formatPeriod(item))">
+                    {{ formatPeriod(item) }}
+                  </button>
+                </td>
+                <td>
+                  <span class="status-pill" :class="resolveStatusClass(item.status)">
+                    {{ formatStatusLabel(item.status, 'Sin estado') }}
                   </span>
-                </button>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn cell-plan-btn"
-                  :title="item.plan_name || 'Sin plan'"
-                  @click="showCellPreview(item.plan_name || 'Sin plan')">
-                  <strong>{{ item.plan_name || 'Sin plan' }}</strong>
-                </button>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
-                  :title="formatMoney(item.amount, item.currency)"
-                  @click="showCellPreview(formatMoney(item.amount, item.currency))">
-                  <span class="amount-pill">{{ formatMoney(item.amount, item.currency) }}</span>
-                </button>
-              </td>
-              <td>
-                <span class="status-pill" :class="resolveStatusClass(item.status)">
-                  {{ formatStatusLabel(item.status, 'Sin estado') }}
-                </span>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
-                  :title="formatDateTime(item.paid_at)"
-                  @click="showCellPreview(formatDateTime(item.paid_at))">
-                  {{ formatDateTime(item.paid_at) }}
-                </button>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
-                  :title="formatDateTime(item.created_at)"
-                  @click="showCellPreview(formatDateTime(item.created_at))">
-                  {{ formatDateTime(item.created_at) }}
-                </button>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
-                  :title="formatDateTime(item.updated_at)"
-                  @click="showCellPreview(formatDateTime(item.updated_at))">
-                  {{ formatDateTime(item.updated_at) }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </article>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="cell-ellipsis-btn"
+                    :title="formatCancelLabel(item)"
+                    @click="showCellPreview(formatCancelLabel(item))">
+                    {{ formatCancelLabel(item) }}
+                  </button>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="cell-ellipsis-btn"
+                    :title="formatDateTime(item.canceled_at)"
+                    @click="showCellPreview(formatDateTime(item.canceled_at))">
+                    {{ formatDateTime(item.canceled_at) }}
+                  </button>
+                </td>
+                <td class="actions-cell">
+                  <button
+                    type="button"
+                    class="table-icon-btn"
+                    title="Ver detalles"
+                    :aria-label="`Ver detalles de la suscripción ${item.id}`"
+                    @click.stop="openDetails(item)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="detail-panel" :aria-hidden="!selectedSubscription">
+        <article class="bo-card detail-card">
+          <header class="detail-head">
+            <div>
+              <p class="client-kicker">Detalle</p>
+              <h2>{{ selectedSubscription ? `Suscripción #${selectedSubscription.id}` : 'Sin selección' }}</h2>
+            </div>
+            <button
+              type="button"
+              class="detail-close"
+              aria-label="Cerrar detalle"
+              title="Cerrar"
+              @click="closeDetails">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m18 6-12 12" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </header>
+
+          <div v-if="selectedSubscription" class="detail-list">
+            <div class="detail-row">
+              <span>ID</span>
+              <strong>#{{ selectedSubscription.id }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Periodo</span>
+              <strong>{{ formatPeriod(selectedSubscription) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Estado</span>
+              <strong>{{ formatStatusLabel(selectedSubscription.status, 'Sin estado') }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Cancelación</span>
+              <strong>{{ formatCancelLabel(selectedSubscription) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Cancelado el</span>
+              <strong>{{ formatDateTime(selectedSubscription.canceled_at) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>ID suscripción proveedor</span>
+              <strong>{{ selectedSubscription.provider_subscription_id || '-' }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>ID cliente proveedor</span>
+              <strong>{{ selectedSubscription.provider_customer_id || '-' }}</strong>
+            </div>
+          </div>
+        </article>
+      </aside>
+    </section>
 
     <footer class="bo-card pagination-card">
       <div class="pagination-layout">
@@ -584,13 +623,16 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 1320px;
   margin: 0 auto;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .client-page-head,
 .filters-card,
 .table-card,
 .pagination-card,
-.stat-card {
+.stat-card,
+.detail-card {
   padding: 20px;
   min-width: 0;
 }
@@ -623,8 +665,10 @@ onBeforeUnmount(() => {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .stat-card {
@@ -641,9 +685,16 @@ onBeforeUnmount(() => {
 }
 
 .stat-card strong {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   color: #1f1442;
   line-height: 1.2;
+}
+
+.filters-card {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .filters-row {
@@ -770,11 +821,9 @@ onBeforeUnmount(() => {
   padding: 0 0.6rem;
 }
 
-.refresh-icon-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 10px;
+.refresh-icon-btn,
+.table-icon-btn,
+.detail-close {
   border: 1px solid #d7cce8;
   background: #fff;
   color: #4f2d81;
@@ -785,13 +834,24 @@ onBeforeUnmount(() => {
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+.refresh-icon-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+}
+
 .refresh-icon-btn svg {
   width: 16px;
   height: 16px;
 }
 
 .refresh-icon-btn:hover,
-.refresh-icon-btn:focus-visible {
+.refresh-icon-btn:focus-visible,
+.table-icon-btn:hover,
+.table-icon-btn:focus-visible,
+.detail-close:hover,
+.detail-close:focus-visible {
   background: #f6f2ff;
   border-color: #cdbcf2;
 }
@@ -809,6 +869,107 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
+.subscriptions-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0fr;
+  gap: 0;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  transition: grid-template-columns 0.28s ease, gap 0.28s ease;
+}
+
+.subscriptions-shell--open {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.88fr);
+  gap: 14px;
+}
+
+.table-card,
+.detail-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.table-card {
+  overflow: hidden;
+}
+
+.detail-panel {
+  overflow: hidden;
+}
+
+.detail-card {
+  opacity: 0;
+  transform: translateX(16px);
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.subscriptions-shell--open .detail-card {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.detail-head h2 {
+  margin: 0;
+  color: #1f1442;
+  font-size: 1.05rem;
+}
+
+.detail-close {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+}
+
+.detail-close svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.detail-row {
+  display: grid;
+  gap: 3px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 57, 187, 0.16);
+  background: rgba(250, 247, 255, 0.82);
+}
+
+.detail-row span {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(90, 48, 140, 0.68);
+  font-weight: 700;
+}
+
+.detail-row strong {
+  color: #1f1442;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .table-wrap {
   width: 100%;
   max-width: 100%;
@@ -820,7 +981,7 @@ onBeforeUnmount(() => {
 }
 
 table {
-  width: max(100%, 980px);
+  width: max(100%, 900px);
   border-collapse: collapse;
 }
 
@@ -836,31 +997,32 @@ td {
 
 th:nth-child(1),
 td:nth-child(1) {
-  min-width: 130px;
+  min-width: 128px;
 }
 
 th:nth-child(2),
 td:nth-child(2) {
-  min-width: 160px;
+  min-width: 260px;
 }
 
 th:nth-child(3),
 td:nth-child(3) {
-  min-width: 124px;
+  min-width: 140px;
 }
 
 th:nth-child(4),
 td:nth-child(4) {
-  min-width: 146px;
+  min-width: 180px;
 }
 
 th:nth-child(5),
-td:nth-child(5),
+td:nth-child(5) {
+  min-width: 150px;
+}
+
 th:nth-child(6),
-td:nth-child(6),
-th:nth-child(7),
-td:nth-child(7) {
-  min-width: 154px;
+td:nth-child(6) {
+  min-width: 96px;
 }
 
 tbody tr {
@@ -869,6 +1031,10 @@ tbody tr {
 
 tbody tr:hover td {
   background: rgba(247, 241, 255, 0.72);
+}
+
+tbody tr.row-selected td {
+  background: rgba(238, 229, 255, 0.84);
 }
 
 th {
@@ -932,7 +1098,7 @@ th {
   cursor: pointer;
 }
 
-.payment-avatar {
+.subscription-avatar {
   width: 30px;
   height: 30px;
   border-radius: 999px;
@@ -947,51 +1113,12 @@ th {
   flex: 0 0 auto;
 }
 
-.payment-identity {
+.subscription-identity {
   display: grid;
-  gap: 2px;
   min-width: 0;
 }
 
-.payment-identity strong {
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cell-plan-btn {
-  display: grid;
-  gap: 2px;
-  cursor: pointer;
-}
-
-.cell-plan-btn strong,
-.cell-plan-btn small {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cell-plan-btn strong {
-  font-weight: 700;
-}
-
-.cell-plan-btn small {
-  color: #7b6c98;
-  font-size: 0.76rem;
-}
-
-.amount-pill {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 0.28rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid rgba(22, 163, 74, 0.24);
-  background: rgba(240, 253, 244, 0.95);
-  color: #166534;
-  font-size: 0.81rem;
+.subscription-identity strong {
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -1032,10 +1159,42 @@ th {
   border-color: rgba(111, 57, 187, 0.25);
 }
 
+.status-pill--info {
+  color: #1d4ed8;
+  background: rgba(239, 246, 255, 0.96);
+  border-color: rgba(59, 130, 246, 0.22);
+}
+
+.actions-cell {
+  text-align: center;
+}
+
+.table-icon-btn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+}
+
+.table-icon-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+}
+
 .empty-row {
   text-align: center;
   color: #6a5a84;
   padding: 1.25rem 0.8rem;
+}
+
+.pagination-card {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .pagination-layout {
@@ -1159,7 +1318,7 @@ th {
 
 @media (max-width: 1220px) {
   .stats-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .filters-row {
@@ -1178,6 +1337,21 @@ th {
 }
 
 @media (max-width: 980px) {
+  .subscriptions-shell,
+  .subscriptions-shell--open {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .detail-card {
+    opacity: 1;
+    transform: none;
+  }
+
+  .detail-panel[aria-hidden='true'] {
+    display: none;
+  }
+
   table {
     width: max(100%, 900px);
   }
@@ -1194,19 +1368,18 @@ th {
     width: 100%;
     max-width: none;
     margin: 0;
+    overflow-x: hidden;
   }
 
   .client-page-head {
     flex-direction: column;
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .filters-row {
     grid-template-columns: 1fr;
     align-items: stretch;
+    width: 100%;
+    max-width: 100%;
   }
 
   .field-search,
@@ -1219,6 +1392,8 @@ th {
   }
 
   .filters-helper {
+    width: 100%;
+    max-width: 100%;
     white-space: normal;
   }
 
@@ -1230,11 +1405,9 @@ th {
     grid-column: auto;
   }
 
-  .per-page-control {
-    max-width: calc(100% - 44px);
-  }
-
   .table-wrap {
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
   }
 
@@ -1247,10 +1420,6 @@ th {
   .pagination-layout {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 0.55rem;
-  }
-
-  .pagination-center {
-    min-width: 0;
   }
 
   .pagination-summary {
@@ -1275,7 +1444,8 @@ th {
   .filters-card,
   .table-card,
   .pagination-card,
-  .stat-card {
+  .stat-card,
+  .detail-card {
     padding: 16px;
   }
 
@@ -1287,9 +1457,11 @@ th {
     grid-template-columns: 1fr;
     align-items: stretch;
     width: 100%;
+    max-width: 100%;
   }
 
   .filters-actions {
+    width: 100%;
     justify-content: space-between;
   }
 
@@ -1334,13 +1506,13 @@ th {
     justify-content: center;
   }
 
+  .pagination-label {
+    display: none;
+  }
+
   .pagination-arrow {
     font-size: 1rem;
     line-height: 1;
-  }
-
-  .pagination-label {
-    display: none;
   }
 
   .pagination-summary {
@@ -1352,21 +1524,32 @@ th {
     justify-content: center;
   }
 
-  .per-page-control select { width: auto; }
-
   .cell-ellipsis-btn {
     cursor: pointer;
   }
 
-  .payment-avatar {
+  .subscription-avatar {
     width: 26px;
     height: 26px;
     font-size: 0.68rem;
   }
+}
 
-  .amount-pill {
-    max-width: 100%;
-    font-size: 0.76rem;
+@media (max-width: 560px) {
+  .pagination-layout {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 0.5rem;
+    align-items: start;
+  }
+
+  .pagination-pages {
+    width: 100%;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+
+  .pagination-pages::-webkit-scrollbar {
+    display: none;
   }
 }
 </style>

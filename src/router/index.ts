@@ -28,6 +28,8 @@ import ClientInvitationEditor from '@/pages/client/ClientInvitationEditor.vue'
 import ClientSettings from '@/pages/client/ClientSettings.vue'
 import ClientSecurity from '@/pages/client/ClientSecurity.vue'
 import ClientBilling from '@/pages/client/ClientBilling.vue'
+import ClientBuyCredits from '@/pages/client/ClientBuyCredits.vue'
+import ClientSubscriptions from '@/pages/client/ClientSubscriptions.vue'
 import ClientGuestList from '@/pages/client/ClientGuestList.vue'
 import ClientNotifications from '@/pages/client/ClientNotifications.vue'
 import ClientUpgradePlan from '@/pages/client/ClientUpgradePlan.vue'
@@ -355,15 +357,41 @@ const router = createRouter({
           },
         },
         {
-          path: 'facturaciones',
-          name: 'client-billing',
+          path: 'pagos',
+          name: 'client-payments',
           component: ClientBilling,
           meta: {
-            title: 'Mi panel · Mis facturaciones',
+            title: 'Mi panel · Mis pagos',
             requiresAuth: true,
             requiresClient: true,
             requiresActiveClientPlan: true,
           },
+        },
+        {
+          path: 'comprar-creditos',
+          name: 'client-buy-credits',
+          component: ClientBuyCredits,
+          meta: {
+            title: 'Mi panel · Comprar créditos',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'suscripciones',
+          name: 'client-subscriptions',
+          component: ClientSubscriptions,
+          meta: {
+            title: 'Mi panel · Suscripciones',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'facturaciones',
+          redirect: { name: 'client-payments' },
         },
       ],
     },

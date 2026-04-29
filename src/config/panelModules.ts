@@ -53,6 +53,13 @@ export const clientModuleGroups: PanelModuleGroup[] = [
     items: [{ label: 'Estadisticas', href: '/panel/estadisticas' }],
   },
   {
+    title: 'Pagos',
+    items: [
+      { label: 'Mis pagos', href: '/panel/pagos' },
+      { label: 'Suscripciones', href: '/panel/suscripciones' },
+    ],
+  },
+  {
     title: 'Cuenta',
     items: [
       { label: 'Datos de la cuenta', href: '/panel/configuracion' },
@@ -62,7 +69,10 @@ export const clientModuleGroups: PanelModuleGroup[] = [
   },
   {
     title: 'Plan',
-    items: [{ label: 'Mejorar plan', href: '/panel/mejorar-plan' }],
+    items: [
+      { label: 'Mejorar plan', href: '/panel/mejorar-plan' },
+      { label: 'Comprar créditos', href: '/panel/comprar-creditos' },
+    ],
   },
 ]
 
