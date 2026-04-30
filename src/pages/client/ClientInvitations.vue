@@ -6,6 +6,7 @@ import { formatStatusLabel } from '@/utils/clientPanel'
 import {
   createTenantInvitation,
   deleteTenantInvitation,
+  disableTenantInvitation,
   getTenantDashboardSummary,
   listTenantInvitations,
   publishTenantInvitation,
@@ -47,7 +48,7 @@ const perPageOptions = [10, 15, 25, 50]
 const sortBy = ref<InvitationSortField>('updated_at')
 const sortDir = ref<InvitationSortDirection>('desc')
 const filters = reactive({
-  status: '' as '' | 'draft' | 'published',
+  status: '' as '' | 'draft' | 'published' | 'disabled',
   search: '',
 })
 
@@ -63,6 +64,9 @@ const isCreatePreviewModalOpen = ref(false)
 const showDeletePrompt = ref(false)
 const deletingInvitation = ref<TenantInvitationItem | null>(null)
 const isDeleting = ref(false)
+const showDisablePrompt = ref(false)
+const disablingInvitation = ref<TenantInvitationItem | null>(null)
+const isDisabling = ref(false)
 let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const hasInvitations = computed(() => invitations.value.length > 0)
@@ -181,6 +185,22 @@ const closeDeletePrompt = () => {
   deletingInvitation.value = null
 }
 
+const askDisableInvitation = (item: TenantInvitationItem) => {
+  if (String(item.status ?? '').toLowerCase() !== 'published') {
+    notifyError('Solo puedes inhabilitar invitaciones publicadas.')
+    return
+  }
+
+  disablingInvitation.value = item
+  showDisablePrompt.value = true
+}
+
+const closeDisablePrompt = () => {
+  if (isDisabling.value) return
+  showDisablePrompt.value = false
+  disablingInvitation.value = null
+}
+
 const confirmDeleteInvitation = async () => {
   const invitationId = deletingInvitation.value?.id
   if (!invitationId) return
@@ -199,7 +219,32 @@ const confirmDeleteInvitation = async () => {
   }
 }
 
+const confirmDisableInvitation = async () => {
+  const invitationId = disablingInvitation.value?.id
+  if (!invitationId) return
+
+  isDisabling.value = true
+  try {
+    const response = await disableTenantInvitation(invitationId)
+    notifySuccess(response.message ?? 'Invitación inhabilitada.')
+    showDisablePrompt.value = false
+    disablingInvitation.value = null
+    await loadData()
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos inhabilitar la invitación.')
+  } finally {
+    isDisabling.value = false
+  }
+}
+
 const handlePreviewModalHotkeys = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && showDisablePrompt.value) {
+    event.preventDefault()
+    closeDisablePrompt()
+    return
+  }
+
   if (event.key === 'Escape' && showDeletePrompt.value) {
     event.preventDefault()
     closeDeletePrompt()
@@ -469,13 +514,13 @@ watch(
 
 watch(isCreatePreviewModalOpen, (isOpen) => {
   if (typeof document === 'undefined') return
-  const lock = isOpen || showDeletePrompt.value
+  const lock = isOpen || showDeletePrompt.value || showDisablePrompt.value
   document.body.style.overflow = lock ? 'hidden' : ''
 })
 
-watch(showDeletePrompt, (isOpen) => {
+watch([showDeletePrompt, showDisablePrompt], () => {
   if (typeof document === 'undefined') return
-  const lock = isCreatePreviewModalOpen.value || isOpen
+  const lock = isCreatePreviewModalOpen.value || showDeletePrompt.value || showDisablePrompt.value
   document.body.style.overflow = lock ? 'hidden' : ''
 })
 </script>
@@ -598,6 +643,7 @@ watch(showDeletePrompt, (isOpen) => {
             <option value="">Todos</option>
             <option value="draft">Borrador</option>
             <option value="published">Publicada</option>
+            <option value="disabled">Inhabilitada</option>
           </select>
         </label>
 
@@ -716,7 +762,7 @@ watch(showDeletePrompt, (isOpen) => {
               <td data-label="Actualizada">{{ item.updated_at ? new Date(item.updated_at).toLocaleString() : '-' }}</td>
               <td class="actions-cell">
                 <BaseButton
-                  v-if="item.id"
+                  v-if="item.id && String(item.status ?? '').toLowerCase() !== 'disabled'"
                   as="RouterLink"
                   class="table-icon-btn"
                   aria-label="Editar invitación"
@@ -756,6 +802,20 @@ watch(showDeletePrompt, (isOpen) => {
                     <path d="M14 4h6v6" />
                     <path d="M20 4 11 13" />
                     <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+                  </svg>
+                </BaseButton>
+                <BaseButton
+                  v-if="String(item.status ?? '').toLowerCase() === 'published'"
+                  type="button"
+                  variant="ghost"
+                  class="table-icon-btn disable-invitation-btn"
+                  aria-label="Inhabilitar invitación"
+                  title="Inhabilitar invitación"
+                  data-tooltip="Inhabilitar"
+                  @click="askDisableInvitation(item)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3v9" />
+                    <path d="M6.7 6.7a7.5 7.5 0 1 0 10.6 0" />
                   </svg>
                 </BaseButton>
                 <BaseButton
@@ -864,6 +924,56 @@ watch(showDeletePrompt, (isOpen) => {
               </BaseButton>
               <BaseButton type="button" variant="primary" :disabled="isDeleting" @click="confirmDeleteInvitation">
                 {{ isDeleting ? 'Eliminando...' : 'Eliminar borrador' }}
+              </BaseButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="template-preview-modal">
+      <div
+        v-if="showDisablePrompt"
+        class="template-preview-modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        @click.self="closeDisablePrompt">
+        <div class="template-preview-modal-card delete-modal-card disable-modal-card">
+          <header class="template-preview-modal-head">
+            <div>
+              <p class="client-kicker">Inhabilitar invitación</p>
+              <h3>Esta acción es definitiva</h3>
+            </div>
+            <button
+              type="button"
+              class="template-preview-modal-close"
+              aria-label="Salir de la advertencia"
+              title="Salir"
+              data-tooltip="Salir"
+              @click="closeDisablePrompt">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m18 6-12 12" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </header>
+
+          <div class="delete-modal-body">
+            <p>
+              Vas a dar de baja <strong>{{ disablingInvitation?.title ?? 'esta invitación' }}</strong>.
+            </p>
+            <p>
+              Tus invitados dejarán de verla desde su enlace público. No podrás volver a habilitarla y podrías perder ese subdominio para siempre.
+            </p>
+            <p>
+              Esta baja liberará espacio para publicar otra invitación si tienes créditos disponibles.
+            </p>
+            <div class="delete-modal-actions">
+              <BaseButton type="button" variant="ghost" :disabled="isDisabling" @click="closeDisablePrompt">
+                Cancelar
+              </BaseButton>
+              <BaseButton type="button" variant="primary" class="danger-confirm-btn" :disabled="isDisabling" @click="confirmDisableInvitation">
+                {{ isDisabling ? 'Inhabilitando...' : 'Inhabilitar invitación' }}
               </BaseButton>
             </div>
           </div>
@@ -1147,10 +1257,22 @@ watch(showDeletePrompt, (isOpen) => {
   color: #9f1239;
 }
 
+.disable-invitation-btn {
+  border-color: rgba(234, 88, 12, 0.22);
+  color: #c2410c;
+}
+
 .delete-modal-card {
   width: min(520px, 100%);
   height: auto;
   grid-template-rows: auto 1fr;
+}
+
+.disable-modal-card {
+  border-color: rgba(234, 88, 12, 0.24);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(251, 146, 60, 0.13), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #fff7ed 100%);
 }
 
 .delete-modal-body {
@@ -1169,6 +1291,12 @@ watch(showDeletePrompt, (isOpen) => {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.danger-confirm-btn {
+  background: linear-gradient(135deg, #f97316, #be123c);
+  border-color: transparent;
+  color: #fff;
 }
 
 .filters-row {
@@ -1387,12 +1515,27 @@ watch(showDeletePrompt, (isOpen) => {
   box-shadow: 0 2px 0 rgba(190, 24, 93, 0.12);
 }
 
+.table-icon-btn.disable-invitation-btn {
+  background: #fff7ed;
+  border-color: rgba(234, 88, 12, 0.25);
+  color: #c2410c;
+  box-shadow: 0 2px 0 rgba(234, 88, 12, 0.12);
+}
+
 .table-icon-btn.delete-draft-btn:hover,
 .table-icon-btn.delete-draft-btn:focus-visible {
   background: #9f1239;
   border-color: #9f1239;
   color: #fff;
   box-shadow: 0 10px 18px rgba(159, 18, 57, 0.3);
+}
+
+.table-icon-btn.disable-invitation-btn:hover,
+.table-icon-btn.disable-invitation-btn:focus-visible {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(194, 65, 12, 0.3);
 }
 
 .pagination-card {

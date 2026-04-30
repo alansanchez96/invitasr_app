@@ -1,6 +1,6 @@
 import { request, requestBlob } from '@/services/http'
 
-export type TenantInvitationStatus = 'draft' | 'published' | ''
+export type TenantInvitationStatus = 'draft' | 'published' | 'disabled' | ''
 
 export type TenantInvitationItem = {
   id?: number
@@ -11,6 +11,10 @@ export type TenantInvitationItem = {
   status?: string
   public_host?: string | null
   public_url?: string | null
+  subdomain_change_count?: number
+  subdomain_change_limit?: number | null
+  subdomain_changes_used?: number
+  subdomain_changes_remaining?: number | null
   content?: Record<string, unknown> | null
   text_overrides?: Record<string, string> | null
   settings?: Record<string, unknown> | null
@@ -20,6 +24,8 @@ export type TenantInvitationItem = {
   credit_movement_ids?: number[] | null
   published_at?: string | null
   expires_at?: string | null
+  disabled_at?: string | null
+  disabled_by_user_id?: number | null
   created_at?: string
   updated_at?: string
 }
@@ -313,6 +319,14 @@ const normalizeInvitation = (value: unknown): TenantInvitationItem => {
     status: source.status as string | undefined,
     public_host: source.public_host ? String(source.public_host) : null,
     public_url: source.public_url ? String(source.public_url) : null,
+    subdomain_change_count: toNumber(source.subdomain_change_count, 0),
+    subdomain_change_limit: source.subdomain_change_limit === null || source.subdomain_change_limit === undefined
+      ? null
+      : toNumber(source.subdomain_change_limit, 0),
+    subdomain_changes_used: toNumber(source.subdomain_changes_used ?? source.subdomain_change_count, 0),
+    subdomain_changes_remaining: source.subdomain_changes_remaining === null || source.subdomain_changes_remaining === undefined
+      ? null
+      : toNumber(source.subdomain_changes_remaining, 0),
     content: (source.content ?? null) as Record<string, unknown> | null,
     text_overrides: normalizeTextOverrides(source.text_overrides),
     settings: (source.settings ?? null) as Record<string, unknown> | null,
@@ -322,6 +336,8 @@ const normalizeInvitation = (value: unknown): TenantInvitationItem => {
     credit_movement_ids: (source.credit_movement_ids ?? null) as number[] | null,
     published_at: (source.published_at ?? null) as string | null,
     expires_at: (source.expires_at ?? null) as string | null,
+    disabled_at: (source.disabled_at ?? null) as string | null,
+    disabled_by_user_id: toNumber(source.disabled_by_user_id, 0) || null,
     created_at: source.created_at as string | undefined,
     updated_at: source.updated_at as string | undefined,
   }
@@ -638,6 +654,21 @@ export const deleteTenantInvitation = async (invitationId: string | number) => {
     message: payload.message ?? 'Borrador eliminado.',
     invitation_id: toNumber(data.invitation_id, 0) || undefined,
     deleted: Boolean(data.deleted),
+  }
+}
+
+export const disableTenantInvitation = async (invitationId: string | number) => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(`${TENANT_BASE}/invitations/${invitationId}/disable`, {
+    method: 'POST',
+    body: {},
+  })
+
+  const data = toRecord(payload.data)
+  return {
+    message: payload.message ?? 'Invitación inhabilitada.',
+    invitation: normalizeInvitation(toRecord(data.invitation)),
+    disabled: Boolean(data.disabled),
+    disabled_at: data.disabled_at ? String(data.disabled_at) : null,
   }
 }
 

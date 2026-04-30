@@ -890,6 +890,19 @@ const slugAvailabilityClass = computed(() => {
   return 'field-alert--info'
 })
 
+const subdomainChangeHelp = computed(() => {
+  const remaining = invitation.value?.subdomain_changes_remaining
+  const limit = invitation.value?.subdomain_change_limit
+  if (remaining === null || remaining === undefined || limit === null || limit === undefined) {
+    return 'Puedes ajustar el subdominio antes de guardar.'
+  }
+
+  const normalizedRemaining = Math.max(0, Number(remaining) || 0)
+  const normalizedLimit = Math.max(0, Number(limit) || 0)
+  const plural = normalizedRemaining === 1 ? 'cambio disponible' : 'cambios disponibles'
+  return `Te quedan ${normalizedRemaining} de ${normalizedLimit} ${plural} para este subdominio.`
+})
+
 const createSnapshot = (): EditorSnapshot => ({
   title: title.value,
   slug: slug.value,
@@ -2432,6 +2445,7 @@ onBeforeRouteLeave((to) => {
                     spellcheck="false"
                     placeholder="boda-sofia-mateo" />
                   <small class="field-hint">Usa solo letras minúsculas, números y guiones.</small>
+                  <small class="field-hint field-hint--subdomain">{{ subdomainChangeHelp }}</small>
                   <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
                 </label>
               </section>
@@ -3469,6 +3483,11 @@ onBeforeRouteLeave((to) => {
   color: #64748b;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.field-hint--subdomain {
+  color: #6d28d9;
+  font-weight: 700;
 }
 
 .field-alert {

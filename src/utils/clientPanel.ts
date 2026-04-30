@@ -16,6 +16,7 @@ const STATUS_LABELS: Record<string, string> = {
   partially_refunded: 'Reembolso parcial',
   draft: 'Borrador',
   published: 'Publicada',
+  disabled: 'Inhabilitada',
   review: 'En revision',
   complete: 'Completado',
   completed: 'Completado',
