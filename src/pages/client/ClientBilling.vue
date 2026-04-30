@@ -168,6 +168,7 @@ const resolveStatusClass = (status: string | null) => {
 const paymentInitials = (item: TenantPaymentItem) => {
   if (item.purchase_category === 'credit_purchase') return 'CR'
   if (item.purchase_category === 'plan_upgrade') return 'UP'
+  if (item.purchase_category === 'subscription_renewal') return 'RN'
 
   const plan = String(item.plan_name ?? '')
     .trim()
@@ -195,12 +196,14 @@ const formatPlanName = (name: string | null) => {
 const resolvePurchaseClass = (item: TenantPaymentItem) => {
   if (item.purchase_category === 'credit_purchase') return 'purchase-pill--credits'
   if (item.purchase_category === 'plan_upgrade') return 'purchase-pill--upgrade'
+  if (item.purchase_category === 'subscription_renewal') return 'purchase-pill--renewal'
   return 'purchase-pill--plan'
 }
 
 const purchaseIcon = (item: TenantPaymentItem) => {
   if (item.purchase_category === 'credit_purchase') return '+'
   if (item.purchase_category === 'plan_upgrade') return '↑'
+  if (item.purchase_category === 'subscription_renewal') return '↻'
   return '✓'
 }
 
@@ -1160,6 +1163,15 @@ th {
 
 .purchase-pill--upgrade .purchase-icon {
   background: linear-gradient(135deg, #32205a, #7b4ee0 52%, #e54ab2);
+}
+
+.purchase-pill--renewal {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(224, 242, 254, 0.94));
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.purchase-pill--renewal .purchase-icon {
+  background: linear-gradient(135deg, #1d4ed8, #38bdf8);
 }
 
 .status-pill {

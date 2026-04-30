@@ -57,6 +57,7 @@ export const clientModuleGroups: PanelModuleGroup[] = [
     items: [
       { label: 'Mis pagos', href: '/panel/pagos' },
       { label: 'Suscripciones', href: '/panel/suscripciones' },
+      { label: 'Renovar suscripción', href: '/panel/renovar-suscripcion' },
     ],
   },
   {

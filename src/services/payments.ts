@@ -21,6 +21,12 @@ export type PaymentListItem = {
   currency?: string
   status?: string
   type?: string
+  purchase_kind?: string | null
+  purchase_category?: string | null
+  purchase_label?: string
+  purchase_description?: string
+  credit_quantity?: number | string | null
+  discount_percent?: number | string | null
   provider?: string
   provider_payment_id?: string
   provider_subscription_id?: string | null
@@ -123,6 +129,12 @@ const normalizePaymentItem = (value: unknown): PaymentListItem => {
     currency: (source.currency ?? source.currency_code) as string | undefined,
     status: source.status as string | undefined,
     type: source.type as string | undefined,
+    purchase_kind: source.purchase_kind as string | null | undefined,
+    purchase_category: source.purchase_category as string | null | undefined,
+    purchase_label: source.purchase_label as string | undefined,
+    purchase_description: source.purchase_description as string | undefined,
+    credit_quantity: source.credit_quantity as number | string | null | undefined,
+    discount_percent: source.discount_percent as number | string | null | undefined,
     provider: source.provider as string | undefined,
     provider_payment_id: source.provider_payment_id as string | undefined,
     provider_subscription_id: source.provider_subscription_id as string | null | undefined,

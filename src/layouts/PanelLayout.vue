@@ -19,6 +19,13 @@ const sectionOpenState = ref<Record<string, boolean>>({})
 
 const isAuthenticated = computed(() => session.isAuthenticated)
 const isMaster = computed(() => session.isMaster)
+const isPlannerPlan = computed(() => {
+  const planName = String(session.user?.client_plan?.plan?.name ?? '').trim().toLowerCase()
+  return planName === 'planner'
+})
+const isSubscriptionRenewalLocked = computed(() =>
+  session.isClient && session.requiresSubscriptionRenewal && !session.hasActiveClientPlan,
+)
 const accountDisplayName = computed(() => {
   const fullName = [session.user?.name, session.user?.last_name]
     .filter((value): value is string => Boolean(value?.trim()))
@@ -31,7 +38,37 @@ const panelLabel = computed(() => (isMaster.value ? 'Dashboard' : 'Mi panel'))
 const isDesktopSidebarOpen = computed(() => isDesktopSidebarPinned.value || isDesktopSidebarHovered.value)
 const isCollapsedVisual = computed(() => !isMobile.value && !isDesktopSidebarOpen.value)
 const sidebarHomePath = computed(() => getPanelHomePath(isMaster.value))
-const panelModuleGroups = computed(() => getPanelModuleGroups(isMaster.value))
+const panelModuleGroups = computed(() => {
+  const groups = getPanelModuleGroups(isMaster.value)
+
+  if (isSubscriptionRenewalLocked.value) {
+    return [
+      {
+        title: 'Pagos',
+        items: [{ label: 'Renovar suscripción', href: '/panel/renovar-suscripcion' }],
+      },
+    ]
+  }
+
+  const hiddenForPlanner = new Set(['/panel/mejorar-plan', '/panel/comprar-creditos'])
+
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (item.href === '/panel/renovar-suscripcion') {
+          return session.canRenewSubscription
+        }
+
+        if (!isMaster.value && isPlannerPlan.value && hiddenForPlanner.has(item.href)) {
+          return false
+        }
+
+        return true
+      }),
+    }))
+    .filter((group) => group.items.length > 0)
+})
 const moduleGroups = computed(() =>
   panelModuleGroups.value.map((group) => ({
     ...group,

@@ -2,9 +2,11 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import {
+  cancelTenantSubscription,
   listTenantSubscriptions,
   type TenantSubscriptionItem,
 } from '@/services/tenantSubscriptions'
+import { notifyError, notifySuccess } from '@/utils/toast'
 import { formatStatusLabel } from '@/utils/clientPanel'
 
 type SortField =
@@ -37,6 +39,7 @@ const pagination = ref({
 })
 
 const selectedId = ref<number | null>(null)
+const cancelingId = ref<number | null>(null)
 const cellPreview = ref({
   visible: false,
   text: '',
@@ -111,13 +114,13 @@ const nextBillingVisibleLabel = computed(() => {
 const activeSortLabel = computed(() => {
   if (sortBy.value === 'current_period_start') {
     return sortDir.value === 'asc'
-      ? 'Periodo: inicios antiguos primero'
-      : 'Periodo: inicios recientes primero'
+      ? 'Inicio del ciclo: fechas antiguas primero'
+      : 'Inicio del ciclo: fechas recientes primero'
   }
   if (sortBy.value === 'current_period_end') {
     return sortDir.value === 'asc'
-      ? 'Facturación: próximas primero'
-      : 'Facturación: lejanas primero'
+      ? 'Próxima renovación: fechas cercanas primero'
+      : 'Próxima renovación: fechas lejanas primero'
   }
   if (sortBy.value === 'status') {
     return sortDir.value === 'asc'
@@ -181,16 +184,19 @@ const formatDateTime = (value: string | null | undefined) => {
   }).format(parsed)
 }
 
-const formatPeriod = (item: TenantSubscriptionItem) => {
-  const start = formatDateTime(item.current_period_start)
-  const end = formatDateTime(item.current_period_end)
-  if (start === '-' && end === '-') return 'Sin periodo'
-  return `${start} hasta ${end}`
-}
+const formatCycleStart = (item: TenantSubscriptionItem) => formatDateTime(item.current_period_start)
+const formatCycleEnd = (item: TenantSubscriptionItem) => formatDateTime(item.current_period_end)
 
 const formatCancelLabel = (item: TenantSubscriptionItem) => {
   if (item.cancel_at_period_end) return 'Al finalizar el periodo'
   return 'No programada'
+}
+
+const canCancelSubscription = (item: TenantSubscriptionItem) => {
+  const status = String(item.status ?? '').toLowerCase()
+  return Boolean(item.provider_subscription_id)
+    && !item.cancel_at_period_end
+    && !['canceled', 'cancelled'].includes(status)
 }
 
 const openDetails = (item: TenantSubscriptionItem) => {
@@ -269,6 +275,29 @@ const goToPage = (page: number) => {
 const goToPrevPage = () => goToPage(currentPage.value - 1)
 const goToNextPage = () => goToPage(currentPage.value + 1)
 const refreshRows = () => void loadSubscriptions()
+
+const cancelSubscription = async (item: TenantSubscriptionItem) => {
+  if (!canCancelSubscription(item) || cancelingId.value) return
+
+  const confirmed = window.confirm(
+    '¿Quieres cancelar esta suscripción? No se realizarán nuevos cobros automáticos.',
+  )
+
+  if (!confirmed) return
+
+  cancelingId.value = item.id
+
+  try {
+    await cancelTenantSubscription(item.id)
+    notifySuccess('La suscripción quedó cancelada.')
+    await loadSubscriptions()
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos cancelar la suscripción.')
+  } finally {
+    cancelingId.value = null
+  }
+}
 
 watch(currentPage, () => {
   void loadSubscriptions()
@@ -413,8 +442,14 @@ onBeforeUnmount(() => {
                   </button>
                 </th>
                 <th>
+                  <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('current_period_start') }" @click="toggleSort('current_period_start')">
+                    <span>Inicio del ciclo</span>
+                    <span class="sort-head-indicator">{{ sortIndicator('current_period_start') }}</span>
+                  </button>
+                </th>
+                <th>
                   <button type="button" class="sort-head-btn" :class="{ 'sort-head-btn--active': isSortActive('current_period_end') }" @click="toggleSort('current_period_end')">
-                    <span>Periodo</span>
+                    <span>Próxima renovación</span>
                     <span class="sort-head-indicator">{{ sortIndicator('current_period_end') }}</span>
                   </button>
                 </th>
@@ -441,7 +476,7 @@ onBeforeUnmount(() => {
             </thead>
             <tbody>
               <tr v-if="!isLoading && !loadError && !rows.length">
-                <td colspan="6" class="empty-row">
+                <td colspan="7" class="empty-row">
                   Todavía no encontramos suscripciones para mostrar.
                 </td>
               </tr>
@@ -465,9 +500,18 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="cell-ellipsis-btn"
-                    :title="formatPeriod(item)"
-                    @click="showCellPreview(formatPeriod(item))">
-                    {{ formatPeriod(item) }}
+                    :title="formatCycleStart(item)"
+                    @click="showCellPreview(formatCycleStart(item))">
+                    {{ formatCycleStart(item) }}
+                  </button>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="cell-ellipsis-btn"
+                    :title="formatCycleEnd(item)"
+                    @click="showCellPreview(formatCycleEnd(item))">
+                    {{ formatCycleEnd(item) }}
                   </button>
                 </td>
                 <td>
@@ -505,6 +549,18 @@ onBeforeUnmount(() => {
                       <circle cx="12" cy="12" r="3" />
                     </svg>
                   </button>
+                  <button
+                    type="button"
+                    class="table-icon-btn table-icon-btn--danger"
+                    title="Cancelar suscripción"
+                    :aria-label="`Cancelar la suscripción ${item.id}`"
+                    :disabled="!canCancelSubscription(item) || cancelingId === item.id"
+                    @click.stop="cancelSubscription(item)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 6l12 12" />
+                      <path d="M18 6 6 18" />
+                    </svg>
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -538,8 +594,12 @@ onBeforeUnmount(() => {
               <strong>#{{ selectedSubscription.id }}</strong>
             </div>
             <div class="detail-row">
-              <span>Periodo</span>
-              <strong>{{ formatPeriod(selectedSubscription) }}</strong>
+              <span>Inicio del ciclo</span>
+              <strong>{{ formatCycleStart(selectedSubscription) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Próxima renovación</span>
+              <strong>{{ formatCycleEnd(selectedSubscription) }}</strong>
             </div>
             <div class="detail-row">
               <span>Estado</span>
@@ -856,7 +916,8 @@ onBeforeUnmount(() => {
   border-color: #cdbcf2;
 }
 
-.refresh-icon-btn:disabled {
+.refresh-icon-btn:disabled,
+.table-icon-btn:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -981,7 +1042,7 @@ onBeforeUnmount(() => {
 }
 
 table {
-  width: max(100%, 900px);
+  width: max(100%, 1040px);
   border-collapse: collapse;
 }
 
@@ -1002,26 +1063,31 @@ td:nth-child(1) {
 
 th:nth-child(2),
 td:nth-child(2) {
-  min-width: 260px;
+  min-width: 180px;
 }
 
 th:nth-child(3),
 td:nth-child(3) {
-  min-width: 140px;
+  min-width: 190px;
 }
 
 th:nth-child(4),
 td:nth-child(4) {
-  min-width: 180px;
+  min-width: 140px;
 }
 
 th:nth-child(5),
 td:nth-child(5) {
-  min-width: 150px;
+  min-width: 180px;
 }
 
 th:nth-child(6),
 td:nth-child(6) {
+  min-width: 150px;
+}
+
+th:nth-child(7),
+td:nth-child(7) {
   min-width: 96px;
 }
 
@@ -1167,6 +1233,10 @@ th {
 
 .actions-cell {
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
 .table-icon-btn {
@@ -1182,6 +1252,18 @@ th {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.9;
+}
+
+.table-icon-btn--danger {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.24);
+  background: rgba(255, 241, 242, 0.86);
+}
+
+.table-icon-btn--danger:hover,
+.table-icon-btn--danger:focus-visible {
+  background: rgba(255, 228, 230, 0.96);
+  border-color: rgba(225, 29, 72, 0.34);
 }
 
 .empty-row {
@@ -1353,7 +1435,7 @@ th {
   }
 
   table {
-    width: max(100%, 900px);
+    width: max(100%, 1040px);
   }
 
   th,
@@ -1413,7 +1495,7 @@ th {
 
   table {
     width: max-content;
-    min-width: 900px;
+    min-width: 1040px;
     table-layout: auto;
   }
 
@@ -1477,7 +1559,7 @@ th {
 
   table {
     width: max-content;
-    min-width: 860px;
+    min-width: 1020px;
     table-layout: auto;
   }
 

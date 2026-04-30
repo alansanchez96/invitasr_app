@@ -20,6 +20,13 @@ type AuthUser = {
     has_active_plan?: boolean
     plan_status?: string
     source?: string
+    current_period_start?: string | null
+    current_period_end?: string | null
+    cancel_at_period_end?: boolean
+    canceled_at?: string | null
+    is_canceled_but_active?: boolean
+    renewal_required?: boolean
+    can_renew_subscription?: boolean
     plan?: {
       id?: number | string
       name?: string
@@ -85,6 +92,8 @@ export const useSessionStore = defineStore('session', () => {
   const hasClientPlan = computed(() => Boolean(user.value?.client_plan?.has_plan))
   const hasActiveClientPlan = computed(() => Boolean(user.value?.client_plan?.has_active_plan))
   const clientPlanStatus = computed(() => user.value?.client_plan?.plan_status ?? '')
+  const requiresSubscriptionRenewal = computed(() => Boolean(user.value?.client_plan?.renewal_required))
+  const canRenewSubscription = computed(() => Boolean(user.value?.client_plan?.can_renew_subscription))
 
   const persistSession = (newToken: string | null, userData?: AuthUser, remember = false) => {
     token.value = authMode === 'token' ? newToken : null
@@ -238,6 +247,8 @@ export const useSessionStore = defineStore('session', () => {
     hasClientPlan,
     hasActiveClientPlan,
     clientPlanStatus,
+    requiresSubscriptionRenewal,
+    canRenewSubscription,
     clearSession,
     patchUser,
     acceptSession,

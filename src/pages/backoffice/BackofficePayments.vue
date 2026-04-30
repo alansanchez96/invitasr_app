@@ -49,6 +49,7 @@ type SortKey =
   | 'id'
   | 'client'
   | 'plan'
+  | 'purchase_kind'
   | 'amount'
   | 'status'
   | 'type'
@@ -60,6 +61,7 @@ type SortField =
   | 'id'
   | 'client_id'
   | 'plan_id'
+  | 'purchase_kind'
   | 'amount'
   | 'status'
   | 'type'
@@ -119,6 +121,38 @@ const formatType = (value?: string) => {
   return value === 'subscription' ? 'Suscripcion' : 'Pago unico'
 }
 
+const formatPurchaseLabel = (item?: PaymentListItem | PaymentDetail | null) => {
+  if (!item) return '-'
+  if (item.purchase_label) return item.purchase_label
+  if (item.purchase_kind === 'credit_pack') return 'Compra de créditos'
+  if (item.purchase_kind === 'plan_upgrade_credit_pack') return 'Mejora de plan'
+  if (item.purchase_kind === 'subscription_renewal') return 'Renovación de suscripción'
+  return 'Adquisición del plan'
+}
+
+const formatPurchaseDescription = (item?: PaymentListItem | PaymentDetail | null) => {
+  if (!item) return '-'
+  if (item.purchase_description) return item.purchase_description
+  const credits = Number(item.credit_quantity ?? 0)
+  if (item.purchase_kind === 'credit_pack') {
+    return credits > 0
+      ? `${credits} ${credits === 1 ? 'crédito adicional' : 'créditos adicionales'}`
+      : 'Créditos adicionales'
+  }
+  if (item.purchase_kind === 'subscription_renewal') {
+    return `Cobro recurrente de ${item.plan_name ?? 'tu plan'}`
+  }
+  return item.plan_name ?? 'Plan'
+}
+
+const purchaseClass = (item?: PaymentListItem | PaymentDetail | null) => {
+  const category = String(item?.purchase_category ?? '').toLowerCase()
+  if (category === 'credit_purchase' || item?.purchase_kind === 'credit_pack') return 'purchase-badge--credits'
+  if (category === 'plan_upgrade' || item?.purchase_kind === 'plan_upgrade_credit_pack') return 'purchase-badge--upgrade'
+  if (category === 'subscription_renewal' || item?.purchase_kind === 'subscription_renewal') return 'purchase-badge--renewal'
+  return 'purchase-badge--plan'
+}
+
 const formatProvider = (value?: string) => {
   if (!value) return '-'
   if (value.toLowerCase() === 'mercadopago') return 'MercadoPago'
@@ -139,6 +173,7 @@ const sortFieldMap: Record<SortKey, SortField> = {
   id: 'id',
   client: 'client_id',
   plan: 'plan_id',
+  purchase_kind: 'purchase_kind',
   amount: 'amount',
   status: 'status',
   type: 'type',
@@ -463,6 +498,16 @@ watch(
                   </span>
                 </button>
               </th>
+              <th scope="col" :aria-sort="getAriaSort('purchase_kind')">
+                <button class="sort-button" type="button" @click="setSort('purchase_kind')">
+                  <span>Concepto</span>
+                  <span class="sort-indicator" :class="{ active: isSortActive('purchase_kind'), desc: isSortActive('purchase_kind') && sortDir === 'desc' }">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
               <th scope="col" :aria-sort="getAriaSort('amount')">
                 <button class="sort-button" type="button" @click="setSort('amount')">
                   <span>Monto</span>
@@ -540,6 +585,12 @@ watch(
               <td>{{ item.id ?? '-' }}</td>
               <td>{{ item.client_name ?? '-' }}</td>
               <td>{{ item.plan_name ?? '-' }}</td>
+              <td>
+                <span class="purchase-badge" :class="purchaseClass(item)">
+                  <strong>{{ formatPurchaseLabel(item) }}</strong>
+                  <small>{{ formatPurchaseDescription(item) }}</small>
+                </span>
+              </td>
               <td>{{ formatAmount(item.amount, item.currency) }}</td>
               <td>
                 <span class="status-badge" :class="statusClass(item.status)">{{ formatStatus(item.status) }}</span>
@@ -550,7 +601,7 @@ watch(
               <td v-if="showCreatedAt">{{ formatDate(item.created_at) }}</td>
             </tr>
             <tr v-if="!list.length">
-              <td :colspan="showCreatedAt ? 9 : 8" class="bo-empty">No encontramos pagos con los filtros actuales.</td>
+              <td :colspan="showCreatedAt ? 10 : 9" class="bo-empty">No encontramos pagos con los filtros actuales.</td>
             </tr>
           </tbody>
         </table>
@@ -610,6 +661,10 @@ watch(
           <div class="detail-row">
             <span>Plan</span>
             <strong>{{ selected.plan_name ?? '-' }}</strong>
+          </div>
+          <div class="detail-row">
+            <span>Concepto</span>
+            <strong>{{ formatPurchaseLabel(selected) }} · {{ formatPurchaseDescription(selected) }}</strong>
           </div>
           <div class="detail-row">
             <span>Monto</span>
@@ -938,6 +993,48 @@ watch(
 .status-badge.canceled {
   background: rgba(148, 163, 184, 0.2);
   color: #475569;
+}
+
+.purchase-badge {
+  display: inline-grid;
+  gap: 2px;
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(122, 79, 217, 0.16);
+  background: rgba(248, 243, 255, 0.88);
+}
+
+.purchase-badge strong,
+.purchase-badge small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchase-badge strong {
+  color: #2f2050;
+  font-size: 12px;
+}
+
+.purchase-badge small {
+  color: #6b5b86;
+  font-size: 11px;
+}
+
+.purchase-badge--credits {
+  background: rgba(240, 253, 244, 0.94);
+  border-color: rgba(22, 163, 74, 0.2);
+}
+
+.purchase-badge--upgrade {
+  background: linear-gradient(135deg, rgba(250, 245, 255, 0.96), rgba(239, 246, 255, 0.92));
+  border-color: rgba(126, 79, 224, 0.24);
+}
+
+.purchase-badge--renewal {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(224, 242, 254, 0.92));
+  border-color: rgba(37, 99, 235, 0.22);
 }
 
 .bo-empty {

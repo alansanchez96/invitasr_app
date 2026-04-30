@@ -49,6 +49,23 @@ export type TenantSubscriptionListDetail = {
   }
 }
 
+export type TenantSubscriptionCancelResult = {
+  id: number
+  status: string
+  cancel_at_period_end: boolean
+  canceled_at: string | null
+}
+
+export type TenantSubscriptionRenewResult = {
+  url: string | null
+  payment_id: number | null
+  plan: {
+    id: number
+    name: string
+    billing_type: string
+  } | null
+}
+
 type TenantApiResponse<T = Record<string, unknown>> = {
   data?: T
   message?: string
@@ -141,3 +158,38 @@ export const listTenantSubscriptions = async (
   }
 }
 
+export const cancelTenantSubscription = async (subscriptionId: string | number) => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_SUBSCRIPTIONS_ENDPOINT}/${subscriptionId}/cancel`,
+    { method: 'POST' },
+  )
+  const data = toRecord(payload.data)
+
+  return {
+    id: toNumber(data.id, Number(subscriptionId)),
+    status: data.status ? String(data.status) : 'canceled',
+    cancel_at_period_end: toBoolean(data.cancel_at_period_end),
+    canceled_at: data.canceled_at ? String(data.canceled_at) : null,
+  } satisfies TenantSubscriptionCancelResult
+}
+
+export const renewTenantSubscription = async (): Promise<TenantSubscriptionRenewResult> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_SUBSCRIPTIONS_ENDPOINT}/renew`,
+    { method: 'POST' },
+  )
+  const data = toRecord(payload.data)
+  const plan = toRecord(data.plan)
+
+  return {
+    url: data.url ? String(data.url) : null,
+    payment_id: data.payment_id == null ? null : toNumber(data.payment_id, 0),
+    plan: plan.id
+      ? {
+          id: toNumber(plan.id, 0),
+          name: String(plan.name ?? ''),
+          billing_type: String(plan.billing_type ?? ''),
+        }
+      : null,
+  }
+}

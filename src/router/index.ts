@@ -30,6 +30,7 @@ import ClientSecurity from '@/pages/client/ClientSecurity.vue'
 import ClientBilling from '@/pages/client/ClientBilling.vue'
 import ClientBuyCredits from '@/pages/client/ClientBuyCredits.vue'
 import ClientSubscriptions from '@/pages/client/ClientSubscriptions.vue'
+import ClientRenewSubscription from '@/pages/client/ClientRenewSubscription.vue'
 import ClientGuestList from '@/pages/client/ClientGuestList.vue'
 import ClientNotifications from '@/pages/client/ClientNotifications.vue'
 import ClientUpgradePlan from '@/pages/client/ClientUpgradePlan.vue'
@@ -390,6 +391,16 @@ const router = createRouter({
           },
         },
         {
+          path: 'renovar-suscripcion',
+          name: 'client-renew-subscription',
+          component: ClientRenewSubscription,
+          meta: {
+            title: 'Mi panel · Renovar suscripción',
+            requiresAuth: true,
+            requiresClient: true,
+          },
+        },
+        {
           path: 'facturaciones',
           redirect: { name: 'client-payments' },
         },
@@ -427,6 +438,15 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresActiveClientPlan && session.isClient && !session.hasActiveClientPlan) {
+    if (session.requiresSubscriptionRenewal) {
+      return {
+        name: 'client-renew-subscription',
+        query: {
+          next: typeof to.fullPath === 'string' ? to.fullPath : '/panel',
+        },
+      }
+    }
+
     return {
       name: 'public-onboarding-flow',
       query: {
@@ -434,6 +454,23 @@ router.beforeEach(async (to) => {
         next: typeof to.fullPath === 'string' ? to.fullPath : '/panel',
       },
     }
+  }
+
+  const activePlanName = String(session.user?.client_plan?.plan?.name ?? '').trim().toLowerCase()
+  if (
+    session.isClient
+    && activePlanName === 'planner'
+    && (to.name === 'client-buy-credits' || to.name === 'client-upgrade-plan')
+  ) {
+    return { name: 'client-home' }
+  }
+
+  if (
+    session.isClient
+    && to.name === 'client-renew-subscription'
+    && !session.canRenewSubscription
+  ) {
+    return { name: session.hasActiveClientPlan ? 'client-home' : 'public-onboarding-flow' }
   }
 
   return true
