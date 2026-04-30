@@ -47,7 +47,13 @@ const accountDisplayName = computed(() => {
 const accountInitials = computed(() => buildDisplayInitials(accountIdentitySeed.value, 'CU'))
 const accountAvatarStyle = computed(() => buildAvatarPaletteStyle(accountIdentitySeed.value))
 const clientEntryPath = computed(() =>
-    session.isMaster ? '/backoffice' : session.hasActiveClientPlan ? '/panel' : '/onboarding/public',
+    session.isMaster
+        ? '/backoffice'
+        : session.isClientInactive
+            ? '/cuenta-inactiva'
+            : session.hasActiveClientPlan
+                ? '/panel'
+                : '/onboarding/public',
 )
 const defaultDesktopNavItems: PublicNavItem[] = [
     { label: 'Noticias', to: '/noticias' },

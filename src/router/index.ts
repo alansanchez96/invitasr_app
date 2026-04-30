@@ -9,6 +9,7 @@ import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
 import PublicCommercialOnboarding from '@/pages/public/PublicCommercialOnboarding.vue'
 import PaymentReturnPage from '@/pages/public/PaymentReturnPage.vue'
 import TemplatePreviewPage from '@/pages/public/TemplatePreviewPage.vue'
+import InactiveClientPage from '@/pages/public/InactiveClientPage.vue'
 import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
 import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
 import BackofficeClients from '@/pages/backoffice/BackofficeClients.vue'
@@ -77,6 +78,12 @@ const router = createRouter({
           name: 'template-preview',
           component: TemplatePreviewPage,
           meta: { title: 'Preview de template' },
+        },
+        {
+          path: 'cuenta-inactiva',
+          name: 'client-inactive',
+          component: InactiveClientPage,
+          meta: { title: 'Cuenta dada de baja' },
         },
         {
           path: 'payment/success',
@@ -427,6 +434,19 @@ router.beforeEach(async (to) => {
       const refreshed = await session.refreshMe()
       if (!refreshed.ok) return { name: 'home' }
     }
+  }
+
+  if (to.meta.requiresClient && session.isAuthenticated) {
+    const refreshed = await session.refreshMe()
+    if (!refreshed.ok) return { name: 'home' }
+  }
+
+  if (session.isClientInactive && to.name !== 'client-inactive') {
+    return { name: 'client-inactive' }
+  }
+
+  if (to.name === 'client-inactive' && session.isClient && !session.isClientInactive) {
+    return { name: session.hasActiveClientPlan ? 'client-home' : 'public-onboarding-flow' }
   }
 
   if (to.meta.requiresMaster && !session.isMaster) {

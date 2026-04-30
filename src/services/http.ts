@@ -15,6 +15,7 @@ type ValidationErrorPayload = {
     errors?: Record<string, string[]>
 }
 
+const CLIENT_INACTIVE_EVENT = 'invitasr:client-inactive'
 const TOKEN_KEY = 'token'
 
 const getBaseUrl = () => {
@@ -29,6 +30,14 @@ const getAuthMode = () => {
 const getStoredToken = () => {
     if (typeof window === 'undefined') return null
     return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
+}
+
+const notifyInactiveClient = (data: unknown, status: number) => {
+    if (typeof window === 'undefined' || status !== 423) return
+    const payload = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+    if (payload.reason !== 'client_inactive') return
+
+    window.dispatchEvent(new CustomEvent(CLIENT_INACTIVE_EVENT))
 }
 
 export const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
@@ -72,6 +81,7 @@ export const request = async <T>(path: string, options: RequestOptions = {}): Pr
     }
 
     if (!response.ok) {
+        notifyInactiveClient(data, response.status)
         if (response.status === 422) {
             const validation = data as ValidationErrorPayload
             if (validation?.errors && Object.keys(validation.errors).length > 0) {
@@ -154,6 +164,8 @@ export const requestBlob = async (path: string, options: RequestOptions = {}): P
                 data = {}
             }
         }
+
+        notifyInactiveClient(data, response.status)
 
         if (response.status === 422) {
             const validation = data as ValidationErrorPayload

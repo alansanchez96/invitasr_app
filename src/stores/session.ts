@@ -89,6 +89,9 @@ export const useSessionStore = defineStore('session', () => {
   )
   const isMaster = computed(() => Boolean(user.value?.contextEncrypt))
   const isClient = computed(() => Boolean(user.value) && !isMaster.value)
+  const isClientInactive = computed(() =>
+    isClient.value && String(user.value?.tenant?.status ?? '').toLowerCase() === 'inactive',
+  )
   const hasClientPlan = computed(() => Boolean(user.value?.client_plan?.has_plan))
   const hasActiveClientPlan = computed(() => Boolean(user.value?.client_plan?.has_active_plan))
   const clientPlanStatus = computed(() => user.value?.client_plan?.plan_status ?? '')
@@ -244,6 +247,7 @@ export const useSessionStore = defineStore('session', () => {
     isAuthenticated,
     isMaster,
     isClient,
+    isClientInactive,
     hasClientPlan,
     hasActiveClientPlan,
     clientPlanStatus,

@@ -2,22 +2,20 @@
 import { onMounted, reactive, ref } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useSessionStore } from '@/stores/session'
-import { notifySuccess } from '@/utils/toast'
-
-type NotificationKey =
-  | 'wall_message_received'
-  | 'product_updates'
-  | 'billing_updates'
-  | 'rsvp_confirmed'
-  | 'invitation_expiration_reminder'
-  | 'weekly_performance_summary'
-
-const STORAGE_KEY = 'invitasr.client.notifications.v1'
+import {
+  getTenantNotificationPreferences,
+  updateTenantNotificationPreferences,
+  type TenantNotificationKey as NotificationKey,
+  type TenantNotificationPreferences,
+} from '@/services/tenantNotificationPreferences'
+import { notifyError, notifySuccess } from '@/utils/toast'
 
 const session = useSessionStore()
 const isSaving = ref(false)
+const isLoading = ref(false)
+const loadError = ref('')
 
-const form = reactive<Record<NotificationKey, boolean>>({
+const form = reactive<TenantNotificationPreferences>({
   wall_message_received: true,
   product_updates: true,
   billing_updates: true,
@@ -63,33 +61,41 @@ const options: Array<{
   },
 ]
 
-const restore = () => {
+const applyPreferences = (preferences: TenantNotificationPreferences) => {
+  for (const option of options) {
+    form[option.key] = Boolean(preferences[option.key])
+  }
+}
+
+const loadPreferences = async () => {
+  isLoading.value = true
+  loadError.value = ''
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw) as Partial<Record<NotificationKey, boolean>>
-    for (const option of options) {
-      if (typeof parsed[option.key] === 'boolean') {
-        form[option.key] = Boolean(parsed[option.key])
-      }
-    }
-  } catch {
-    // Ignora cualquier dato inválido en storage local.
+    applyPreferences(await getTenantNotificationPreferences())
+  } catch (error) {
+    const payload = error as { message?: string }
+    loadError.value = payload?.message ?? 'No pudimos cargar tus preferencias.'
+  } finally {
+    isLoading.value = false
   }
 }
 
 const savePreferences = async () => {
   isSaving.value = true
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
-    notifySuccess('Tus preferencias de notificación quedaron guardadas.')
+    const response = await updateTenantNotificationPreferences({ ...form })
+    applyPreferences(response.preferences)
+    notifySuccess(response.message)
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos guardar tus preferencias.')
   } finally {
     isSaving.value = false
   }
 }
 
 onMounted(() => {
-  restore()
+  void loadPreferences()
 })
 </script>
 
@@ -114,6 +120,9 @@ onMounted(() => {
     </header>
 
     <section class="bo-card notifications-card" aria-label="Preferencias de notificación">
+      <p v-if="isLoading" class="notification-state">Cargando tus preferencias...</p>
+      <p v-else-if="loadError" class="notification-state notification-state--error">{{ loadError }}</p>
+
       <article v-for="option in options" :key="option.key" class="notification-item">
         <div>
           <h2>{{ option.title }}</h2>
@@ -121,7 +130,7 @@ onMounted(() => {
         </div>
 
         <label class="switch">
-          <input v-model="form[option.key]" type="checkbox" />
+          <input v-model="form[option.key]" type="checkbox" :disabled="isLoading" />
           <span class="switch-track"></span>
         </label>
       </article>
@@ -184,6 +193,21 @@ onMounted(() => {
 .notifications-card {
   display: grid;
   gap: 12px;
+}
+
+.notification-state {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(155, 107, 255, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: #6a5a84;
+}
+
+.notification-state--error {
+  border-color: rgba(239, 68, 68, 0.24);
+  color: #991b1b;
+  background: rgba(254, 242, 242, 0.78);
 }
 
 .notification-item {
