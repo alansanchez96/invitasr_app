@@ -16,6 +16,9 @@ const isCheckingOut = ref<string | null>(null)
 const loadError = ref<string | null>(null)
 
 const creditOffers = computed(() => Object.values(options.value?.offers ?? {}))
+const plannerUpgradeOffer = computed(() =>
+  Object.values(options.value?.upgrade_offers ?? {}).find((offer) => String(offer.plan_name).toLowerCase() === 'planner') ?? null,
+)
 
 const currentPlanName = computed(() => {
   const name = options.value?.current_plan?.name
@@ -96,6 +99,32 @@ onMounted(() => {
     <p v-else-if="isLoading" class="client-inline-note">Cargando opciones...</p>
 
     <section v-else-if="options?.can_buy_credits" class="purchase-layout">
+      <article v-if="plannerUpgradeOffer" class="planner-banner bo-card">
+        <div>
+          <p class="client-kicker">También puedes pasar a Planner</p>
+          <h2>Invitaciones ilimitadas con {{ plannerUpgradeOffer.discount_percent }}% de descuento permanente</h2>
+          <p>
+            Conservas tus invitaciones activas y dejas de depender de créditos. Tus créditos actuales se dan de baja
+            porque Planner ya incluye libertad total para publicar.
+          </p>
+        </div>
+
+        <div class="planner-price">
+          <span>{{ formatMoney(plannerUpgradeOffer.original_amount, plannerUpgradeOffer.currency) }}</span>
+          <strong>{{ formatMoney(plannerUpgradeOffer.amount, plannerUpgradeOffer.currency) }}</strong>
+          <small>{{ savingsLabel(plannerUpgradeOffer) }}</small>
+        </div>
+
+        <BaseButton
+          type="button"
+          variant="primary"
+          class="dashboard-action-btn planner-btn"
+          :disabled="Boolean(isCheckingOut)"
+          @click="startCheckout(plannerUpgradeOffer)">
+          {{ isCheckingOut === plannerUpgradeOffer.key ? 'Preparando pago...' : 'Suscribirme a Planner' }}
+        </BaseButton>
+      </article>
+
       <div class="offers-grid" aria-label="Opciones para comprar créditos">
         <article v-for="offer in creditOffers" :key="offer.key" class="offer-card bo-card">
           <div class="offer-badge">{{ offer.badge }}</div>
@@ -178,6 +207,7 @@ onMounted(() => {
 
 .hero-card,
 .offer-card,
+.planner-banner,
 .upgrade-card,
 .unavailable-card {
   min-width: 0;
@@ -314,6 +344,7 @@ onMounted(() => {
 }
 
 .price-row span,
+.planner-price span,
 .upgrade-price span {
   color: #8a7a9c;
   font-weight: 800;
@@ -321,6 +352,7 @@ onMounted(() => {
 }
 
 .price-row strong,
+.planner-price strong,
 .upgrade-price strong {
   color: #211239;
   font-size: clamp(28px, 5vw, 40px);
@@ -372,6 +404,47 @@ onMounted(() => {
   box-shadow: 0 24px 70px rgba(33, 18, 57, 0.22);
 }
 
+.planner-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(45, 212, 191, 0.22), transparent 34%),
+    linear-gradient(135deg, #102a43, #211239);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 24px 70px rgba(16, 42, 67, 0.2);
+}
+
+.planner-banner .client-kicker,
+.planner-banner h2,
+.planner-banner p {
+  color: #fff;
+}
+
+.planner-price {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  color: #fff;
+}
+
+.planner-price strong,
+.planner-price small {
+  color: #fff;
+}
+
+.planner-price span {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.planner-btn {
+  background: linear-gradient(135deg, #ffffff, #dffcf7) !important;
+  color: #102a43 !important;
+}
+
 .upgrade-card .client-kicker,
 .upgrade-card h2,
 .upgrade-card p {
@@ -407,6 +480,7 @@ onMounted(() => {
 @media (max-width: 980px) {
   .hero-card,
   .offers-grid,
+  .planner-banner,
   .upgrade-card {
     grid-template-columns: 1fr;
   }
@@ -425,6 +499,7 @@ onMounted(() => {
 
   .hero-card,
   .offer-card,
+  .planner-banner,
   .upgrade-card,
   .unavailable-card {
     width: 100%;

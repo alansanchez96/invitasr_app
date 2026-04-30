@@ -176,8 +176,25 @@ export type TenantDashboardSummary = {
   published_invitations: number
   invitation_visits_total: number
   invitation_last_visit_at: string | null
+  invitation_last_visit: {
+    id: number
+    visited_at: string | null
+    invitation_id: number
+    invitation_title: string | null
+    invitation_slug: string | null
+  } | null
   total_guests: number
   total_confirmed_guests: number
+  last_confirmed_guest: {
+    id: number
+    first_name: string
+    last_name: string
+    full_name: string
+    dietary_restrictions: string | null
+    confirmed_at: string | null
+    invitation_id: number
+    invitation_title: string | null
+  } | null
   credits_available: number
   last_updated_at: string | null
 }
@@ -458,8 +475,29 @@ export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummar
     published_invitations: toNumber(data.published_invitations, 0),
     invitation_visits_total: toNumber(data.invitation_visits_total, 0),
     invitation_last_visit_at: (data.invitation_last_visit_at ?? null) as string | null,
+    invitation_last_visit: Object.keys(toRecord(data.invitation_last_visit)).length
+      ? {
+          id: toNumber(toRecord(data.invitation_last_visit).id, 0),
+          visited_at: (toRecord(data.invitation_last_visit).visited_at ?? null) as string | null,
+          invitation_id: toNumber(toRecord(data.invitation_last_visit).invitation_id, 0),
+          invitation_title: (toRecord(data.invitation_last_visit).invitation_title ?? null) as string | null,
+          invitation_slug: (toRecord(data.invitation_last_visit).invitation_slug ?? null) as string | null,
+        }
+      : null,
     total_guests: toNumber(data.total_guests, 0),
     total_confirmed_guests: toNumber(data.total_confirmed_guests, 0),
+    last_confirmed_guest: Object.keys(toRecord(data.last_confirmed_guest)).length
+      ? {
+          id: toNumber(toRecord(data.last_confirmed_guest).id, 0),
+          first_name: String(toRecord(data.last_confirmed_guest).first_name ?? ''),
+          last_name: String(toRecord(data.last_confirmed_guest).last_name ?? ''),
+          full_name: String(toRecord(data.last_confirmed_guest).full_name ?? ''),
+          dietary_restrictions: (toRecord(data.last_confirmed_guest).dietary_restrictions ?? null) as string | null,
+          confirmed_at: (toRecord(data.last_confirmed_guest).confirmed_at ?? null) as string | null,
+          invitation_id: toNumber(toRecord(data.last_confirmed_guest).invitation_id, 0),
+          invitation_title: (toRecord(data.last_confirmed_guest).invitation_title ?? null) as string | null,
+        }
+      : null,
     credits_available: toNumber(data.credits_available, 0),
     last_updated_at: (data.last_updated_at ?? null) as string | null,
   }
