@@ -169,6 +169,7 @@ const paymentInitials = (item: TenantPaymentItem) => {
   if (item.purchase_category === 'credit_purchase') return 'CR'
   if (item.purchase_category === 'plan_upgrade') return 'UP'
   if (item.purchase_category === 'subscription_renewal') return 'RN'
+  if (item.purchase_category === 'plan_cancellation') return 'BA'
 
   const plan = String(item.plan_name ?? '')
     .trim()
@@ -197,6 +198,7 @@ const resolvePurchaseClass = (item: TenantPaymentItem) => {
   if (item.purchase_category === 'credit_purchase') return 'purchase-pill--credits'
   if (item.purchase_category === 'plan_upgrade') return 'purchase-pill--upgrade'
   if (item.purchase_category === 'subscription_renewal') return 'purchase-pill--renewal'
+  if (item.purchase_category === 'plan_cancellation') return 'purchase-pill--cancellation'
   return 'purchase-pill--plan'
 }
 
@@ -204,6 +206,7 @@ const purchaseIcon = (item: TenantPaymentItem) => {
   if (item.purchase_category === 'credit_purchase') return '+'
   if (item.purchase_category === 'plan_upgrade') return '↑'
   if (item.purchase_category === 'subscription_renewal') return '↻'
+  if (item.purchase_category === 'plan_cancellation') return '×'
   return '✓'
 }
 
@@ -1172,6 +1175,15 @@ th {
 
 .purchase-pill--renewal .purchase-icon {
   background: linear-gradient(135deg, #1d4ed8, #38bdf8);
+}
+
+.purchase-pill--cancellation {
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.96), rgba(255, 247, 237, 0.94));
+  border-color: rgba(239, 68, 68, 0.22);
+}
+
+.purchase-pill--cancellation .purchase-icon {
+  background: linear-gradient(135deg, #b91c1c, #f97316);
 }
 
 .status-pill {

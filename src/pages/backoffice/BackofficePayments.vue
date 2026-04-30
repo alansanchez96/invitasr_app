@@ -112,7 +112,7 @@ const formatStatus = (value?: string) => {
   if (normalized === 'paid') return 'Pagado'
   if (normalized === 'active') return 'Activo'
   if (normalized === 'failed') return 'Fallido'
-  if (normalized === 'canceled') return 'Cancelado'
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'Cancelado'
   return 'Pendiente'
 }
 
@@ -127,6 +127,7 @@ const formatPurchaseLabel = (item?: PaymentListItem | PaymentDetail | null) => {
   if (item.purchase_kind === 'credit_pack') return 'Compra de créditos'
   if (item.purchase_kind === 'plan_upgrade_credit_pack') return 'Mejora de plan'
   if (item.purchase_kind === 'subscription_renewal') return 'Renovación de suscripción'
+  if (item.purchase_kind === 'subscription_cancellation') return 'Cancelación de plan'
   return 'Adquisición del plan'
 }
 
@@ -142,6 +143,9 @@ const formatPurchaseDescription = (item?: PaymentListItem | PaymentDetail | null
   if (item.purchase_kind === 'subscription_renewal') {
     return `Cobro recurrente de ${item.plan_name ?? 'tu plan'}`
   }
+  if (item.purchase_kind === 'subscription_cancellation') {
+    return `Suscripción cancelada de ${item.plan_name ?? 'tu plan'}`
+  }
   return item.plan_name ?? 'Plan'
 }
 
@@ -150,6 +154,7 @@ const purchaseClass = (item?: PaymentListItem | PaymentDetail | null) => {
   if (category === 'credit_purchase' || item?.purchase_kind === 'credit_pack') return 'purchase-badge--credits'
   if (category === 'plan_upgrade' || item?.purchase_kind === 'plan_upgrade_credit_pack') return 'purchase-badge--upgrade'
   if (category === 'subscription_renewal' || item?.purchase_kind === 'subscription_renewal') return 'purchase-badge--renewal'
+  if (category === 'plan_cancellation' || item?.purchase_kind === 'subscription_cancellation') return 'purchase-badge--cancellation'
   return 'purchase-badge--plan'
 }
 
@@ -165,7 +170,7 @@ const statusClass = (value?: string) => {
   if (normalized === 'paid') return 'paid'
   if (normalized === 'active') return 'active'
   if (normalized === 'failed') return 'failed'
-  if (normalized === 'canceled') return 'canceled'
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'canceled'
   return 'pending'
 }
 
@@ -1035,6 +1040,11 @@ watch(
 .purchase-badge--renewal {
   background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(224, 242, 254, 0.92));
   border-color: rgba(37, 99, 235, 0.22);
+}
+
+.purchase-badge--cancellation {
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.96), rgba(255, 247, 237, 0.92));
+  border-color: rgba(239, 68, 68, 0.22);
 }
 
 .bo-empty {

@@ -88,7 +88,7 @@ const formatDate = (value?: string | null) => {
 const formatStatus = (value?: string) => {
   if (!value) return 'Activo'
   const normalized = value.toLowerCase()
-  if (normalized === 'canceled') return 'Cancelado'
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'Cancelado'
   if (normalized === 'past_due') return 'Vencido'
   if (normalized === 'trialing') return 'Prueba'
   if (normalized === 'paused') return 'Pausado'
@@ -109,7 +109,7 @@ const formatRenewal = (value?: boolean | number) => {
 const statusClass = (value?: string) => {
   if (!value) return 'active'
   const normalized = value.toLowerCase()
-  if (normalized === 'canceled') return 'canceled'
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'canceled'
   if (normalized === 'past_due') return 'pending'
   if (normalized === 'trialing') return 'trial'
   if (normalized === 'paused') return 'paused'
