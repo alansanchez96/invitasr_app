@@ -47,7 +47,7 @@ export const useInvitationEditorViewport = () => {
 
   const previewZoomScale = computed(() => previewZoomPercent.value / 100)
   const previewZoomLabel = computed(() => `${previewZoomPercent.value}%`)
-  const previewViewportClass = computed(() => `preview-frame--${previewDevice.value}`)
+  const previewViewportClass = computed(() => `preview-frame--${effectivePreviewDevice.value}`)
   const previewFrameStyle = computed(() => ({ zoom: String(previewZoomScale.value) }))
 
   const setPreviewZoom = (value: number) => {

@@ -772,7 +772,7 @@ const branding = computed(() => {
     : { visible: false, label: 'Creado con InvitaSR' }
 
   return {
-    visible: Boolean(source.visible),
+    visible: props.demoMode && Boolean(source.visible),
     label: resolveText(source.label, 'Creado con InvitaSR'),
     ctaLabel: resolveText((source as Record<string, unknown>).ctaLabel, 'Crear mi invitación'),
   }

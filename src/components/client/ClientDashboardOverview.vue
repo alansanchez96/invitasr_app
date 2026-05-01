@@ -153,15 +153,19 @@ const loadDashboard = async () => {
   loadError.value = null
 
   try {
-    const [profileResponse, summaryResponse, creditResponse] = await Promise.all([
+    const [profileResponse, summaryResponse, creditResponse] = await Promise.allSettled([
       getPublicOnboardingProfile(),
       getTenantDashboardSummary(),
-      getCreditPurchaseOptions().catch(() => null),
+      getCreditPurchaseOptions(),
     ])
 
-    profile.value = profileResponse.profile
-    dashboard.value = summaryResponse
-    creditOptions.value = creditResponse
+    if (summaryResponse.status === 'rejected') {
+      throw summaryResponse.reason
+    }
+
+    dashboard.value = summaryResponse.value
+    profile.value = profileResponse.status === 'fulfilled' ? profileResponse.value.profile : null
+    creditOptions.value = creditResponse.status === 'fulfilled' ? creditResponse.value : null
   } catch (error) {
     const payload = error as { message?: string }
     loadError.value = payload?.message ?? 'No pudimos cargar el resumen de tu cuenta.'

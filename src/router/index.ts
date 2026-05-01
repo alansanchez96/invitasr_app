@@ -468,6 +468,20 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const session = useSessionStore()
+  const demoRouteNames = new Set(['demo', 'demo-editor'])
+
+  if (demoRouteNames.has(String(to.name))) {
+    if (!session.isAuthenticated) {
+      await session.hydrateSession()
+    }
+
+    if (session.isClient) {
+      return {
+        name: 'client-invitations',
+        query: { demo_restricted: '1' },
+      }
+    }
+  }
 
   if (to.meta.requiresAuth) {
     if (!session.isAuthenticated) {

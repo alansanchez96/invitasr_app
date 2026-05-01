@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { useInvitationEditorViewport } from '@/composables/invitation-editor/useInvitationEditorViewport'
 import type { InvitationTemplateModule, WeddingTemplateData } from '@/templates/types'
 
 type ResponsiveDevice = 'mobile' | 'tablet' | 'desktop'
@@ -26,10 +27,44 @@ const createPreviewDevices = [
   { value: 'desktop', label: 'Desktop' },
 ] as const
 
-const createPreviewViewportClass = computed(() => `template-preview-frame--${props.device}`)
+const {
+  previewDevice,
+  previewZoomPercent,
+  effectivePreviewDevice,
+  previewZoomLabel,
+  previewFrameStyle,
+  zoomMinPercent,
+  zoomMaxPercent,
+  zoomStepPercent,
+  adjustPreviewZoom,
+  resetPreviewZoom,
+  handleZoomInput,
+  selectPreviewDevice,
+  handlePreviewWheelZoom,
+} = useInvitationEditorViewport()
+
+const createPreviewViewportClass = computed(() => `template-preview-frame--${effectivePreviewDevice.value}`)
 
 const closeModal = () => emit('close')
-const updateDevice = (value: ResponsiveDevice) => emit('update:device', value)
+const updateDevice = (value: ResponsiveDevice) => {
+  selectPreviewDevice(value)
+  emit('update:device', value)
+}
+
+watch(
+  () => props.device,
+  (nextDevice) => {
+    if (!nextDevice || previewDevice.value === nextDevice) return
+    selectPreviewDevice(nextDevice)
+  },
+  { immediate: true },
+)
+
+watch(effectivePreviewDevice, (nextDevice) => {
+  if (previewDevice.value === nextDevice) return
+  previewDevice.value = nextDevice
+  emit('update:device', nextDevice)
+})
 </script>
 
 <template>
@@ -67,19 +102,36 @@ const updateDevice = (value: ResponsiveDevice) => emit('update:device', value)
               :key="option.value"
               type="button"
               class="device-tab"
-              :class="{ active: device === option.value }"
+              :class="{ active: previewDevice === option.value }"
               @click="updateDevice(option.value)">
               {{ option.label }}
             </button>
           </div>
-          <p class="template-preview-hint">Vista inmersiva: desliza para recorrer la plantilla completa en cada resolución.</p>
+
+          <div class="template-preview-zoom" role="group" aria-label="Controles de zoom de la vista previa">
+            <button type="button" aria-label="Alejar" @click="adjustPreviewZoom(-zoomStepPercent)">−</button>
+            <input
+              type="range"
+              :min="zoomMinPercent"
+              :max="zoomMaxPercent"
+              :step="zoomStepPercent"
+              :value="previewZoomPercent"
+              aria-label="Zoom de la vista previa"
+              @input="handleZoomInput" />
+            <button type="button" aria-label="Acercar" @click="adjustPreviewZoom(zoomStepPercent)">+</button>
+            <button type="button" class="template-preview-zoom__label" aria-label="Restablecer zoom" @click="resetPreviewZoom">
+              {{ previewZoomLabel }}
+            </button>
+          </div>
+
+          <p class="template-preview-hint">Vista inmersiva: usa el zoom o desliza para recorrer la plantilla completa.</p>
         </div>
 
-        <div class="template-preview-stage template-preview-stage--modal">
+        <div class="template-preview-stage template-preview-stage--modal" @wheel="handlePreviewWheelZoom">
           <p v-if="!templateModule" class="preview-placeholder">
             Selecciona una plantilla para ver la vista previa.
           </p>
-          <div v-else class="template-preview-frame" :class="createPreviewViewportClass">
+          <div v-else class="template-preview-frame" :class="createPreviewViewportClass" :style="previewFrameStyle">
             <component
               :is="templateModule.component"
               :template-id="templateId"
@@ -87,7 +139,8 @@ const updateDevice = (value: ResponsiveDevice) => emit('update:device', value)
               :data="previewData"
               :invitation-title="invitationTitle"
               :type-event-name="typeEventName"
-              :preview-viewport="device"
+              :preview-viewport="effectivePreviewDevice"
+              :preview-zoom-percent="previewZoomPercent"
               :constrained-overlay="true" />
           </div>
         </div>
@@ -138,6 +191,49 @@ const updateDevice = (value: ResponsiveDevice) => emit('update:device', value)
 .device-tab.active {
   background: #0f172a;
   color: #fff;
+}
+
+.template-preview-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: min(100%, 430px);
+  padding: 0.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+}
+
+.template-preview-zoom button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4c1d95;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.template-preview-zoom button:hover,
+.template-preview-zoom button:focus-visible {
+  background: linear-gradient(135deg, #7c3aed, #db5bb6);
+  color: #fff;
+}
+
+.template-preview-zoom input {
+  flex: 1;
+  min-width: 100px;
+  accent-color: #8b5cf6;
+}
+
+.template-preview-zoom__label {
+  min-width: 58px !important;
+  padding: 0 0.7rem;
+  font-size: 0.78rem;
 }
 
 .template-preview-stage {
@@ -304,6 +400,10 @@ const updateDevice = (value: ResponsiveDevice) => emit('update:device', value)
   .template-preview-toolbar {
     padding: 8px 10px 10px;
     gap: 0.4rem;
+  }
+
+  .template-preview-zoom {
+    width: 100%;
   }
 
   .template-preview-hint {

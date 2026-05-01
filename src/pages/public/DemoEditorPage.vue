@@ -37,7 +37,7 @@ const loadError = ref('')
 const savedAt = ref<string | null>(null)
 const showCheckinPreview = ref(false)
 const hasLoadedStoredState = ref(false)
-const publicSlug = ref('alan-y-andrea')
+const publicSlug = ref('')
 const isPublishing = ref(false)
 const publishUrl = ref('')
 const galleryInputRef = ref<HTMLInputElement | null>(null)
@@ -46,6 +46,7 @@ const publishedDemoRef = ref<{ userPath: string; slug: string } | null>(null)
 const {
   previewDevice,
   previewZoomPercent,
+  effectivePreviewDevice,
   previewZoomLabel,
   previewViewportClass,
   previewFrameStyle,
@@ -84,7 +85,10 @@ const manifest = computed(() => templateModule.value?.manifest ?? null)
 const typeEventName = computed(() => String(typeEvent.value?.name ?? catalogTemplate.value?.type_event?.name ?? 'Evento'))
 const invitationTitle = computed(() => String(catalogTemplate.value?.name ?? 'Mi invitación demo'))
 const canRenderTemplate = computed(() => Boolean(activeComponent.value && manifest.value && demoData.value))
-const publicPathPreview = computed(() => `@${normalizeSlug(publicSlug.value) || 'mi-invitacion'}`)
+const publicPathPreview = computed(() => {
+  const slug = normalizeSlug(publicSlug.value)
+  return slug ? `@${slug}` : 'se generará automáticamente'
+})
 
 const musicOptions = [
   {
@@ -436,10 +440,6 @@ const publishDemo = async () => {
   if (!demoData.value || !catalogTemplate.value) return
 
   const slug = normalizeSlug(publicSlug.value)
-  if (!slug) {
-    notifyError('El enlace debe tener al menos una palabra válida.')
-    return
-  }
 
   isPublishing.value = true
   publishUrl.value = ''
@@ -451,7 +451,7 @@ const publishDemo = async () => {
       template_id: catalogTemplate.value.id,
       type_event_id: catalogTemplate.value.type_event_id ?? typeEvent.value?.id,
       title: `${demoData.value.couple?.brideName ?? 'Alan'} y ${demoData.value.couple?.groomName ?? 'Andrea'}`,
-      slug,
+      slug: slug || null,
       content: demoData.value,
       settings: {
         section_visibility: sectionVisibility.value,
@@ -620,6 +620,11 @@ watch(
   { deep: true },
 )
 
+watch(effectivePreviewDevice, (nextDevice) => {
+  if (previewDevice.value === nextDevice) return
+  previewDevice.value = nextDevice
+})
+
 onMounted(loadDemo)
 </script>
 
@@ -661,7 +666,8 @@ onMounted(loadDemo)
           <div class="demo-editor-panel__head">
             <p>Configuración</p>
             <h2>{{ catalogTemplate?.name ?? 'Plantilla demo' }}</h2>
-            <span>{{ hasLoadedStoredState ? 'Recuperamos tus últimos cambios.' : 'Empieza desde una base editable.' }}</span>
+            <span>{{ hasLoadedStoredState ? 'Recuperamos tus últimos cambios.' : 'Empieza desde una base editable.'
+              }}</span>
           </div>
 
           <div class="demo-editor-save-card">
@@ -677,11 +683,7 @@ onMounted(loadDemo)
           <div class="demo-editor-control-card">
             <label>
               <span>Enlace público de prueba</span>
-              <input
-                v-model="publicSlug"
-                type="text"
-                inputmode="text"
-                placeholder="@alan-y-andrea"
+              <input v-model="publicSlug" type="text" inputmode="text" placeholder="Opcional: mi-fiesta-soñada"
                 @blur="publicSlug = normalizeSlug(publicSlug)" />
             </label>
             <p>Se publica como {{ publicPathPreview }} por 24 horas o hasta llegar a 8 visitas.</p>
@@ -751,7 +753,8 @@ onMounted(loadDemo)
                   <button type="button" aria-label="Quitar pregunta" @click="removeFaqItem(item.id)">×</button>
                 </div>
                 <input v-model="item.question" type="text" placeholder="Ej: ¿Hay estacionamiento?" />
-                <textarea v-model="item.answer" rows="3" placeholder="Respuesta breve y clara para tus invitados."></textarea>
+                <textarea v-model="item.answer" rows="3"
+                  placeholder="Respuesta breve y clara para tus invitados."></textarea>
               </article>
             </div>
             <p v-else>Agrega dudas frecuentes para que tus invitados lleguen con todo claro.</p>
@@ -767,13 +770,8 @@ onMounted(loadDemo)
                 +
               </button>
             </div>
-            <input
-              ref="galleryInputRef"
-              class="demo-editor-file-input"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              @change="handleGalleryFiles" />
+            <input ref="galleryInputRef" class="demo-editor-file-input" type="file"
+              accept="image/jpeg,image/png,image/webp" multiple @change="handleGalleryFiles" />
             <div v-if="demoData?.gallery?.length" class="demo-editor-gallery-list">
               <article v-for="item in demoData.gallery" :key="item.id">
                 <img :src="item.imageUrl" :alt="item.alt" />
@@ -794,20 +792,14 @@ onMounted(loadDemo)
                 <strong>{{ section.label }}</strong>
                 <span>{{ section.hint }}</span>
               </div>
-              <button
-                type="button"
-                class="demo-switch"
-                :class="{ active: sectionVisibility[section.key] !== false }"
+              <button type="button" class="demo-switch" :class="{ active: sectionVisibility[section.key] !== false }"
                 :aria-label="`${sectionVisibility[section.key] !== false ? 'Ocultar' : 'Mostrar'} ${section.label}`"
                 @click="toggleSection(section.key)">
                 <span></span>
               </button>
 
-              <button
-                v-if="section.key === 'checkin' && sectionVisibility.checkin !== false"
-                type="button"
-                class="demo-editor-inline-action"
-                @click="showCheckinPreview = true">
+              <button v-if="section.key === 'checkin' && sectionVisibility.checkin !== false" type="button"
+                class="demo-editor-inline-action" @click="showCheckinPreview = true">
                 Probar bienvenida
               </button>
             </article>
@@ -817,28 +809,19 @@ onMounted(loadDemo)
         <div class="demo-editor-canvas">
           <header class="demo-editor-toolbar">
             <div class="demo-editor-device-tabs" role="tablist" aria-label="Vista responsive">
-              <button
-                v-for="option in deviceOptions"
-                :key="option.value"
-                type="button"
-                :class="{ active: previewDevice === option.value }"
-                @click="selectPreviewDevice(option.value)">
+              <button v-for="option in deviceOptions" :key="option.value" type="button"
+                :class="{ active: previewDevice === option.value }" @click="selectPreviewDevice(option.value)">
                 {{ option.label }}
               </button>
             </div>
 
             <div class="demo-editor-zoom">
               <button type="button" aria-label="Alejar" @click="adjustPreviewZoom(-zoomStepPercent)">−</button>
-              <input
-                type="range"
-                :min="zoomMinPercent"
-                :max="zoomMaxPercent"
-                :step="zoomStepPercent"
-                :value="previewZoomPercent"
-                aria-label="Zoom de la demo"
-                @input="handleZoomInput" />
+              <input type="range" :min="zoomMinPercent" :max="zoomMaxPercent" :step="zoomStepPercent"
+                :value="previewZoomPercent" aria-label="Zoom de la demo" @input="handleZoomInput" />
               <button type="button" aria-label="Acercar" @click="adjustPreviewZoom(zoomStepPercent)">+</button>
-              <button type="button" class="demo-editor-zoom__label" @click="resetPreviewZoom">{{ previewZoomLabel }}</button>
+              <button type="button" class="demo-editor-zoom__label" @click="resetPreviewZoom">{{ previewZoomLabel
+                }}</button>
             </div>
           </header>
 
@@ -846,24 +829,13 @@ onMounted(loadDemo)
 
           <div class="demo-editor-stage" @wheel="handlePreviewWheelZoom">
             <div class="demo-editor-frame" :class="previewViewportClass" :style="previewFrameStyle">
-              <component
-                :is="activeComponent"
-                v-if="canRenderTemplate && manifest && demoData"
-                :template-id="manifest.id"
-                :manifest="manifest"
-                :data="demoData"
-                editable
-                constrained-overlay
-                :active-field="activeField"
-                :section-visibility="sectionVisibility"
+              <component :is="activeComponent" v-if="canRenderTemplate && manifest && demoData"
+                :template-id="manifest.id" :manifest="manifest" :data="demoData" editable constrained-overlay
+                :active-field="activeField" :section-visibility="sectionVisibility"
                 :checkin-preview="showCheckinPreview && sectionVisibility.checkin !== false"
-                :invitation-title="invitationTitle"
-                :type-event-name="typeEventName"
-                :preview-viewport="previewDevice"
-                :preview-zoom-percent="previewZoomPercent"
-                @start-edit="handleStartEdit"
-                @update-field="handleUpdateField"
-                @finish-edit="handleFinishEdit"
+                :invitation-title="invitationTitle" :type-event-name="typeEventName"
+                :preview-viewport="effectivePreviewDevice" :preview-zoom-percent="previewZoomPercent"
+                @start-edit="handleStartEdit" @update-field="handleUpdateField" @finish-edit="handleFinishEdit"
                 @checkin-preview-closed="showCheckinPreview = false" />
             </div>
           </div>
@@ -966,7 +938,7 @@ onMounted(loadDemo)
 }
 
 .demo-editor-panel__head p,
-.demo-editor-save-card > span {
+.demo-editor-save-card>span {
   margin: 0;
   color: #8a67c5;
   font-size: 11px;
@@ -1026,7 +998,7 @@ onMounted(loadDemo)
   gap: 7px;
 }
 
-.demo-editor-control-card label > span,
+.demo-editor-control-card label>span,
 .demo-editor-gallery-head span,
 .demo-editor-published-card span {
   color: #7b5aa7;
@@ -1085,7 +1057,7 @@ onMounted(loadDemo)
   gap: 10px;
 }
 
-.demo-editor-gallery-head > div {
+.demo-editor-gallery-head>div {
   display: grid;
   gap: 2px;
 }
@@ -1138,7 +1110,7 @@ onMounted(loadDemo)
   display: block;
 }
 
-.demo-editor-gallery-list article > span {
+.demo-editor-gallery-list article>span {
   display: block;
   overflow: hidden;
   padding: 7px 8px;
@@ -1149,7 +1121,7 @@ onMounted(loadDemo)
   white-space: nowrap;
 }
 
-.demo-editor-gallery-list article > button {
+.demo-editor-gallery-list article>button {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -1176,7 +1148,7 @@ onMounted(loadDemo)
   padding: 10px;
 }
 
-.demo-editor-faq-list article > div {
+.demo-editor-faq-list article>div {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1424,10 +1396,13 @@ onMounted(loadDemo)
 }
 
 @keyframes demoSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 1120px) {
+
   .demo-editor-hero__inner,
   .demo-editor-toolbar {
     align-items: flex-start;

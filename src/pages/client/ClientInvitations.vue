@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import TemplatePreviewImmersiveModal from '@/components/client/TemplatePreviewImmersiveModal.vue'
 import { formatStatusLabel } from '@/utils/clientPanel'
@@ -17,12 +18,14 @@ import { useSessionStore } from '@/stores/session'
 import { loadTemplateModuleByRendererKey } from '@/templates/registry'
 import { resolveWeddingTemplatePreviewData } from '@/templates/previewData'
 import type { InvitationTemplateModule, WeddingTemplateData } from '@/templates/types'
-import { notifyError, notifySuccess } from '@/utils/toast'
+import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
 
 type InvitationSortField = 'id' | 'title' | 'status' | 'created_at' | 'updated_at'
 type InvitationSortDirection = 'asc' | 'desc'
 
 const session = useSessionStore()
+const route = useRoute()
+const router = useRouter()
 
 const isLoading = ref(false)
 const isCreating = ref(false)
@@ -449,8 +452,19 @@ const publishInvitation = async (item: TenantInvitationItem) => {
   }
 }
 
+const showDemoRestrictedToast = () => {
+  if (route.query.demo_restricted !== '1') return
+
+  notifyWarning('La demo es para personas que todavía están eligiendo un plan. Con tu suscripción activa puedes crear y editar tus invitaciones desde aquí.')
+
+  const nextQuery = { ...route.query }
+  delete nextQuery.demo_restricted
+  void router.replace({ name: 'client-invitations', query: nextQuery })
+}
+
 onMounted(async () => {
   window.addEventListener('keydown', handlePreviewModalHotkeys)
+  showDemoRestrictedToast()
   await fetchCatalogs()
   await loadCreateTemplatePreview()
   await loadData()

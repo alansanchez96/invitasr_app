@@ -598,7 +598,7 @@ const setByPath = (source: JsonRecord, path: string, value: unknown): void => {
   }
 
   if (!current || typeof current !== 'object') return
-  ;(current as Record<string, unknown>)[lastToken] = value
+    ; (current as Record<string, unknown>)[lastToken] = value
 }
 
 const ensureDefaultFeatureData = () => {
@@ -1381,6 +1381,10 @@ const previewData = computed<WeddingTemplateData>(() => {
   const primaryLocation = previewLocations[0] ?? createDefaultDraftLocation(0)
 
   return {
+    hero: {
+      title: readFieldValue('hero_title'),
+      subtitle: readFieldValue('hero_subtitle'),
+    },
     couple: {
       headline: readFieldValue('hero_title'),
       brideName: readFieldValue('bride_name'),
@@ -1492,7 +1496,7 @@ const previewData = computed<WeddingTemplateData>(() => {
         })),
     },
     branding: {
-      visible: Boolean(getByPath(contentDraft.value, 'branding.visible') ?? true),
+      visible: false,
       label: asText(getByPath(contentDraft.value, 'branding.label'), 'Creado con InvitaSR'),
     },
   }
@@ -2195,11 +2199,7 @@ onBeforeRouteLeave((to) => {
   </Teleport>
 
   <Teleport to="#panel-topbar-right-slot">
-    <button
-      type="button"
-      class="editor-topbar-help"
-      aria-label="Ayuda del editor"
-      title="Ayuda del editor"
+    <button type="button" class="editor-topbar-help" aria-label="Ayuda del editor" title="Ayuda del editor"
       @click="openHelpModal">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="9"></circle>
@@ -2208,26 +2208,16 @@ onBeforeRouteLeave((to) => {
       </svg>
       <span>Ayuda</span>
     </button>
-    <button
-      type="button"
-      class="editor-topbar-undo"
-      :disabled="!canUndo || isLoading"
-      aria-label="Deshacer"
-      title="Deshacer (Ctrl/Cmd + Z)"
-      @click="undoLastChange">
+    <button type="button" class="editor-topbar-undo" :disabled="!canUndo || isLoading" aria-label="Deshacer"
+      title="Deshacer (Ctrl/Cmd + Z)" @click="undoLastChange">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="m9 14-5-5 5-5" />
         <path d="M20 20a8 8 0 0 0-8-8H4" />
       </svg>
     </button>
-    <BaseButton
-      type="button"
-      variant="primary"
-      class="editor-topbar-action editor-topbar-action--save"
-      :disabled="isSaving || isLoading || isUploadingGallery"
-      aria-label="Guardar cambios"
-      title="Guardar (Ctrl/Cmd + S)"
-      @click="saveChanges">
+    <BaseButton type="button" variant="primary" class="editor-topbar-action editor-topbar-action--save"
+      :disabled="isSaving || isLoading || isUploadingGallery" aria-label="Guardar cambios"
+      title="Guardar (Ctrl/Cmd + S)" @click="saveChanges">
       <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M5 4h11l3 3v13H5z" />
         <path d="M8 4v6h8V4" />
@@ -2235,15 +2225,9 @@ onBeforeRouteLeave((to) => {
       </svg>
       <span class="action-label">{{ isSaving || isUploadingGallery ? 'Guardando...' : 'Guardar cambios' }}</span>
     </BaseButton>
-    <BaseButton
-      v-if="isDraft"
-      type="button"
-      variant="primary"
-      class="editor-topbar-action editor-topbar-action--publish"
-      :disabled="isPublishing || isLoading"
-      aria-label="Publicar invitación"
-      title="Publicar (Ctrl/Cmd + Shift + P)"
-      @click="publishInvitation">
+    <BaseButton v-if="isDraft" type="button" variant="primary"
+      class="editor-topbar-action editor-topbar-action--publish" :disabled="isPublishing || isLoading"
+      aria-label="Publicar invitación" title="Publicar (Ctrl/Cmd + Shift + P)" @click="publishInvitation">
       <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M3 11.5 21 3l-6.8 18-2.8-6.7L3 11.5Z" />
         <path d="m21 3-9.6 11.3" />
@@ -2268,39 +2252,22 @@ onBeforeRouteLeave((to) => {
         <div class="bo-card preview-toolbar">
           <div class="preview-toolbar-main">
             <div class="device-tabs" role="tablist" aria-label="Vista responsive">
-              <button
-                v-for="option in deviceOptions"
-                :key="option.value"
-                type="button"
-                class="device-tab"
-                :class="{ active: previewDevice === option.value }"
-                @click="selectPreviewDevice(option.value)">
+              <button v-for="option in deviceOptions" :key="option.value" type="button" class="device-tab"
+                :class="{ active: previewDevice === option.value }" @click="selectPreviewDevice(option.value)">
                 {{ option.label }}
               </button>
             </div>
             <div class="preview-zoom-controls" role="group" aria-label="Controles de zoom del editor">
-              <button
-                type="button"
-                class="preview-zoom-btn"
-                aria-label="Reducir zoom"
+              <button type="button" class="preview-zoom-btn" aria-label="Reducir zoom"
                 @click="adjustPreviewZoom(-ZOOM_STEP_PERCENT)">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M5 12h14" />
                 </svg>
               </button>
-              <input
-                class="preview-zoom-slider"
-                type="range"
-                :min="ZOOM_MIN_PERCENT"
-                :max="ZOOM_MAX_PERCENT"
-                :step="ZOOM_STEP_PERCENT"
-                :value="previewZoomPercent"
-                aria-label="Zoom del editor"
+              <input class="preview-zoom-slider" type="range" :min="ZOOM_MIN_PERCENT" :max="ZOOM_MAX_PERCENT"
+                :step="ZOOM_STEP_PERCENT" :value="previewZoomPercent" aria-label="Zoom del editor"
                 @input="handleZoomInput" />
-              <button
-                type="button"
-                class="preview-zoom-btn"
-                aria-label="Aumentar zoom"
+              <button type="button" class="preview-zoom-btn" aria-label="Aumentar zoom"
                 @click="adjustPreviewZoom(ZOOM_STEP_PERCENT)">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 5v14" />
@@ -2315,12 +2282,8 @@ onBeforeRouteLeave((to) => {
               Vista activa: {{ effectivePreviewDeviceLabel }}
             </p>
           </div>
-          <button
-            type="button"
-            class="editor-immersive-trigger"
-            aria-label="Abrir vista inmersiva"
-            title="Abrir vista inmersiva"
-            @click="openImmersivePreview">
+          <button type="button" class="editor-immersive-trigger" aria-label="Abrir vista inmersiva"
+            title="Abrir vista inmersiva" @click="openImmersivePreview">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 9V4h5" />
               <path d="M20 9V4h-5" />
@@ -2350,55 +2313,33 @@ onBeforeRouteLeave((to) => {
 
           <div v-else class="preview-stage" @wheel="handlePreviewWheelZoom">
             <div class="preview-frame" :class="previewViewportClass" :style="previewFrameStyle">
-              <component
-                :is="templateModule.component"
-                v-if="supportsInlineEditor"
+              <component :is="templateModule.component" v-if="supportsInlineEditor"
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
-                :manifest="templateModule.manifest"
-                :data="previewData"
-                :invitation-title="title || invitation?.title || ''"
-                :type-event-name="typeEvent?.name || ''"
-                :editable="true"
-                :constrained-overlay="true"
-                :preview-viewport="previewDevice"
-                :preview-zoom-percent="previewZoomPercent"
-                :active-field="activeTextField"
+                :manifest="templateModule.manifest" :data="previewData"
+                :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
+                :editable="true" :constrained-overlay="true" :preview-viewport="effectivePreviewDevice"
+                :preview-zoom-percent="previewZoomPercent" :active-field="activeTextField"
                 :section-visibility="previewSectionVisibility"
-                :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']"
-                @start-edit="startTextEdit"
-                @update-field="updateFieldValue"
-                @finish-edit="finishTextEdit"
+                :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']" @start-edit="startTextEdit"
+                @update-field="updateFieldValue" @finish-edit="finishTextEdit"
                 @checkin-preview-closed="onCheckinPreviewClosed" />
-              <component
-                :is="templateModule.component"
-                v-else
+              <component :is="templateModule.component" v-else
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
-                :manifest="templateModule.manifest"
-                :data="previewData"
-                :invitation-title="title || invitation?.title || ''"
-                :type-event-name="typeEvent?.name || ''"
-                :preview-viewport="previewDevice"
-                :preview-zoom-percent="previewZoomPercent" />
+                :manifest="templateModule.manifest" :data="previewData"
+                :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
+                :preview-viewport="effectivePreviewDevice" :preview-zoom-percent="previewZoomPercent" />
             </div>
           </div>
         </article>
       </div>
 
       <Transition name="config-overlay">
-        <button
-          v-if="isSidebarOpen"
-          type="button"
-          class="config-overlay"
-          aria-label="Ocultar configuración"
+        <button v-if="isSidebarOpen" type="button" class="config-overlay" aria-label="Ocultar configuración"
           @click="closeSidebar"></button>
       </Transition>
 
       <Transition name="config-drawer">
-        <aside
-          v-if="isSidebarOpen"
-          class="config-drawer"
-          role="dialog"
-          aria-modal="true"
+        <aside v-if="isSidebarOpen" class="config-drawer" role="dialog" aria-modal="true"
           aria-label="Configuración del editor">
           <div class="config-drawer__shell">
             <header class="config-drawer__header">
@@ -2406,12 +2347,8 @@ onBeforeRouteLeave((to) => {
                 <p class="config-drawer__eyebrow">Modo editor</p>
                 <h2>Configuración</h2>
               </div>
-              <button
-                type="button"
-                class="config-drawer__close"
-                aria-label="Cerrar configuración"
-                title="Cerrar configuración"
-                @click="closeSidebar">
+              <button type="button" class="config-drawer__close" aria-label="Cerrar configuración"
+                title="Cerrar configuración" @click="closeSidebar">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m18 6-12 12" />
                   <path d="m6 6 12 12" />
@@ -2420,13 +2357,8 @@ onBeforeRouteLeave((to) => {
             </header>
 
             <div class="config-drawer__body">
-              <input
-                ref="galleryInputRef"
-                class="gallery-file-input-hidden"
-                type="file"
-                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                multiple
-                @change="onGalleryFilesSelected" />
+              <input ref="galleryInputRef" class="gallery-file-input-hidden" type="file"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple @change="onGalleryFilesSelected" />
 
               <section class="config-block">
                 <label class="field">
@@ -2436,14 +2368,8 @@ onBeforeRouteLeave((to) => {
 
                 <label class="field">
                   <span>Enlace corto (Subdominio)</span>
-                  <input
-                    v-model="slug"
-                    type="text"
-                    maxlength="63"
-                    autocapitalize="off"
-                    autocomplete="off"
-                    spellcheck="false"
-                    placeholder="boda-sofia-mateo" />
+                  <input v-model="slug" type="text" maxlength="63" autocapitalize="off" autocomplete="off"
+                    spellcheck="false" placeholder="boda-sofia-mateo" />
                   <small class="field-hint">Usa solo letras minúsculas, números y guiones.</small>
                   <small class="field-hint field-hint--subdomain">{{ subdomainChangeHelp }}</small>
                   <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
@@ -2458,21 +2384,14 @@ onBeforeRouteLeave((to) => {
                 <label class="field">
                   <span>Plantilla</span>
                   <select v-model="selectedTemplateId" :disabled="!isDraft || isChangingTemplate || isLoadingTemplates">
-                    <option
-                      v-for="item in availableTemplates"
-                      :key="String(item.id)"
-                      :value="String(item.id)">
+                    <option v-for="item in availableTemplates" :key="String(item.id)" :value="String(item.id)">
                       {{ item.name ?? `Plantilla #${item.id}` }}
                     </option>
                   </select>
                 </label>
 
-                <BaseButton
-                  v-if="isDraft"
-                  type="button"
-                  variant="ghost"
-                  :disabled="!hasPendingTemplateChange || isChangingTemplate"
-                  @click="applyTemplateChange">
+                <BaseButton v-if="isDraft" type="button" variant="ghost"
+                  :disabled="!hasPendingTemplateChange || isChangingTemplate" @click="applyTemplateChange">
                   {{ isChangingTemplate ? 'Aplicando estilo...' : 'Aplicar estilo' }}
                 </BaseButton>
               </section>
@@ -2484,32 +2403,27 @@ onBeforeRouteLeave((to) => {
                 <div class="option-group">
                   <article v-for="section in optionalSections" :key="section.key" class="feature-item">
                     <div class="feature-header">
-                      <button
-                        type="button"
-                        class="feature-accordion-toggle"
+                      <button type="button" class="feature-accordion-toggle"
                         :aria-expanded="isOptionalSectionExpanded(section.key) ? 'true' : 'false'"
                         @click="toggleOptionalSectionPanel(section.key)">
                         <span>{{ section.label }}</span>
-                        <svg class="feature-accordion-icon" :class="{ 'is-open': isOptionalSectionExpanded(section.key) }" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg class="feature-accordion-icon"
+                          :class="{ 'is-open': isOptionalSectionExpanded(section.key) }" viewBox="0 0 24 24"
+                          aria-hidden="true">
                           <path d="m7 10 5 5 5-5" />
                         </svg>
                       </button>
                       <label class="switch" @click.stop>
-                        <input
-                          type="checkbox"
-                          :checked="resolvedSectionVisibility[section.key]"
-                          @click.stop
+                        <input type="checkbox" :checked="resolvedSectionVisibility[section.key]" @click.stop
                           @change="onSectionToggle(section.key, $event)" />
                         <span class="switch-track"></span>
                       </label>
                     </div>
 
-                    <div v-if="resolvedSectionVisibility[section.key] && isOptionalSectionExpanded(section.key)" class="feature-body">
+                    <div v-if="resolvedSectionVisibility[section.key] && isOptionalSectionExpanded(section.key)"
+                      class="feature-body">
                       <div v-if="section.key === 'checkin'" class="option-panel">
-                        <BaseButton
-                          type="button"
-                          variant="ghost"
-                          :disabled="isCheckinConfigEditing"
+                        <BaseButton type="button" variant="ghost" :disabled="isCheckinConfigEditing"
                           @click="onCheckinAction">
                           {{ checkinActionLabel }}
                         </BaseButton>
@@ -2544,7 +2458,8 @@ onBeforeRouteLeave((to) => {
                             <label class="field">
                               <span>Moneda</span>
                               <select v-model="checkinEntryCurrency">
-                                <option v-for="currency in checkinCurrencyOptions" :key="currency.code" :value="currency.code">
+                                <option v-for="currency in checkinCurrencyOptions" :key="currency.code"
+                                  :value="currency.code">
                                   {{ currency.label }}
                                 </option>
                               </select>
@@ -2552,7 +2467,8 @@ onBeforeRouteLeave((to) => {
 
                             <label class="field">
                               <span>Monto</span>
-                              <input v-model.number="checkinEntryAmount" type="number" step="0.01" min="0" placeholder="0.00" />
+                              <input v-model.number="checkinEntryAmount" type="number" step="0.01" min="0"
+                                placeholder="0.00" />
                             </label>
                           </template>
                         </div>
@@ -2579,20 +2495,17 @@ onBeforeRouteLeave((to) => {
                       <div v-else-if="section.key === 'gallery'" class="option-panel">
                         <div class="gallery-panel-head">
                           <p>{{ galleryCounterLabel }}</p>
-                          <button
-                            type="button"
-                            class="gallery-add-btn"
-                            :disabled="!canAddGalleryImages || isUploadingGallery"
-                            aria-label="Agregar imagen"
-                            title="Agregar imagen"
-                            @click="openGalleryFilePicker">
+                          <button type="button" class="gallery-add-btn"
+                            :disabled="!canAddGalleryImages || isUploadingGallery" aria-label="Agregar imagen"
+                            title="Agregar imagen" @click="openGalleryFilePicker">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                               <path d="M12 5v14" />
                               <path d="M5 12h14" />
                             </svg>
                           </button>
                         </div>
-                        <p class="gallery-panel-copy">Sube JPG, JPEG o PNG. Las imágenes se guardan al pulsar Guardar cambios.</p>
+                        <p class="gallery-panel-copy">Sube JPG, JPEG o PNG. Las imágenes se guardan al pulsar Guardar
+                          cambios.</p>
                         <p v-if="!isLoadingGallery && !gallerySummary.enabled" class="gallery-panel-copy">
                           Tu plan actual no incluye galería de imágenes.
                         </p>
@@ -2601,30 +2514,22 @@ onBeforeRouteLeave((to) => {
                         </p>
                         <p v-if="isLoadingGallery" class="gallery-panel-copy">Cargando galería...</p>
                         <p v-else-if="galleryRemainingSlots !== null" class="gallery-panel-copy">
-                          Puedes agregar {{ galleryRemainingSlots }} imagen{{ galleryRemainingSlots === 1 ? '' : 'es' }} más.
+                          Puedes agregar {{ galleryRemainingSlots }} imagen{{ galleryRemainingSlots === 1 ? '' : 'es' }}
+                          más.
                         </p>
 
                         <div class="gallery-pill-grid">
-                          <article
-                            v-for="item in galleryVisualItems"
-                            :key="item.id"
-                            class="gallery-pill"
-                            :class="[
-                              item.kind === 'pending' ? 'gallery-pill--pending' : '',
-                              item.statusClass === 'processing' ? 'gallery-pill--processing' : '',
-                              item.statusClass === 'failed' ? 'gallery-pill--failed' : '',
-                            ]"
-                            :title="item.name">
+                          <article v-for="item in galleryVisualItems" :key="item.id" class="gallery-pill" :class="[
+                            item.kind === 'pending' ? 'gallery-pill--pending' : '',
+                            item.statusClass === 'processing' ? 'gallery-pill--processing' : '',
+                            item.statusClass === 'failed' ? 'gallery-pill--failed' : '',
+                          ]" :title="item.name">
                             <div class="gallery-pill-main">
                               <span>{{ item.shortName }}</span>
                               <small :title="getGalleryItemStatusTitle(item)">{{ item.statusLabel }}</small>
                             </div>
-                            <button
-                              type="button"
-                              class="gallery-pill-remove"
-                              aria-label="Quitar imagen"
-                              title="Quitar imagen"
-                              @click="removeGalleryVisualItem(item)">
+                            <button type="button" class="gallery-pill-remove" aria-label="Quitar imagen"
+                              title="Quitar imagen" @click="removeGalleryVisualItem(item)">
                               <span aria-hidden="true">×</span>
                             </button>
                           </article>
@@ -2642,19 +2547,13 @@ onBeforeRouteLeave((to) => {
                           <article v-for="(item, index) in faqItems" :key="item.id" class="faq-item">
                             <label class="field">
                               <span>Pregunta</span>
-                              <input
-                                :value="item.question"
-                                type="text"
-                                placeholder="Ej: ¿Hay dress code?"
+                              <input :value="item.question" type="text" placeholder="Ej: ¿Hay dress code?"
                                 @input="updateFaqItem(index, 'question', ($event.target as HTMLInputElement).value)" />
                             </label>
 
                             <label class="field">
                               <span>Respuesta</span>
-                              <textarea
-                                :value="item.answer"
-                                rows="2"
-                                placeholder="Ej: Sí, elegante sport."
+                              <textarea :value="item.answer" rows="2" placeholder="Ej: Sí, elegante sport."
                                 @input="updateFaqItem(index, 'answer', ($event.target as HTMLTextAreaElement).value)" />
                             </label>
 
@@ -2668,15 +2567,20 @@ onBeforeRouteLeave((to) => {
                         <p class="gallery-panel-copy">
                           {{ isLoadingWallMessages
                             ? 'Cargando mensajes...'
-                            : `Mensajes recibidos: ${wallUsedCountInEditor}${wallSummary.limit === null ? '' : ` / ${wallSummary.limit}`}` }}
+                            : `Mensajes recibidos: ${wallUsedCountInEditor}${wallSummary.limit === null ? '' : ` /
+                          ${wallSummary.limit}`}` }}
                         </p>
                         <p v-if="!isLoadingWallMessages" class="gallery-panel-copy">
                           Visibles en la invitación: {{ wallVisibleCountInEditor }}
                         </p>
                         <p v-if="!isLoadingWallMessages && hasPendingWallMessageDeletes" class="gallery-panel-copy">
-                          Tienes {{ pendingDeleteWallMessageIds.length }} mensaje{{ pendingDeleteWallMessageIds.length === 1 ? '' : 's' }} pendiente{{ pendingDeleteWallMessageIds.length === 1 ? '' : 's' }} de eliminación. Se aplicará al guardar cambios.
+                          Tienes {{ pendingDeleteWallMessageIds.length }} mensaje{{ pendingDeleteWallMessageIds.length
+                          === 1 ? '' : 's' }}
+                          pendiente{{ pendingDeleteWallMessageIds.length === 1 ? '' : 's' }} de eliminación. Se aplicará
+                          al guardar cambios.
                         </p>
-                        <p v-if="!isLoadingWallMessages && hasPendingWallMessageVisibilityChanges" class="gallery-panel-copy">
+                        <p v-if="!isLoadingWallMessages && hasPendingWallMessageVisibilityChanges"
+                          class="gallery-panel-copy">
                           Tienes cambios de visibilidad pendientes. Se aplicarán al guardar cambios.
                         </p>
                         <p v-if="!wallSummary.enabled && !isLoadingWallMessages" class="gallery-panel-copy">
@@ -2684,9 +2588,7 @@ onBeforeRouteLeave((to) => {
                         </p>
 
                         <div class="faq-editor">
-                          <article
-                            v-for="item in wallMessagesInEditor"
-                            :key="item.id"
+                          <article v-for="item in wallMessagesInEditor" :key="item.id"
                             class="faq-item wall-message-item">
                             <div class="wall-message-item__head">
                               <strong>{{ item.guest_name }}</strong>
@@ -2695,38 +2597,27 @@ onBeforeRouteLeave((to) => {
                             <p class="wall-message-item__text">
                               {{ wallEditorDisplayText(item.id, item.message) }}
                             </p>
-                            <button
-                              v-if="wallEditorMessageIsLong(item.message)"
-                              type="button"
-                              class="wall-message-item__more"
-                              @click="toggleWallEditorMessageExpanded(item.id)">
+                            <button v-if="wallEditorMessageIsLong(item.message)" type="button"
+                              class="wall-message-item__more" @click="toggleWallEditorMessageExpanded(item.id)">
                               {{ wallEditorMessageExpanded(item.id) ? 'Ver menos' : 'Ver más' }}
                             </button>
 
                             <div class="wall-message-item__actions">
                               <div class="feature-inline-switch feature-inline-switch--compact">
-                                <label
-                                  class="switch"
-                                  title="Mostrar u ocultar mensaje en la invitación">
+                                <label class="switch" title="Mostrar u ocultar mensaje en la invitación">
                                   <span class="sr-only">
                                     {{ item.is_visible ? 'Desactivar mensaje en la invitación' : 'Activar mensaje en la invitación' }}
                                   </span>
-                                  <input
-                                    type="checkbox"
-                                    :checked="item.is_visible"
+                                  <input type="checkbox" :checked="item.is_visible"
                                     :aria-label="item.is_visible ? 'Desactivar mensaje en invitación' : 'Activar mensaje en invitación'"
                                     :disabled="isSaving || isWallMessageUpdating(item.id)"
                                     @change="updateWallMessageVisibility(item.id, ($event.target as HTMLInputElement).checked)" />
                                   <span class="switch-track"></span>
                                 </label>
                               </div>
-                              <button
-                                type="button"
-                                class="wall-message-delete-btn"
-                                :disabled="isSaving || isWallMessageUpdating(item.id)"
-                                aria-label="Eliminar mensaje"
-                                title="Eliminar mensaje"
-                                @click="openDeleteWallMessagePrompt(item.id)">
+                              <button type="button" class="wall-message-delete-btn"
+                                :disabled="isSaving || isWallMessageUpdating(item.id)" aria-label="Eliminar mensaje"
+                                title="Eliminar mensaje" @click="openDeleteWallMessagePrompt(item.id)">
                                 <svg viewBox="0 0 24 24" aria-hidden="true">
                                   <path d="M4 7h16" />
                                   <path d="M9 7V5h6v2" />
@@ -2749,25 +2640,19 @@ onBeforeRouteLeave((to) => {
 
                         <label class="field">
                           <span>Etiqueta Nombre</span>
-                          <input
-                            :value="rsvpLabelsDraft.firstName"
-                            type="text"
+                          <input :value="rsvpLabelsDraft.firstName" type="text"
                             @input="updateRsvpLabel('firstName', ($event.target as HTMLInputElement).value)" />
                         </label>
 
                         <label class="field">
                           <span>Etiqueta Apellido</span>
-                          <input
-                            :value="rsvpLabelsDraft.lastName"
-                            type="text"
+                          <input :value="rsvpLabelsDraft.lastName" type="text"
                             @input="updateRsvpLabel('lastName', ($event.target as HTMLInputElement).value)" />
                         </label>
 
                         <label class="field">
                           <span>Etiqueta Restricción alimentaria</span>
-                          <input
-                            :value="rsvpLabelsDraft.dietaryRestrictions"
-                            type="text"
+                          <input :value="rsvpLabelsDraft.dietaryRestrictions" type="text"
                             @input="updateRsvpLabel('dietaryRestrictions', ($event.target as HTMLInputElement).value)" />
                         </label>
                       </div>
@@ -2777,10 +2662,7 @@ onBeforeRouteLeave((to) => {
                           <p class="location-panel-title">
                             Puedes agregar hasta {{ MAX_LOCATIONS_PER_INVITATION }} ubicaciones.
                           </p>
-                          <button
-                            type="button"
-                            class="location-add-btn"
-                            :disabled="!canAddLocationDraft"
+                          <button type="button" class="location-add-btn" :disabled="!canAddLocationDraft"
                             @click="addLocationDraft">
                             + Añadir
                           </button>
@@ -2790,16 +2672,11 @@ onBeforeRouteLeave((to) => {
                           Ubicaciones configuradas: {{ locationItemsDraft.length }} / {{ MAX_LOCATIONS_PER_INVITATION }}
                         </p>
 
-                        <article
-                          v-for="(locationItem, locationIndex) in locationItemsDraft"
-                          :key="`location-${locationIndex}`"
-                          class="location-item-card">
+                        <article v-for="(locationItem, locationIndex) in locationItemsDraft"
+                          :key="`location-${locationIndex}`" class="location-item-card">
                           <header class="location-item-card__head">
                             <strong>Ubicación {{ locationIndex + 1 }}</strong>
-                            <button
-                              type="button"
-                              class="location-remove-btn"
-                              :disabled="locationItemsDraft.length <= 1"
+                            <button type="button" class="location-remove-btn" :disabled="locationItemsDraft.length <= 1"
                               @click="removeLocationDraft(locationIndex)">
                               Quitar
                             </button>
@@ -2807,14 +2684,12 @@ onBeforeRouteLeave((to) => {
 
                           <label class="field">
                             <span>Enlace de Google Maps</span>
-                            <input
-                              :value="locationItem.mapsUrl"
-                              type="url"
-                              inputmode="url"
+                            <input :value="locationItem.mapsUrl" type="url" inputmode="url"
                               placeholder="https://maps.google.com/..."
                               @input="updateLocationDraftField(locationIndex, 'mapsUrl', ($event.target as HTMLInputElement).value)" />
                             <small class="field-hint field-hint--location">
-                              Pega el enlace del lugar. Al guardar, convertimos la ubicación a formato compatible para Maps y Uber.
+                              Pega el enlace del lugar. Al guardar, convertimos la ubicación a formato compatible para
+                              Maps y Uber.
                             </small>
                           </label>
 
@@ -2824,8 +2699,10 @@ onBeforeRouteLeave((to) => {
                             <p v-if="locationItem.placeId" class="field-hint field-hint--location">
                               <strong>Destino detectado:</strong> {{ locationItem.placeId }}
                             </p>
-                            <p v-if="locationItem.latitude !== null && locationItem.longitude !== null" class="field-hint field-hint--location">
-                              <strong>Coordenadas:</strong> {{ locationItem.latitude.toFixed(6) }}, {{ locationItem.longitude.toFixed(6) }}
+                            <p v-if="locationItem.latitude !== null && locationItem.longitude !== null"
+                              class="field-hint field-hint--location">
+                              <strong>Coordenadas:</strong> {{ locationItem.latitude.toFixed(6) }}, {{
+                              locationItem.longitude.toFixed(6) }}
                             </p>
                             <p v-if="locationItem.mapsCanonicalUrl" class="field-hint field-hint--location">
                               <strong>Enlace canónico:</strong>
@@ -2836,9 +2713,7 @@ onBeforeRouteLeave((to) => {
                           <div class="feature-inline-switch">
                             <span>Mostrar botón de Uber</span>
                             <label class="switch">
-                              <input
-                                :checked="locationItem.uberEnabled"
-                                type="checkbox"
+                              <input :checked="locationItem.uberEnabled" type="checkbox"
                                 @change="updateLocationDraftField(locationIndex, 'uberEnabled', ($event.target as HTMLInputElement).checked)" />
                               <span class="switch-track"></span>
                             </label>
@@ -2846,10 +2721,7 @@ onBeforeRouteLeave((to) => {
 
                           <label v-if="locationItem.uberEnabled" class="field">
                             <span>Enlace de Uber (opcional)</span>
-                            <input
-                              :value="locationItem.uberUrl"
-                              type="url"
-                              inputmode="url"
+                            <input :value="locationItem.uberUrl" type="url" inputmode="url"
                               placeholder="https://m.uber.com/ul/?action=setPickup"
                               @input="updateLocationDraftField(locationIndex, 'uberUrl', ($event.target as HTMLInputElement).value)" />
                             <small class="field-hint field-hint--location">
@@ -2873,7 +2745,7 @@ onBeforeRouteLeave((to) => {
                           </select>
                         </label>
                         <p>
-                          {{ dressCodeOptions.find((option) => option.code === selectedDressCode)?.description }}
+                          {{dressCodeOptions.find((option) => option.code === selectedDressCode)?.description}}
                         </p>
                       </div>
 
@@ -2915,13 +2787,11 @@ onBeforeRouteLeave((to) => {
             <p>{{ pendingDeleteWallMessageText }}</p>
           </div>
           <div class="leave-modal-actions">
-            <BaseButton type="button" variant="ghost" :disabled="isDeletingPendingWallMessage" @click="closeDeleteWallMessagePrompt">
+            <BaseButton type="button" variant="ghost" :disabled="isDeletingPendingWallMessage"
+              @click="closeDeleteWallMessagePrompt">
               Cancelar
             </BaseButton>
-            <button
-              type="button"
-              class="danger-confirm-btn"
-              :disabled="isDeletingPendingWallMessage"
+            <button type="button" class="danger-confirm-btn" :disabled="isDeletingPendingWallMessage"
               @click="queueDeleteWallMessage">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 7h16" />
@@ -2957,13 +2827,8 @@ onBeforeRouteLeave((to) => {
             <li><strong>Esc:</strong> cerrar panel de configuración o ayuda.</li>
           </ul>
           <div class="leave-modal-actions">
-            <button
-              type="button"
-              class="modal-icon-close"
-              aria-label="Salir de ayuda"
-              title="Salir"
-              data-tooltip="Salir"
-              @click="closeHelpModal">
+            <button type="button" class="modal-icon-close" aria-label="Salir de ayuda" title="Salir"
+              data-tooltip="Salir" @click="closeHelpModal">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m18 6-12 12" />
                 <path d="m6 6 12 12" />
@@ -2981,15 +2846,11 @@ onBeforeRouteLeave((to) => {
             <header class="immersive-preview-head">
               <div>
                 <p class="leave-modal-kicker">Vista inmersiva</p>
-                <p class="immersive-preview-copy">Explora la invitación en tamaño real. Puedes desplazarte para recorrer toda la vista.</p>
+                <p class="immersive-preview-copy">Explora la invitación en tamaño real. Puedes desplazarte para recorrer
+                  toda la vista.</p>
               </div>
-              <button
-                type="button"
-                class="immersive-preview-close"
-                aria-label="Salir de vista inmersiva"
-                title="Salir"
-                data-tooltip="Salir"
-                @click="closeImmersivePreview">
+              <button type="button" class="immersive-preview-close" aria-label="Salir de vista inmersiva" title="Salir"
+                data-tooltip="Salir" @click="closeImmersivePreview">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m18 6-12 12" />
                   <path d="m6 6 12 12" />
@@ -2998,46 +2859,52 @@ onBeforeRouteLeave((to) => {
             </header>
 
             <div class="immersive-preview-device-tabs" role="tablist" aria-label="Vista responsive inmersiva">
-              <button
-                v-for="option in deviceOptions"
-                :key="`immersive-${option.value}`"
-                type="button"
-                class="immersive-device-tab"
-                :class="{ active: previewDevice === option.value }"
-                @click="previewDevice = option.value">
+              <button v-for="option in deviceOptions" :key="`immersive-${option.value}`" type="button"
+                class="immersive-device-tab" :class="{ active: previewDevice === option.value }"
+                @click="selectPreviewDevice(option.value)">
                 {{ option.label }}
               </button>
             </div>
+
+            <div class="immersive-preview-zoom">
+              <div class="preview-zoom-controls" role="group" aria-label="Controles de zoom de la vista inmersiva">
+                <button type="button" class="preview-zoom-btn" aria-label="Reducir zoom"
+                  @click="adjustPreviewZoom(-ZOOM_STEP_PERCENT)">
+                  −
+                </button>
+                <input type="range" class="preview-zoom-slider" :min="ZOOM_MIN_PERCENT" :max="ZOOM_MAX_PERCENT"
+                  :step="ZOOM_STEP_PERCENT" :value="previewZoomPercent" aria-label="Zoom de la vista inmersiva"
+                  @input="handleZoomInput" />
+                <button type="button" class="preview-zoom-btn" aria-label="Aumentar zoom"
+                  @click="adjustPreviewZoom(ZOOM_STEP_PERCENT)">
+                  +
+                </button>
+                <button type="button" class="preview-zoom-reset" aria-label="Restablecer zoom"
+                  @click="resetPreviewZoom">
+                  {{ previewZoomLabel }}
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="immersive-preview-stage">
-            <div class="immersive-preview-canvas" :class="`immersive-preview-canvas--${previewDevice}`">
-              <component
-                :is="templateModule.component"
-                v-if="templateModule && supportsInlineEditor"
+          <div class="immersive-preview-stage" @wheel="handlePreviewWheelZoom">
+            <div class="immersive-preview-canvas" :class="`immersive-preview-canvas--${effectivePreviewDevice}`"
+              :style="previewFrameStyle">
+              <component :is="templateModule.component" v-if="templateModule && supportsInlineEditor"
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
-                :manifest="templateModule.manifest"
-                :data="previewData"
-                :invitation-title="title || invitation?.title || ''"
-                :type-event-name="typeEvent?.name || ''"
-                :editable="true"
-                :constrained-overlay="true"
-                :preview-viewport="previewDevice"
-                :active-field="activeTextField"
+                :manifest="templateModule.manifest" :data="previewData"
+                :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
+                :editable="true" :constrained-overlay="true" :preview-viewport="effectivePreviewDevice"
+                :preview-zoom-percent="previewZoomPercent" :active-field="activeTextField"
                 :section-visibility="previewSectionVisibility"
-                :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']"
-                @start-edit="startTextEdit"
-                @update-field="updateFieldValue"
-                @finish-edit="finishTextEdit"
+                :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']" @start-edit="startTextEdit"
+                @update-field="updateFieldValue" @finish-edit="finishTextEdit"
                 @checkin-preview-closed="onCheckinPreviewClosed" />
-              <component
-                :is="templateModule.component"
-                v-else-if="templateModule"
+              <component :is="templateModule.component" v-else-if="templateModule"
                 :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
-                :manifest="templateModule.manifest"
-                :data="previewData"
-                :invitation-title="title || invitation?.title || ''"
-                :type-event-name="typeEvent?.name || ''" />
+                :manifest="templateModule.manifest" :data="previewData"
+                :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
+                :preview-viewport="effectivePreviewDevice" :preview-zoom-percent="previewZoomPercent" />
             </div>
           </div>
         </div>
@@ -3629,11 +3496,11 @@ onBeforeRouteLeave((to) => {
   transition: transform 0.2s ease;
 }
 
-.switch input:checked + .switch-track {
+.switch input:checked+.switch-track {
   background: #2563eb;
 }
 
-.switch input:checked + .switch-track::before {
+.switch input:checked+.switch-track::before {
   transform: translateX(18px);
 }
 
