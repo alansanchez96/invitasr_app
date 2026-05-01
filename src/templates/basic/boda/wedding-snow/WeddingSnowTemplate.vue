@@ -14,6 +14,7 @@ type TemplateProps = InvitationTemplateRendererProps<'wedding'> & {
   typeEventName?: string
   previewViewport?: 'mobile' | 'tablet' | 'desktop' | null
   previewZoomPercent?: number | null
+  demoMode?: boolean
 }
 
 const props = withDefaults(defineProps<TemplateProps>(), {
@@ -24,6 +25,7 @@ const props = withDefaults(defineProps<TemplateProps>(), {
   constrainedOverlay: false,
   previewViewport: null,
   previewZoomPercent: null,
+  demoMode: false,
 })
 
 const emit = defineEmits<{
@@ -75,6 +77,33 @@ type WallMessage = {
   isVisible?: boolean
   postedAt?: string | null
 }
+
+const demoWallMessages: WallMessage[] = [
+  {
+    id: 'demo-wall-1',
+    guestName: 'Sofía',
+    message: 'Qué invitación tan elegante. Se siente cuidada, clara y muy especial.',
+    postedAt: '2026-09-01T14:20:00-03:00',
+  },
+  {
+    id: 'demo-wall-2',
+    guestName: 'Martín',
+    message: 'Me encantó la experiencia. Todo se entiende rápido y dan ganas de confirmar en el momento.',
+    postedAt: '2026-09-01T14:34:00-03:00',
+  },
+  {
+    id: 'demo-wall-3',
+    guestName: 'Valentina',
+    message: 'La galería, la música y los detalles hacen que la invitación se sienta muy personal.',
+    postedAt: '2026-09-01T15:02:00-03:00',
+  },
+  {
+    id: 'demo-wall-4',
+    guestName: 'Nico',
+    message: 'Hermosa forma de presentar un evento. Simple, moderna y con mucha emoción.',
+    postedAt: '2026-09-01T15:18:00-03:00',
+  },
+]
 
 const resolveText = (value: unknown, fallback: string): string => {
   if (typeof value !== 'string') return fallback
@@ -321,6 +350,7 @@ const rsvpNeedsFaqReview = computed(() =>
 )
 const rsvpCanSubmit = computed(() => {
   if (props.editable) return false
+  if (props.demoMode) return false
   if (!isSectionVisible('rsvp')) return false
   if (!rsvpEnabled.value) return false
   if (rsvpNeedsFaqReview.value) return false
@@ -330,7 +360,11 @@ const rsvpCanSubmit = computed(() => {
 const rsvpGateHint = computed(() =>
   rsvpNeedsFaqReview.value
     ? 'Antes de confirmar, abre las preguntas importantes para evitar dudas de último momento.'
-    : 'Confirma tu asistencia para que podamos esperarte mejor.',
+    : (
+      props.demoMode
+        ? 'En esta prueba el botón es solo visual. Al crear tu invitación real podrás recibir confirmaciones.'
+        : 'Confirma tu asistencia para que podamos esperarte mejor.'
+    ),
 )
 
 type TemplateLocationCard = {
@@ -463,6 +497,13 @@ const wallMessages = ref<WallMessage[]>([])
 const wallExpandedMessageIds = ref<Record<string, boolean>>({})
 
 const hydrateWallMessagesFromProps = () => {
+  if (props.demoMode) {
+    wallMessages.value = demoWallMessages
+    wallExpandedMessageIds.value = {}
+    wallReceivedCount.value = demoWallMessages.length
+    return
+  }
+
   const source = Array.isArray(props.data.wall?.messages) ? props.data.wall?.messages : []
   wallMessages.value = source
     .map((item, index) => normalizeWallMessage(item, index))
@@ -487,12 +528,17 @@ const wallMessageLimit = computed(() => {
 })
 
 const wallReachedLimit = computed(() => {
+  if (props.demoMode) return true
   const limit = wallMessageLimit.value
   if (limit === null) return false
   return wallReceivedCount.value >= limit
 })
 
 const wallUsageLabel = computed(() => {
+  if (props.demoMode) {
+    return 'Mensajes de ejemplo'
+  }
+
   const used = Math.max(0, wallReceivedCount.value)
   const limit = wallMessageLimit.value
   if (limit === null) {
@@ -503,6 +549,10 @@ const wallUsageLabel = computed(() => {
 })
 
 const wallLimitTooltip = computed(() => {
+  if (props.demoMode) {
+    return 'En la demo los mensajes son de ejemplo. En tu invitación real tus invitados podrán escribirte.'
+  }
+
   if (!wallReachedLimit.value) return wallConfig.value.addLabel
 
   const messages = [
@@ -516,6 +566,7 @@ const wallLimitTooltip = computed(() => {
 
 const wallCanSubmit = computed(() => {
   if (props.editable) return false
+  if (props.demoMode) return false
   if (!isSectionVisible('wall')) return false
   if (wallReachedLimit.value) return false
   return wallGuestName.value.trim().length >= 2
@@ -715,6 +766,17 @@ const musicAudioUrl = computed(() => {
 })
 
 const saveDateLabel = computed(() => resolveText(props.data.saveDate?.label, 'Guardar fecha'))
+const branding = computed(() => {
+  const source = props.data.branding && typeof props.data.branding === 'object'
+    ? props.data.branding
+    : { visible: false, label: 'Creado con InvitaSR' }
+
+  return {
+    visible: Boolean(source.visible),
+    label: resolveText(source.label, 'Creado con InvitaSR'),
+    ctaLabel: resolveText((source as Record<string, unknown>).ctaLabel, 'Crear mi invitación'),
+  }
+})
 const saveDateTitle = computed(() => {
   const eventTypeName = resolveText(props.typeEventName, 'Evento')
   const invitationName = resolveText(
@@ -891,6 +953,17 @@ const closeFaq = () => {
 
 const submitRsvp = async () => {
   if (props.editable) return
+  if (props.demoMode) {
+    if (rsvpNeedsFaqReview.value) {
+      notifyError(rsvpGateHint.value)
+      openFaq()
+      return
+    }
+
+    notifyError('En esta prueba el botón es solo visual. Al crear tu invitación real podrás recibir confirmaciones.')
+    return
+  }
+
   if (!rsvpEnabled.value) {
     notifyError('La confirmación de asistencia no está disponible para esta invitación.')
     return
@@ -950,6 +1023,11 @@ const formatWallDate = (rawIso?: string | null): string => {
 
 const openWallComposer = () => {
   if (props.editable) return
+  if (props.demoMode) {
+    notifyError(wallLimitTooltip.value)
+    return
+  }
+
   if (wallReachedLimit.value) {
     notifyError(wallLimitTooltip.value)
     return
@@ -1320,7 +1398,7 @@ watch(
     <section v-if="isSectionVisible('wall')" class="snow-card snow-wall">
       <div class="snow-wall__head">
         <p class="section-kicker">{{ wallConfig.title }}</p>
-        <button v-if="!editable && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
+        <button v-if="!editable && !props.demoMode && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
           :class="{ 'is-disabled': wallReachedLimit }"
           :aria-label="wallReachedLimit ? 'Muro completo' : wallConfig.addLabel"
           :aria-disabled="wallReachedLimit ? 'true' : 'false'" :title="wallLimitTooltip"
@@ -1332,10 +1410,10 @@ watch(
       <p class="snow-wall__description">{{ wallConfig.description }}</p>
       <div class="snow-wall__meta">
         <span class="snow-wall__chip">{{ wallUsageLabel }}</span>
-        <span v-if="!wallReachedLimit" class="snow-wall__chip snow-wall__chip--soft">Espacio para dedicatorias</span>
+        <span v-if="!wallReachedLimit && !props.demoMode" class="snow-wall__chip snow-wall__chip--soft">Espacio para dedicatorias</span>
       </div>
 
-      <form v-if="!wallHasMessages && !editable && !wallReachedLimit" class="snow-wall__form"
+      <form v-if="!wallHasMessages && !editable && !props.demoMode && !wallReachedLimit" class="snow-wall__form"
         @submit.prevent="submitWallMessage">
         <label>
           <span>Nombre</span>
@@ -1352,7 +1430,7 @@ watch(
         </button>
       </form>
 
-      <p v-if="!wallHasMessages && !editable && wallReachedLimit" class="snow-wall__empty">
+      <p v-if="!wallHasMessages && !editable && !props.demoMode && wallReachedLimit" class="snow-wall__empty">
         {{ wallLimitTooltip }}
       </p>
 
@@ -1425,24 +1503,24 @@ watch(
           <form class="snow-rsvp-form" @submit.prevent="submitRsvp">
             <label>
               <span>{{ rsvpLabels.firstName }}</span>
-              <input v-model="rsvpFirstName" type="text" maxlength="120" :disabled="props.editable || rsvpSubmitting" />
+              <input v-model="rsvpFirstName" type="text" maxlength="120" :disabled="props.editable || props.demoMode || rsvpSubmitting" />
             </label>
             <label>
               <span>{{ rsvpLabels.lastName }}</span>
-              <input v-model="rsvpLastName" type="text" maxlength="120" :disabled="props.editable || rsvpSubmitting" />
+              <input v-model="rsvpLastName" type="text" maxlength="120" :disabled="props.editable || props.demoMode || rsvpSubmitting" />
             </label>
             <label>
               <span>{{ rsvpLabels.dietaryRestrictions }}</span>
               <input v-model="rsvpDietaryRestrictions" type="text" maxlength="255"
-                :disabled="props.editable || rsvpSubmitting" />
+                :disabled="props.editable || props.demoMode || rsvpSubmitting" />
             </label>
 
             <p class="snow-rsvp__hint">{{ rsvpGateHint }}</p>
           </form>
 
           <button v-if="!isEditing('rsvp_label')" class="snow-rsvp__button editable" type="button"
-            :disabled="!props.editable && !rsvpCanSubmit"
-            :aria-disabled="!props.editable && !rsvpCanSubmit ? 'true' : 'false'"
+            :disabled="!props.editable && !props.demoMode && !rsvpCanSubmit"
+            :aria-disabled="!props.editable && !props.demoMode && !rsvpCanSubmit ? 'true' : 'false'"
             :title="!props.editable && !rsvpCanSubmit ? rsvpGateHint : rsvpLabel" @click="handleRsvpPrimaryAction"
             @dblclick="startEdit('rsvp_label')">
             {{
@@ -1490,6 +1568,11 @@ watch(
       </span>
       <span>{{ musicMuted ? 'Activar música' : 'Silenciar música' }}</span>
     </button>
+
+    <RouterLink v-if="branding.visible" class="snow-brand-watermark" to="/planes">
+      <span>{{ branding.label }}</span>
+      <strong>{{ branding.ctaLabel }}</strong>
+    </RouterLink>
 
     <section v-if="isSectionVisible('faq') && !isSectionVisible('rsvp')" class="snow-card snow-faq">
       <p class="section-kicker">Información importante</p>
@@ -1863,31 +1946,37 @@ watch(
   --note-bg: #fff9b4;
   --note-edge: #f4eb8d;
   --pin-color: #db4f57;
+  --note-paper-rotation: -1.4deg;
   position: relative;
   isolation: isolate;
   border-radius: 16px;
-  border: 1px solid rgba(102, 70, 43, 0.14);
+  border: 0;
   padding: 16px 14px 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0px, transparent 34px),
-    repeating-linear-gradient(0deg, rgba(105, 78, 47, 0.08) 0 1px, transparent 1px 23px),
-    linear-gradient(180deg, var(--note-bg) 0%, var(--note-edge) 100%);
+  background: transparent;
   box-shadow:
     0 18px 28px rgba(45, 24, 10, 0.22),
     0 5px 12px rgba(45, 24, 10, 0.14);
   transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
-  transform: rotate(-1.2deg);
+  transform: translateY(0);
+}
+
+.snow-wall-note>* {
+  position: relative;
+  z-index: 2;
 }
 
 .snow-wall-note::before {
   content: '';
   position: absolute;
-  inset: -8px 8px 8px -8px;
-  border-radius: 16px;
-  background: rgba(238, 247, 255, 0.82);
+  inset: 2px;
+  border-radius: 15px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0px, transparent 34px),
+    repeating-linear-gradient(0deg, rgba(105, 78, 47, 0.08) 0 1px, transparent 1px 23px),
+    linear-gradient(180deg, var(--note-bg) 0%, var(--note-edge) 100%);
   border: 1px solid rgba(102, 70, 43, 0.12);
-  z-index: -2;
-  transform: rotate(-2.8deg);
+  z-index: 0;
+  transform: rotate(var(--note-paper-rotation));
   box-shadow: 0 10px 18px rgba(45, 24, 10, 0.12);
 }
 
@@ -1906,28 +1995,33 @@ watch(
   box-shadow:
     0 2px 3px rgba(15, 23, 42, 0.25),
     inset 0 -2px 2px rgba(0, 0, 0, 0.22);
-  z-index: 2;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.snow-wall-note__author::after {
+  content: none;
 }
 
 .snow-wall-note:nth-child(2n) {
   --note-bg: #c7ecff;
   --note-edge: #afe2fa;
   --pin-color: #2f65cc;
-  transform: rotate(1.6deg);
+  --note-paper-rotation: 1.4deg;
 }
 
 .snow-wall-note:nth-child(3n) {
   --note-bg: #ffe6ee;
   --note-edge: #ffd8e5;
   --pin-color: #f0d43f;
-  transform: rotate(-0.8deg);
+  --note-paper-rotation: -0.9deg;
 }
 
 .snow-wall-note:nth-child(4n) {
   --note-bg: #d8f6cf;
   --note-edge: #c6edbc;
   --pin-color: #2f65cc;
-  transform: rotate(1.2deg);
+  --note-paper-rotation: 1.1deg;
 }
 
 .snow-wall-note:hover,
@@ -2866,6 +2960,44 @@ watch(
   opacity: 0.55;
 }
 
+.snow-brand-watermark {
+  position: fixed;
+  left: 22px;
+  bottom: 22px;
+  z-index: 91;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(260px, calc(100vw - 44px));
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 18px;
+  padding: 0.62rem 0.82rem;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(135deg, rgba(122, 79, 217, 0.92), rgba(240, 106, 166, 0.9));
+  box-shadow: 0 18px 36px rgba(66, 36, 105, 0.28);
+  backdrop-filter: blur(14px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.snow-brand-watermark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 42px rgba(66, 36, 105, 0.36);
+}
+
+.snow-brand-watermark span {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.snow-brand-watermark strong {
+  font-size: 0.82rem;
+  line-height: 1.1;
+}
+
 .snow-checkin-overlay {
   position: fixed;
   inset: 0;
@@ -3239,6 +3371,15 @@ watch(
 .snow-template--preview-tablet .snow-music-fab span:last-child,
 .snow-template--preview-mobile .snow-music-fab span:last-child {
   display: none;
+}
+
+.snow-template--preview-tablet .snow-brand-watermark,
+.snow-template--preview-mobile .snow-brand-watermark {
+  left: 12px;
+  bottom: 12px;
+  max-width: 190px;
+  border-radius: 14px;
+  padding: 0.52rem 0.64rem;
 }
 
 .snow-template--preview-tablet .snow-checkin-overlay,

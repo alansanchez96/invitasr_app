@@ -5,6 +5,8 @@ import PanelLayout from '@/layouts/PanelLayout.vue'
 
 const PublicEntryPage = () => import('@/pages/public/PublicEntryPage.vue')
 const DemoPage = () => import('@/pages/public/DemoPage.vue')
+const DemoEditorPage = () => import('@/pages/public/DemoEditorPage.vue')
+const PublicDemoInvitationPage = () => import('@/pages/public/PublicDemoInvitationPage.vue')
 const PlansPage = () => import('@/pages/public/PlansPage.vue')
 const NewsPage = () => import('@/pages/public/NewsPage.vue')
 const PublicOnboarding = () => import('@/pages/public/PublicOnboarding.vue')
@@ -61,6 +63,24 @@ const router = createRouter({
           meta: {
             title: 'Demo interactiva',
             description: 'Explora plantillas reales, filtra por tipo de evento y descubre como se crea una invitacion digital en InvitaSR.',
+          },
+        },
+        {
+          path: 'demo/editor/:templateId',
+          name: 'demo-editor',
+          component: DemoEditorPage,
+          meta: {
+            title: 'Editor demo',
+            description: 'Prueba una plantilla editable de InvitaSR y descubre como puedes personalizar tu invitacion digital antes de elegir un plan.',
+          },
+        },
+        {
+          path: 'us_:userId/invitaciones/:demoSlug',
+          name: 'public-demo-invitation',
+          component: PublicDemoInvitationPage,
+          meta: {
+            title: 'Demo publicada',
+            description: 'Demo publicada de una invitacion digital creada con InvitaSR.',
           },
         },
         {

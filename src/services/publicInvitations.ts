@@ -26,6 +26,7 @@ type PublicInvitationRaw = {
   feature_overrides?: Record<string, unknown> | null
   text_overrides?: Record<string, string> | null
   subdomain?: Record<string, unknown> | null
+  demo?: Record<string, unknown> | null
 }
 
 export type PublicInvitationPayload = {
@@ -56,6 +57,14 @@ export type PublicInvitationPayload = {
     label: string
     host: string
     url: string
+  } | null
+  demo: {
+    userPath: string
+    slug: string
+    expiresAt: string | null
+    maxVisits: number | null
+    visitCount: number
+    remainingVisits: number | null
   } | null
 }
 
@@ -150,6 +159,16 @@ const normalizePayload = (value: unknown): PublicInvitationPayload => {
         url: toString(subdomain.url),
       }
       : null,
+    demo: Object.keys(toRecord(source.demo)).length
+      ? {
+        userPath: toString(toRecord(source.demo).user_path || toRecord(source.demo).userPath),
+        slug: toString(toRecord(source.demo).slug),
+        expiresAt: toString(toRecord(source.demo).expires_at || toRecord(source.demo).expiresAt) || null,
+        maxVisits: toNumber(toRecord(source.demo).max_visits || toRecord(source.demo).maxVisits),
+        visitCount: Number(toRecord(source.demo).visit_count || toRecord(source.demo).visitCount || 0) || 0,
+        remainingVisits: toNumber(toRecord(source.demo).remaining_visits || toRecord(source.demo).remainingVisits),
+      }
+      : null,
   }
 }
 
@@ -160,6 +179,51 @@ export const getPublicInvitationByHost = async (): Promise<PublicInvitationPaylo
   })
 
   return normalizePayload(response?.data ?? {})
+}
+
+export const getPublicDemoInvitation = async (
+  userPath: string,
+  slug: string,
+): Promise<PublicInvitationPayload> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>(
+    `/demo-invitations/${encodeURIComponent(userPath)}/${encodeURIComponent(slug)}`,
+    {
+      token: '',
+      credentials: 'omit',
+    },
+  )
+
+  return normalizePayload(response?.data ?? {})
+}
+
+export const publishPublicDemoInvitation = async (formData: FormData): Promise<{
+  publication: {
+    userPath: string
+    slug: string
+    expiresAt: string | null
+    maxVisits: number | null
+  }
+  url: string
+}> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>('/demo-invitations/publish', {
+    method: 'POST',
+    token: '',
+    credentials: 'omit',
+    body: formData,
+  })
+
+  const data = toRecord(response.data)
+  const publication = toRecord(data.publication)
+
+  return {
+    publication: {
+      userPath: toString(publication.user_path || publication.userPath),
+      slug: toString(publication.slug),
+      expiresAt: toString(publication.expires_at || publication.expiresAt) || null,
+      maxVisits: toNumber(publication.max_visits || publication.maxVisits),
+    },
+    url: toString(data.url),
+  }
 }
 
 export const createPublicInvitationWallMessage = async (payload: {

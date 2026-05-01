@@ -188,6 +188,17 @@ const getBuyTo = (template: DemoTemplateCard) => ({
   },
 })
 
+const getTryDemoTo = (template: DemoTemplateCard) => ({
+  name: 'demo-editor',
+  params: {
+    templateId: template.id ? String(template.id) : template.slug || template.rendererKey,
+  },
+  query: {
+    renderer: template.rendererKey || undefined,
+    type_event: template.typeEventId ? String(template.typeEventId) : undefined,
+  },
+})
+
 const selectTypeEvent = (eventId: string) => {
   selectedTypeEventId.value = eventId
 }
@@ -196,8 +207,8 @@ const selectPlan = (planName: string) => {
   selectedPlanName.value = planName
 }
 
-const handleTryDemo = () => {
-  notifyWarning('El editor demo será el siguiente paso. Por ahora puedes explorar estilos y elegir tu plan.')
+const handleTryDemoUnavailable = () => {
+  notifyWarning('No pudimos abrir esta demo todavía. Prueba con otra plantilla disponible.')
 }
 
 const loadCatalogs = async () => {
@@ -315,7 +326,19 @@ onMounted(loadCatalogs)
           </div>
 
           <footer class="demo-template-actions">
-            <button type="button" class="demo-card-button demo-card-button-secondary" @click="handleTryDemo">
+            <BaseButton
+              v-if="template.id"
+              class="demo-card-button demo-card-button-secondary"
+              as="RouterLink"
+              :to="getTryDemoTo(template)"
+              variant="ghost">
+              Probar demo
+            </BaseButton>
+            <button
+              v-else
+              type="button"
+              class="demo-card-button demo-card-button-secondary"
+              @click="handleTryDemoUnavailable">
               Probar demo
             </button>
             <BaseButton

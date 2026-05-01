@@ -10,6 +10,8 @@ export type PublicOnboardingRegistrationInput = {
   email: string
   password: string
   country_code: string
+  demo_user_path?: string | null
+  demo_slug?: string | null
 }
 
 export type PublicOnboardingProfileUpdateInput = {

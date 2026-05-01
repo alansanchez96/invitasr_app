@@ -42,6 +42,7 @@ const form = reactive({
 })
 
 const DRAFT_KEY = 'public_onboarding_draft'
+const DEMO_PUBLICATION_KEY = 'invitasr.demo-publication'
 
 const formatPlanPrice = (value?: number | string | null) => {
   const amount = Number(value ?? 0)
@@ -95,6 +96,15 @@ const validateForm = () => {
   return Object.keys(nextErrors).length === 0
 }
 
+const loadPublishedDemoRef = (): { userPath?: string; slug?: string } | null => {
+  try {
+    const raw = sessionStorage.getItem(DEMO_PUBLICATION_KEY)
+    return raw ? JSON.parse(raw) as { userPath?: string; slug?: string } : null
+  } catch {
+    return null
+  }
+}
+
 const submitRegister = async () => {
   const planId = props.plan?.id
   if (!props.plan || planId === undefined || planId === null) {
@@ -116,6 +126,12 @@ const submitRegister = async () => {
     email: form.email.trim(),
     password: form.password,
     country_code: form.country_code.trim(),
+  }
+
+  const demoRef = loadPublishedDemoRef()
+  if (demoRef?.userPath && demoRef?.slug) {
+    payload.demo_user_path = demoRef.userPath
+    payload.demo_slug = demoRef.slug
   }
 
   isSubmitting.value = true

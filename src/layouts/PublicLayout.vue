@@ -12,12 +12,13 @@ const session = useSessionStore()
 const route = useRoute()
 const isHomeRoute = computed(() => route.name === 'home')
 const isInvitationHome = computed(() => isHomeRoute.value && isInvitationSubdomainHost())
+const isPublicDemoInvitation = computed(() => route.name === 'public-demo-invitation')
 const showAuthLoader = computed(() =>
-  !isInvitationHome.value && (session.isLoading || session.isLoggingOut || session.isHydrating),
+  !isInvitationHome.value && !isPublicDemoInvitation.value && (session.isLoading || session.isLoggingOut || session.isHydrating),
 )
-const showNavbar = computed(() => !isInvitationHome.value)
+const showNavbar = computed(() => !isInvitationHome.value && !isPublicDemoInvitation.value)
 const showFooter = computed(() => {
-  if (isInvitationHome.value) return false
+  if (isInvitationHome.value || isPublicDemoInvitation.value) return false
   const hiddenFooterRoutes = new Set([
     'public-onboarding-flow',
     'public-onboarding',
@@ -25,7 +26,7 @@ const showFooter = computed(() => {
   ])
   return !hiddenFooterRoutes.has(String(route.name ?? ''))
 })
-const showMobileCta = computed(() => !isInvitationHome.value)
+const showMobileCta = computed(() => !isInvitationHome.value && !isPublicDemoInvitation.value)
 </script>
 
 <template>
