@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import DemoHomeTeaser from '@/components/public/DemoHomeTeaser.vue'
 import PublicPlanCatalogGrid from '@/components/public/PublicPlanCatalogGrid.vue'
 import type { CatalogPlanListItem } from '@/services/catalogs'
 import heroBoda from '@/assets/img/hero/boda.webp'
@@ -28,11 +29,6 @@ type SocialStat = {
 type SocialReview = {
   quote: string
   author: string
-}
-
-type FlowStep = {
-  title: string
-  description: string
 }
 
 const slides: HeroSlide[] = [
@@ -116,12 +112,6 @@ const socialReviews: SocialReview[] = [
 ]
 
 const socialTags: string[] = ['Bodas', 'XV Años', 'Baby Shower', 'Bautismo', 'Cumpleanos', 'Corporativo']
-
-const flowSteps: FlowStep[] = [
-  { title: 'Elige estilo', description: 'Selecciona el diseño que mejor representa tu evento.' },
-  { title: 'Personaliza datos', description: 'Nombres, fecha, ubicacion y mensaje en una experiencia guiada.' },
-  { title: 'Comparte al instante', description: 'Tu invitacion queda lista para WhatsApp, redes o link directo.' },
-]
 
 const benefitCards: { title: string; description: string }[] = [
   { title: 'Impacto visual inmediato', description: 'Tu invitacion genera una primera impresion fuerte en segundos.' },
@@ -210,7 +200,7 @@ onUnmounted(() => {
           <p class="hero-description">{{ activeSlide.description }}</p>
 
           <div class="hero-actions">
-            <BaseButton as="RouterLink" to="/planes" variant="primary">{{ activeSlide.cta }}</BaseButton>
+            <BaseButton as="RouterLink" to="/demo" variant="primary">{{ activeSlide.cta }}</BaseButton>
             <BaseButton as="RouterLink" to="/planes" variant="ghost">Ver planes y precios</BaseButton>
           </div>
 
@@ -277,55 +267,7 @@ onUnmounted(() => {
     </div>
   </section>
 
-  <section id="como-funciona" class="flow-section" aria-labelledby="flow-title">
-    <div class="container flow-grid">
-      <div class="flow-copy">
-        <p class="flow-kicker">Como funciona</p>
-        <h2 id="flow-title">Mira el proceso real en una pantalla de celular</h2>
-        <p>
-          Sin curva tecnica y sin friccion. En minutos puedes pasar de idea a invitacion publicada.
-        </p>
-        <ol class="flow-steps">
-          <li v-for="step in flowSteps" :key="step.title">
-            <strong>{{ step.title }}</strong>
-            <span>{{ step.description }}</span>
-          </li>
-        </ol>
-      </div>
-
-      <div class="phone-preview-wrap" aria-label="Ejemplo de invitacion en celular">
-        <div class="phone-frame">
-          <div class="phone-notch"></div>
-          <div class="phone-screen">
-            <div class="phone-scroll-content">
-              <span class="phone-chip">Boda · Demo</span>
-              <span class="phone-chip">Boda · Catalogo</span>
-              <h3>Ana & Leo</h3>
-              <p>Sabado 14 · Noviembre 2026</p>
-              <div class="phone-divider"></div>
-              <section>
-                <h4>Nuestra historia</h4>
-                <p>
-                  Nos encantaria compartir este momento contigo.
-                  Esta invitacion es una muestra simple de como se veria en tu celular.
-                </p>
-              </section>
-              <section>
-                <h4>Detalles</h4>
-                <ul>
-                  <li>Ceremonia · 18:00 hs</li>
-                  <li>Recepcion · 20:30 hs</li>
-                  <li>Salon Magnolia · CABA</li>
-                </ul>
-              </section>
-              <button type="button">Confirmar asistencia</button>
-              <small>Scroll para ver mas secciones y contenido.</small>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+  <DemoHomeTeaser />
 
   <section id="inspiracion" class="benefits-section" aria-labelledby="benefits-title">
     <div class="container">
@@ -696,195 +638,6 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.flow-section {
-  padding: 78px 0;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(95, 46, 200, 0.12), transparent 40%),
-    linear-gradient(180deg, #ffffff 0%, #f9f4ff 100%);
-}
-
-.flow-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 28px;
-  align-items: center;
-}
-
-.flow-copy {
-  display: grid;
-  gap: 12px;
-}
-
-.flow-kicker {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #6e48c4;
-}
-
-.flow-copy h2 {
-  margin: 0;
-  color: #2b1a44;
-  font-size: clamp(28px, 3.4vw, 40px);
-  line-height: 1.1;
-  max-width: 15ch;
-}
-
-.flow-copy p {
-  margin: 0;
-  color: #5e4e79;
-  font-size: 16px;
-  line-height: 1.45;
-  max-width: 52ch;
-}
-
-.flow-steps {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 10px;
-}
-
-.flow-steps li {
-  border: 1px solid rgba(203, 177, 244, 0.55);
-  border-radius: 14px;
-  background: #fff;
-  padding: 12px 14px;
-  display: grid;
-  gap: 3px;
-}
-
-.flow-steps strong {
-  color: #39205e;
-  font-size: 15px;
-}
-
-.flow-steps span {
-  color: #65567f;
-  font-size: 14px;
-}
-
-.phone-preview-wrap {
-  display: flex;
-  justify-content: center;
-}
-
-.phone-frame {
-  position: relative;
-  width: min(100%, 340px);
-  border-radius: 32px;
-  border: 1px solid rgba(186, 153, 239, 0.55);
-  background: linear-gradient(170deg, #2d1846, #1a112a);
-  padding: 14px;
-  box-shadow: 0 18px 38px rgba(57, 28, 104, 0.24);
-}
-
-.phone-notch {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 104px;
-  height: 18px;
-  border-radius: 999px;
-  background: rgba(244, 238, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.phone-screen {
-  margin-top: 14px;
-  border-radius: 23px;
-  background: linear-gradient(180deg, #ffffff, #f7f2ff);
-  border: 1px solid rgba(226, 213, 250, 0.85);
-  overflow: hidden;
-}
-
-.phone-scroll-content {
-  height: 472px;
-  overflow: auto;
-  padding: 16px 16px 20px;
-  display: grid;
-  gap: 12px;
-  scrollbar-width: thin;
-}
-
-.phone-chip {
-  width: fit-content;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #603f8f;
-  border: 1px solid rgba(166, 131, 227, 0.42);
-  background: #fbf8ff;
-  padding: 5px 10px;
-}
-
-.phone-scroll-content h3 {
-  margin: 0;
-  color: #2f1950;
-  font-size: 24px;
-  font-family: var(--font-display);
-}
-
-.phone-scroll-content p {
-  margin: 0;
-  color: #614d7f;
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.phone-divider {
-  height: 1px;
-  background: linear-gradient(90deg, rgba(160, 127, 217, 0.2), rgba(160, 127, 217, 0.6), rgba(160, 127, 217, 0.2));
-}
-
-.phone-scroll-content section {
-  display: grid;
-  gap: 6px;
-}
-
-.phone-scroll-content h4 {
-  margin: 0;
-  color: #45286c;
-  font-size: 14px;
-}
-
-.phone-scroll-content ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 4px;
-}
-
-.phone-scroll-content li {
-  color: #5a4878;
-  font-size: 13px;
-}
-
-.phone-scroll-content button {
-  border: 0;
-  border-radius: 12px;
-  background: var(--gradient-brand);
-  color: #fff;
-  font-weight: 700;
-  font-size: 14px;
-  padding: 10px 12px;
-}
-
-.phone-scroll-content small {
-  color: #786992;
-  font-size: 12px;
-}
-
-.templates-section {
-  padding: 74px 0;
-  background: #fff;
-}
-
 .benefits-head,
 .plans-head {
   display: grid;
@@ -1056,15 +809,6 @@ onUnmounted(() => {
     padding-top: 64px;
   }
 
-  .flow-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .flow-copy h2 {
-    max-width: none;
-  }
-
   .benefits-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1114,8 +858,6 @@ onUnmounted(() => {
     padding: 56px 0 64px;
   }
 
-  .flow-section,
-  .templates-section,
   .benefits-section,
   .plans-section,
   .faq-section {
@@ -1126,13 +868,8 @@ onUnmounted(() => {
     padding: 58px 0 26px;
   }
 
-  .templates-grid,
   .benefits-grid {
     grid-template-columns: 1fr;
-  }
-
-  .phone-frame {
-    width: min(100%, 320px);
   }
 }
 
@@ -1156,8 +893,6 @@ onUnmounted(() => {
     padding: 7px 8px;
   }
 
-  .flow-section,
-  .templates-section,
   .benefits-section,
   .plans-section,
   .faq-section {
@@ -1171,11 +906,6 @@ onUnmounted(() => {
   .social-proof {
     padding: 52px 0;
   }
-
-  .phone-scroll-content {
-    height: 430px;
-  }
-
   .closing-cta-shell {
     padding: 16px;
     border-radius: 16px;

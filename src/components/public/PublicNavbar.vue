@@ -56,14 +56,16 @@ const clientEntryPath = computed(() =>
                 : '/onboarding/public',
 )
 const defaultDesktopNavItems: PublicNavItem[] = [
+    { label: 'Demo', to: '/demo' },
     { label: 'Noticias', to: '/noticias' },
-    { label: 'Como funciona', href: '/#como-funciona' },
+    { label: 'Como funciona', href: '/#demo-teaser' },
     { label: 'Inspiracion', href: '/#inspiracion' },
     { label: 'Planes', to: '/planes' },
 ]
 const defaultMobileNavItems: PublicNavItem[] = [
+    { label: 'Demo', to: '/demo', subtitle: 'Explora plantillas reales antes de comprar' },
     { label: 'Planes', to: '/planes', subtitle: 'Elige la opcion ideal para tu evento' },
-    { label: 'Como funciona', href: '/#como-funciona', subtitle: 'Mira lo facil que es crear y publicar' },
+    { label: 'Como funciona', href: '/#demo-teaser', subtitle: 'Mira lo facil que es crear y publicar' },
     { label: 'Inspiracion', href: '/#inspiracion', subtitle: 'Descubre estilos para tu tipo de evento' },
     { label: 'Noticias', to: '/noticias', subtitle: 'Novedades y tendencias del momento' },
 ]

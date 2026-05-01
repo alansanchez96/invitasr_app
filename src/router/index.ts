@@ -2,39 +2,41 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import PublicLayout from '@/layouts/PublicLayout.vue'
 import PanelLayout from '@/layouts/PanelLayout.vue'
-import PublicEntryPage from '@/pages/public/PublicEntryPage.vue'
-import PlansPage from '@/pages/public/PlansPage.vue'
-import NewsPage from '@/pages/public/NewsPage.vue'
-import PublicOnboarding from '@/pages/public/PublicOnboarding.vue'
-import PublicCommercialOnboarding from '@/pages/public/PublicCommercialOnboarding.vue'
-import PaymentReturnPage from '@/pages/public/PaymentReturnPage.vue'
-import TemplatePreviewPage from '@/pages/public/TemplatePreviewPage.vue'
-import InactiveClientPage from '@/pages/public/InactiveClientPage.vue'
-import BackofficeHome from '@/pages/backoffice/BackofficeHome.vue'
-import BackofficeDashboard from '@/pages/backoffice/BackofficeDashboard.vue'
-import BackofficeClients from '@/pages/backoffice/BackofficeClients.vue'
-import BackofficeModulePlaceholder from '@/pages/backoffice/BackofficeModulePlaceholder.vue'
-import BackofficeUsers from '@/pages/backoffice/BackofficeUsers.vue'
-import BackofficeOnboarding from '@/pages/backoffice/BackofficeOnboarding.vue'
-import BackofficePayments from '@/pages/backoffice/BackofficePayments.vue'
-import BackofficeSubscriptions from '@/pages/backoffice/BackofficeSubscriptions.vue'
-import BackofficePlans from '@/pages/backoffice/BackofficePlans.vue'
-import BackofficeFeatures from '@/pages/backoffice/BackofficeFeatures.vue'
-import BackofficePlanFeatures from '@/pages/backoffice/BackofficePlanFeatures.vue'
-import BackofficeEventTypes from '@/pages/backoffice/BackofficeEventTypes.vue'
-import ClientHome from '@/pages/client/ClientHome.vue'
-import ClientStats from '@/pages/client/ClientStats.vue'
-import ClientInvitations from '@/pages/client/ClientInvitations.vue'
-import ClientInvitationEditor from '@/pages/client/ClientInvitationEditor.vue'
-import ClientSettings from '@/pages/client/ClientSettings.vue'
-import ClientSecurity from '@/pages/client/ClientSecurity.vue'
-import ClientBilling from '@/pages/client/ClientBilling.vue'
-import ClientBuyCredits from '@/pages/client/ClientBuyCredits.vue'
-import ClientSubscriptions from '@/pages/client/ClientSubscriptions.vue'
-import ClientRenewSubscription from '@/pages/client/ClientRenewSubscription.vue'
-import ClientGuestList from '@/pages/client/ClientGuestList.vue'
-import ClientNotifications from '@/pages/client/ClientNotifications.vue'
-import ClientUpgradePlan from '@/pages/client/ClientUpgradePlan.vue'
+
+const PublicEntryPage = () => import('@/pages/public/PublicEntryPage.vue')
+const DemoPage = () => import('@/pages/public/DemoPage.vue')
+const PlansPage = () => import('@/pages/public/PlansPage.vue')
+const NewsPage = () => import('@/pages/public/NewsPage.vue')
+const PublicOnboarding = () => import('@/pages/public/PublicOnboarding.vue')
+const PublicCommercialOnboarding = () => import('@/pages/public/PublicCommercialOnboarding.vue')
+const PaymentReturnPage = () => import('@/pages/public/PaymentReturnPage.vue')
+const TemplatePreviewPage = () => import('@/pages/public/TemplatePreviewPage.vue')
+const InactiveClientPage = () => import('@/pages/public/InactiveClientPage.vue')
+const BackofficeHome = () => import('@/pages/backoffice/BackofficeHome.vue')
+const BackofficeDashboard = () => import('@/pages/backoffice/BackofficeDashboard.vue')
+const BackofficeClients = () => import('@/pages/backoffice/BackofficeClients.vue')
+const BackofficeModulePlaceholder = () => import('@/pages/backoffice/BackofficeModulePlaceholder.vue')
+const BackofficeUsers = () => import('@/pages/backoffice/BackofficeUsers.vue')
+const BackofficeOnboarding = () => import('@/pages/backoffice/BackofficeOnboarding.vue')
+const BackofficePayments = () => import('@/pages/backoffice/BackofficePayments.vue')
+const BackofficeSubscriptions = () => import('@/pages/backoffice/BackofficeSubscriptions.vue')
+const BackofficePlans = () => import('@/pages/backoffice/BackofficePlans.vue')
+const BackofficeFeatures = () => import('@/pages/backoffice/BackofficeFeatures.vue')
+const BackofficePlanFeatures = () => import('@/pages/backoffice/BackofficePlanFeatures.vue')
+const BackofficeEventTypes = () => import('@/pages/backoffice/BackofficeEventTypes.vue')
+const ClientHome = () => import('@/pages/client/ClientHome.vue')
+const ClientStats = () => import('@/pages/client/ClientStats.vue')
+const ClientInvitations = () => import('@/pages/client/ClientInvitations.vue')
+const ClientInvitationEditor = () => import('@/pages/client/ClientInvitationEditor.vue')
+const ClientSettings = () => import('@/pages/client/ClientSettings.vue')
+const ClientSecurity = () => import('@/pages/client/ClientSecurity.vue')
+const ClientBilling = () => import('@/pages/client/ClientBilling.vue')
+const ClientBuyCredits = () => import('@/pages/client/ClientBuyCredits.vue')
+const ClientSubscriptions = () => import('@/pages/client/ClientSubscriptions.vue')
+const ClientRenewSubscription = () => import('@/pages/client/ClientRenewSubscription.vue')
+const ClientGuestList = () => import('@/pages/client/ClientGuestList.vue')
+const ClientNotifications = () => import('@/pages/client/ClientNotifications.vue')
+const ClientUpgradePlan = () => import('@/pages/client/ClientUpgradePlan.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -47,19 +49,37 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: PublicEntryPage,
-          meta: { title: 'Inicio' },
+          meta: {
+            title: 'Inicio',
+            description: 'Crea invitaciones digitales elegantes, personalizables y listas para compartir con InvitaSR.',
+          },
+        },
+        {
+          path: 'demo',
+          name: 'demo',
+          component: DemoPage,
+          meta: {
+            title: 'Demo interactiva',
+            description: 'Explora plantillas reales, filtra por tipo de evento y descubre como se crea una invitacion digital en InvitaSR.',
+          },
         },
         {
           path: 'planes',
           name: 'planes',
           component: PlansPage,
-          meta: { title: 'Planes' },
+          meta: {
+            title: 'Planes',
+            description: 'Compara los planes de InvitaSR y elige la opcion ideal para crear tu invitacion digital.',
+          },
         },
         {
           path: 'noticias',
           name: 'noticias',
           component: NewsPage,
-          meta: { title: 'Noticias' },
+          meta: {
+            title: 'Noticias',
+            description: 'Consejos, ideas y tendencias para crear invitaciones digitales con mejor experiencia para tus invitados.',
+          },
         },
         {
           path: 'onboarding/public',
@@ -499,7 +519,19 @@ router.beforeEach(async (to) => {
 router.afterEach((to) => {
   const appName = import.meta.env.VITE_APP_NAME ?? 'InvitaSR'
   const section = typeof to.meta.title === 'string' ? to.meta.title : ''
+  const description = typeof to.meta.description === 'string'
+    ? to.meta.description
+    : 'InvitaSR te ayuda a crear invitaciones digitales modernas, personalizables y faciles de compartir.'
+  let descriptionTag = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+
+  if (!descriptionTag) {
+    descriptionTag = document.createElement('meta')
+    descriptionTag.name = 'description'
+    document.head.append(descriptionTag)
+  }
+
   document.title = section ? `${appName} - ${section}` : appName
+  descriptionTag.content = description
 })
 
 export default router
