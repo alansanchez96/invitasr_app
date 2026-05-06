@@ -113,10 +113,28 @@ const socialReviews: SocialReview[] = [
 
 const socialTags: string[] = ['Bodas', 'XV Años', 'Baby Shower', 'Bautismo', 'Cumpleanos', 'Corporativo']
 
-const benefitCards: { title: string; description: string }[] = [
-  { title: 'Impacto visual inmediato', description: 'Tu invitacion genera una primera impresion fuerte en segundos.' },
-  { title: 'Proceso simple y guiado', description: 'Todo esta pensado para que avances rapido, incluso si es tu primera vez.' },
-  { title: 'Mas conversion de invitados', description: 'Una experiencia clara aumenta la respuesta y reduce fricciones.' },
+const inspirationCards: { title: string; description: string; tag: string }[] = [
+  {
+    title: 'Boda elegante en la nieve',
+    description: 'Una entrada emocional, música suave, galería y confirmación clara para que nadie se pierda ningún detalle.',
+    tag: 'Romántica',
+  },
+  {
+    title: 'XV con efecto wow',
+    description: 'Una invitación visual, divertida y fácil de compartir para que tus invitados sientan la fiesta antes de llegar.',
+    tag: 'Celebración',
+  },
+  {
+    title: 'Evento empresarial impecable',
+    description: 'Diseño sobrio, ubicación visible y respuestas ordenadas para transmitir confianza desde el primer clic.',
+    tag: 'Profesional',
+  },
+]
+
+const inspirationSteps: { value: string; label: string }[] = [
+  { value: '1', label: 'Elige un estilo que combine con tu evento' },
+  { value: '2', label: 'Personaliza textos, fotos, música y ubicación' },
+  { value: '3', label: 'Publica y comparte una experiencia lista para impresionar' },
 ]
 
 const faqItems: { question: string; answer: string; open?: boolean }[] = [
@@ -269,17 +287,47 @@ onUnmounted(() => {
 
   <DemoHomeTeaser />
 
-  <section id="inspiracion" class="benefits-section" aria-labelledby="benefits-title">
-    <div class="container">
-      <div class="benefits-head">
-        <p class="benefits-kicker">Por que funciona</p>
-        <h2 id="benefits-title">Diseñada para vender emocion y facilitar tu organizacion</h2>
+  <section id="inspiracion" class="inspiration-section" aria-labelledby="inspiration-title">
+    <div class="container inspiration-shell">
+      <div class="inspiration-head">
+        <div>
+          <p class="inspiration-kicker">Inspiración</p>
+          <h2 id="inspiration-title">Ideas listas para convertir una invitación en una experiencia que se recuerda.</h2>
+        </div>
+        <p>
+          No necesitas saber de diseño. Empiezas con una plantilla pensada para emocionar, guiar al invitado
+          y ayudarte a recibir más respuestas sin perseguir a nadie.
+        </p>
       </div>
-      <div class="benefits-grid">
-        <article v-for="item in benefitCards" :key="item.title" class="benefit-card">
+
+      <div class="inspiration-grid">
+        <article v-for="item in inspirationCards" :key="item.title" class="inspiration-card">
+          <span>{{ item.tag }}</span>
           <h3>{{ item.title }}</h3>
           <p>{{ item.description }}</p>
+          <RouterLink to="/demo">Probar este estilo</RouterLink>
         </article>
+      </div>
+
+      <div class="inspiration-conversion">
+        <div class="conversion-copy">
+          <span>De idea a invitación publicada</span>
+          <h3>Tu evento puede sentirse premium antes de que empiece.</h3>
+          <p>
+            Cada sección está pensada para reducir dudas: fecha, lugar, preguntas frecuentes,
+            confirmación de asistencia y detalles importantes en una sola experiencia.
+          </p>
+          <div class="conversion-actions">
+            <BaseButton as="RouterLink" to="/demo" variant="primary">Crear una demo gratis</BaseButton>
+            <BaseButton as="RouterLink" to="/planes" variant="ghost">Comparar planes</BaseButton>
+          </div>
+        </div>
+        <ol class="inspiration-steps">
+          <li v-for="step in inspirationSteps" :key="step.value">
+            <strong>{{ step.value }}</strong>
+            <span>{{ step.label }}</span>
+          </li>
+        </ol>
       </div>
     </div>
   </section>
@@ -638,14 +686,14 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.benefits-head,
+.inspiration-head,
 .plans-head {
   display: grid;
-  gap: 8px;
+  gap: 18px;
   margin-bottom: 18px;
 }
 
-.benefits-kicker,
+.inspiration-kicker,
 .plans-kicker,
 .faq-kicker,
 .closing-kicker {
@@ -657,7 +705,7 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.benefits-head h2,
+.inspiration-head h2,
 .plans-head h2,
 .faq-head h2,
 .closing-cta-shell h2 {
@@ -667,37 +715,201 @@ onUnmounted(() => {
   line-height: 1.12;
 }
 
-.benefits-section {
-  padding: 74px 0;
-  background: linear-gradient(180deg, #faf6ff 0%, #ffffff 100%);
+.inspiration-section {
+  padding: 88px 0;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(122, 79, 217, 0.14), transparent 34%),
+    radial-gradient(circle at 86% 16%, rgba(240, 106, 166, 0.13), transparent 32%),
+    linear-gradient(180deg, #faf6ff 0%, #ffffff 100%);
 }
 
-.benefits-grid {
+.inspiration-shell {
+  display: grid;
+  gap: 24px;
+}
+
+.inspiration-head {
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.7fr);
+  align-items: end;
+}
+
+.inspiration-head > p {
+  margin: 0;
+  color: #69597f;
+  line-height: 1.75;
+  font-size: 16px;
+}
+
+.inspiration-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 
-.benefit-card {
-  border-radius: 16px;
-  border: 1px solid rgba(229, 214, 253, 0.9);
-  background: #fff;
-  padding: 18px;
+.inspiration-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 290px;
+  border-radius: 28px;
+  border: 1px solid rgba(229, 214, 253, 0.95);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(252, 246, 255, 0.9)),
+    radial-gradient(circle at 82% 0%, rgba(240, 106, 166, 0.2), transparent 36%);
+  padding: 24px;
   display: grid;
-  gap: 8px;
+  align-content: end;
+  gap: 10px;
+  box-shadow: 0 22px 52px rgba(122, 79, 217, 0.11);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.benefit-card h3 {
+.inspiration-card::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 82px;
+  height: 82px;
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(122, 79, 217, 0.9), rgba(240, 106, 166, 0.82)),
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.75), transparent 18%);
+  transform: rotate(10deg);
+  opacity: 0.92;
+}
+
+.inspiration-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 70px rgba(122, 79, 217, 0.18);
+}
+
+.inspiration-card > span {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: rgba(122, 79, 217, 0.1);
+  color: #6e48c4;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inspiration-card h3 {
   margin: 0;
   color: #352153;
-  font-size: 19px;
+  font-size: 24px;
+  line-height: 1.05;
 }
 
-.benefit-card p {
+.inspiration-card p,
+.conversion-copy p {
   margin: 0;
   color: #66567f;
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.inspiration-card a {
+  width: fit-content;
+  margin-top: 8px;
+  color: #6e48c4;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.inspiration-card a:hover {
+  color: #f06aa6;
+}
+
+.inspiration-conversion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 22px;
+  align-items: stretch;
+  border-radius: 34px;
+  border: 1px solid rgba(224, 209, 249, 0.95);
+  padding: clamp(22px, 4vw, 36px);
+  background:
+    linear-gradient(135deg, rgba(35, 20, 63, 0.96), rgba(87, 55, 145, 0.93)),
+    radial-gradient(circle at 88% 12%, rgba(240, 106, 166, 0.28), transparent 34%);
+  color: #fff;
+  box-shadow: 0 28px 80px rgba(35, 20, 63, 0.22);
+}
+
+.conversion-copy {
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+
+.conversion-copy > span {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.conversion-copy h3 {
+  margin: 0;
+  max-width: 720px;
+  font-size: clamp(28px, 4vw, 48px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.conversion-copy p {
+  max-width: 680px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.conversion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.inspiration-steps {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspiration-steps li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.inspiration-steps strong {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: #fff;
+  color: #6e48c4;
+  font-size: 18px;
+}
+
+.inspiration-steps span {
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .plans-section {
@@ -809,7 +1021,12 @@ onUnmounted(() => {
     padding-top: 64px;
   }
 
-  .benefits-grid {
+  .inspiration-head,
+  .inspiration-conversion {
+    grid-template-columns: 1fr;
+  }
+
+  .inspiration-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -858,7 +1075,7 @@ onUnmounted(() => {
     padding: 56px 0 64px;
   }
 
-  .benefits-section,
+  .inspiration-section,
   .plans-section,
   .faq-section {
     padding: 58px 0;
@@ -868,8 +1085,12 @@ onUnmounted(() => {
     padding: 58px 0 26px;
   }
 
-  .benefits-grid {
+  .inspiration-grid {
     grid-template-columns: 1fr;
+  }
+
+  .conversion-actions {
+    flex-direction: column;
   }
 }
 
@@ -893,7 +1114,7 @@ onUnmounted(() => {
     padding: 7px 8px;
   }
 
-  .benefits-section,
+  .inspiration-section,
   .plans-section,
   .faq-section {
     padding: 52px 0;

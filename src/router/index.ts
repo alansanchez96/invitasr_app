@@ -26,6 +26,7 @@ const BackofficePlans = () => import('@/pages/backoffice/BackofficePlans.vue')
 const BackofficeFeatures = () => import('@/pages/backoffice/BackofficeFeatures.vue')
 const BackofficePlanFeatures = () => import('@/pages/backoffice/BackofficePlanFeatures.vue')
 const BackofficeEventTypes = () => import('@/pages/backoffice/BackofficeEventTypes.vue')
+const BackofficeProductUpdates = () => import('@/pages/backoffice/BackofficeProductUpdates.vue')
 const ClientHome = () => import('@/pages/client/ClientHome.vue')
 const ClientStats = () => import('@/pages/client/ClientStats.vue')
 const ClientInvitations = () => import('@/pages/client/ClientInvitations.vue')
@@ -289,6 +290,18 @@ const router = createRouter({
             title: 'Dashboard · Tipos de evento',
             moduleLabel: 'Tipos de evento',
             moduleDescription: 'Configuracion de tipos de evento y sus reglas base.',
+            requiresAuth: true,
+            requiresMaster: true,
+          },
+        },
+        {
+          path: 'product-updates',
+          name: 'backoffice-product-updates',
+          component: BackofficeProductUpdates,
+          meta: {
+            title: 'Dashboard · Noticias',
+            moduleLabel: 'Noticias',
+            moduleDescription: 'Versiones, mejoras y avisos visibles para visitantes y clientes.',
             requiresAuth: true,
             requiresMaster: true,
           },

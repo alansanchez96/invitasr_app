@@ -20,6 +20,7 @@ export const backofficeModuleGroups: PanelModuleGroup[] = [
       { label: 'Usuarios', href: '/backoffice/users' },
       { label: 'Onboarding', href: '/backoffice/onboarding' },
       { label: 'Plantillas', href: '/backoffice/templates' },
+      { label: 'Noticias', href: '/backoffice/product-updates' },
     ],
   },
   {

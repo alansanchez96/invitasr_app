@@ -96,23 +96,23 @@ const musicOptions = [
     label: 'Can’t Help Falling in Love',
     title: 'Can’t Help Falling in Love',
     artist: 'Elvis Presley',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    youtubeUrl: 'https://www.youtube.com/watch?v=VEgwXzfKen8',
+    audioUrl: '',
+    youtubeUrl: '',
   },
   {
     id: 'song_2',
     label: 'Until I Found You',
     title: 'Until I Found You',
     artist: 'Stephen Sanchez',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    youtubeUrl: 'https://www.youtube.com/watch?v=uh5jGOkodw8',
+    audioUrl: '',
+    youtubeUrl: '',
   },
   {
     id: 'song_3',
     label: 'Instrumental suave',
     title: 'Instrumental suave',
     artist: 'InvitaSR',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+    audioUrl: '',
     youtubeUrl: '',
   },
 ]
@@ -378,11 +378,14 @@ const removeFaqItem = (itemId: string) => {
   demoData.value.faq = (demoData.value.faq ?? []).filter((item) => item.id !== itemId)
 }
 
-const selectedMusicUrl = computed({
-  get: () => demoData.value?.music?.audioUrl ?? musicOptions[0]?.audioUrl ?? '',
+const selectedMusicOptionId = computed({
+  get: () => {
+    const currentTitle = demoData.value?.music?.title ?? ''
+    return musicOptions.find((item) => item.title === currentTitle)?.id ?? musicOptions[0]?.id ?? 'song_1'
+  },
   set: (value: string) => {
     if (!demoData.value) return
-    const option = musicOptions.find((item) => item.audioUrl === value) ?? musicOptions[0]
+    const option = musicOptions.find((item) => item.id === value) ?? musicOptions[0]
     demoData.value.music = {
       title: option?.title ?? 'Canción principal',
       artist: option?.artist ?? 'InvitaSR',
@@ -692,12 +695,13 @@ onMounted(loadDemo)
           <div class="demo-editor-control-card">
             <label>
               <span>Música</span>
-              <select v-model="selectedMusicUrl">
-                <option v-for="option in musicOptions" :key="option.id" :value="option.audioUrl">
+              <select v-model="selectedMusicOptionId">
+                <option v-for="option in musicOptions" :key="option.id" :value="option.id">
                   {{ option.label }}
                 </option>
               </select>
             </label>
+            <p>La música real se configura con archivos propios o subidos en planes compatibles.</p>
           </div>
 
           <div class="demo-editor-control-card">

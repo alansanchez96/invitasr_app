@@ -97,6 +97,19 @@ export type TenantInvitationGalleryDetail = {
   items: TenantInvitationGalleryImage[]
 }
 
+export type TenantInvitationMusicTrack = {
+  id: number
+  title: string
+  artist: string | null
+  original_name: string
+  mime_type: string
+  size_bytes: number
+  storage_disk: string
+  storage_path: string
+  public_url: string
+  uploaded_at: string | null
+}
+
 export type TenantInvitationWallMessage = {
   id: number
   guest_name: string
@@ -408,6 +421,22 @@ const normalizeGallerySummary = (value: unknown): TenantInvitationGallerySummary
     limit: source.limit === null || source.limit === undefined ? null : toNumber(source.limit, 0),
     used: toNumber(source.used, 0),
     remaining: source.remaining === null || source.remaining === undefined ? null : toNumber(source.remaining, 0),
+  }
+}
+
+const normalizeMusicTrack = (value: unknown): TenantInvitationMusicTrack => {
+  const source = toRecord(value)
+  return {
+    id: toNumber(source.id, 0),
+    title: String(source.title ?? ''),
+    artist: source.artist ? String(source.artist) : null,
+    original_name: String(source.original_name ?? ''),
+    mime_type: String(source.mime_type ?? ''),
+    size_bytes: toNumber(source.size_bytes, 0),
+    storage_disk: String(source.storage_disk ?? ''),
+    storage_path: String(source.storage_path ?? ''),
+    public_url: String(source.public_url ?? ''),
+    uploaded_at: source.uploaded_at ? String(source.uploaded_at) : null,
   }
 }
 
@@ -751,6 +780,33 @@ export const uploadTenantInvitationGalleryImages = async (
     files,
     removeImageIds: [],
   })
+
+export const uploadTenantInvitationMusicTrack = async (
+  invitationId: string | number,
+  file: File,
+  metadata: { title?: string; artist?: string } = {},
+) => {
+  const body = new FormData()
+  body.append('track', file)
+  if (metadata.title?.trim()) body.append('title', metadata.title.trim())
+  if (metadata.artist?.trim()) body.append('artist', metadata.artist.trim())
+
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/music`,
+    {
+      method: 'POST',
+      body,
+    },
+  )
+
+  const data = toRecord(payload.data)
+
+  return {
+    message: payload.message ?? 'Música actualizada.',
+    music: normalizeMusicTrack(data.music),
+    invitation: normalizeInvitation(toRecord(data.invitation)),
+  }
+}
 
 export const checkTenantInvitationSubdomainAvailability = async (params: {
   slug: string

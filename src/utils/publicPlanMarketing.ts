@@ -68,10 +68,10 @@ const FEATURE_COPY: Record<
     priority: 86,
     summary: () => 'Suma atmosfera desde el primer segundo y eleva la emocion.',
   },
-  youtube_music_links_enabled: {
-    title: 'Enlaces de musica externos',
+  custom_music_upload_enabled: {
+    title: 'Musica personalizada',
     priority: 72,
-    summary: () => 'Abre mas libertad para ambientar cada historia.',
+    summary: () => 'Permite subir una cancion propia para ambientar cada historia.',
   },
   dj_song_requests_enabled: {
     title: 'Pedidos de canciones',

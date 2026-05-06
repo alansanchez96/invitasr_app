@@ -115,11 +115,6 @@ const toDate = (value: string): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-const fallbackAudioByYoutubeId: Record<string, string> = {
-  VEgwXzfKen8: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-  uh5jGOkodw8: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-}
-
 const dressCodeByCode: Record<string, { title: string; description: string }> = {
   elegant_sport: {
     title: 'Dress code',
@@ -161,22 +156,6 @@ const dressCodeByCode: Record<string, { title: string; description: string }> = 
     title: 'Temática especial',
     description: 'Sigue la temática del evento indicada por los anfitriones.',
   },
-}
-
-const extractYoutubeVideoId = (url: string): string | null => {
-  const trimmed = url.trim()
-  if (!trimmed) return null
-
-  const youtuBeMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/)
-  if (youtuBeMatch?.[1]) return youtuBeMatch[1]
-
-  const watchMatch = trimmed.match(/[?&]v=([a-zA-Z0-9_-]{6,})/)
-  if (watchMatch?.[1]) return watchMatch[1]
-
-  const embedMatch = trimmed.match(/embed\/([a-zA-Z0-9_-]{6,})/)
-  if (embedMatch?.[1]) return embedMatch[1]
-
-  return null
 }
 
 const normalizeExternalUrl = (rawValue: string): string => {
@@ -756,13 +735,7 @@ const musicAudioUrl = computed(() => {
   const configured = resolveText(props.data.music?.audioUrl, '')
   if (configured) return configured
 
-  const youtubeUrl = resolveText(props.data.music?.youtubeUrl, '')
-  const videoId = extractYoutubeVideoId(youtubeUrl)
-  if (videoId && fallbackAudioByYoutubeId[videoId]) {
-    return fallbackAudioByYoutubeId[videoId]
-  }
-
-  return fallbackAudioByYoutubeId.VEgwXzfKen8
+  return ''
 })
 
 const saveDateLabel = computed(() => resolveText(props.data.saveDate?.label, 'Guardar fecha'))

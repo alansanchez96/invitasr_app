@@ -25,6 +25,7 @@ import {
   publishTenantInvitation,
   resolveTenantInvitationLocation,
   updateTenantInvitation,
+  uploadTenantInvitationMusicTrack,
   type TenantInvitationItem,
   type TenantTemplateSummary,
   type TenantTypeEventSummary,
@@ -55,7 +56,6 @@ type MusicOption = {
   title: string
   artist: string
   audioUrl: string
-  youtubeUrl: string
 }
 
 type DressCodeOption = {
@@ -172,12 +172,18 @@ const {
   toggleWallEditorMessageExpanded,
 } = useInvitationEditorWallPreview(wallEditorExpandedMessageIds)
 const galleryInputRef = ref<HTMLInputElement | null>(null)
+const musicInputRef = ref<HTMLInputElement | null>(null)
+const isUploadingMusic = ref(false)
 let slugAvailabilityTimer: ReturnType<typeof setTimeout> | null = null
 let slugAvailabilityCheckId = 0
 
 const invitationId = computed(() => Number(route.params.invitationId))
 const invitationRecordId = computed(() => invitation.value?.id ?? null)
 const isDraft = computed(() => String(invitation.value?.status ?? '').toLowerCase() === 'draft')
+const canUploadCustomMusic = computed(() => {
+  const planName = String(session.user?.client_plan?.plan?.name ?? '').trim().toLowerCase()
+  return planName === 'pro' || planName === 'planner'
+})
 const {
   isLoadingGallery,
   isUploadingGallery,
@@ -251,27 +257,24 @@ const { supportsInlineEditor } = useInvitationEditorTemplateCapabilities(templat
 const musicOptions: MusicOption[] = [
   {
     id: 'song_1',
-    label: 'Canción 1 (por defecto)',
+    label: 'Canción base',
     title: 'Can’t Help Falling in Love',
     artist: 'Elvis Presley',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    youtubeUrl: 'https://www.youtube.com/watch?v=VEgwXzfKen8',
+    audioUrl: '',
   },
   {
     id: 'song_2',
-    label: 'Canción 2',
+    label: 'Canción romántica',
     title: 'Until I Found You',
     artist: 'Stephen Sanchez',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    youtubeUrl: 'https://www.youtube.com/watch?v=uh5jGOkodw8',
+    audioUrl: '',
   },
   {
     id: 'song_3',
     label: 'Canción 3 (próximamente)',
     title: 'Próximamente',
     artist: 'InvitaSR',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-    youtubeUrl: '',
+    audioUrl: '',
   },
 ]
 
@@ -605,9 +608,9 @@ const ensureDefaultFeatureData = () => {
   let nextContent = cloneRecord(contentDraft.value)
   const nextSettings = cloneRecord(settingsDraft.value)
 
-  if (!asText(getByPath(nextContent, 'music.youtubeUrl'))) {
+  if (!asText(getByPath(nextContent, 'music.title'))) {
     const defaultSong = musicOptions[0]!
-    setByPath(nextContent, 'music.youtubeUrl', defaultSong.youtubeUrl)
+    setByPath(nextContent, 'music.youtubeUrl', null)
     setByPath(nextContent, 'music.audioUrl', defaultSong.audioUrl)
     setByPath(nextContent, 'music.title', defaultSong.title)
     setByPath(nextContent, 'music.artist', defaultSong.artist)
@@ -1103,18 +1106,18 @@ const musicSelection = computed({
     if (audioUrl) {
       const byAudio = musicOptions.find((item) => item.audioUrl === audioUrl)
       if (byAudio) return byAudio.id
+      return 'custom'
     }
 
-    const url = asText(getByPath(contentDraft.value, 'music.youtubeUrl'))
-    const option = musicOptions.find((item) => item.youtubeUrl === url)
-    return option?.id ?? musicOptions[0]!.id
+    return musicOptions[0]!.id
   },
   set: (optionId: string) => {
+    if (optionId === 'custom') return
     const option = musicOptions.find((item) => item.id === optionId)
     if (!option) return
 
     const nextContent = cloneRecord(contentDraft.value)
-    setByPath(nextContent, 'music.youtubeUrl', option.youtubeUrl)
+    setByPath(nextContent, 'music.youtubeUrl', null)
     setByPath(nextContent, 'music.audioUrl', option.audioUrl)
     setByPath(nextContent, 'music.title', option.title)
     setByPath(nextContent, 'music.artist', option.artist)
@@ -1776,6 +1779,46 @@ const onGalleryFilesSelected = (event: Event) => {
   clearGalleryInputValue()
 }
 
+const clearMusicInputValue = () => {
+  if (musicInputRef.value) {
+    musicInputRef.value.value = ''
+  }
+}
+
+const openMusicFilePicker = () => {
+  if (!canUploadCustomMusic.value || isUploadingMusic.value) return
+  musicInputRef.value?.click()
+}
+
+const onMusicFileSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0] ?? null
+  clearMusicInputValue()
+  if (!file || !invitationId.value) return
+
+  isUploadingMusic.value = true
+  try {
+    const response = await uploadTenantInvitationMusicTrack(invitationId.value, file)
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'music.title', response.music.title)
+    setByPath(nextContent, 'music.artist', response.music.artist ?? 'Canción personalizada')
+    setByPath(nextContent, 'music.audioUrl', response.music.public_url)
+    setByPath(nextContent, 'music.youtubeUrl', null)
+    setByPath(nextContent, 'music.source', 'custom_upload')
+    setByPath(nextContent, 'music.trackId', response.music.id)
+    contentDraft.value = nextContent
+    invitation.value = response.invitation
+      ? { ...(invitation.value ?? {}), ...response.invitation, content: nextContent }
+      : invitation.value
+    notifySuccess(response.message ?? 'Música actualizada.')
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos subir la música.')
+  } finally {
+    isUploadingMusic.value = false
+  }
+}
+
 const checkSlugAvailability = async (targetSlug?: string) => {
   const value = (targetSlug ?? slug.value).trim()
   if (!value) {
@@ -2359,6 +2402,9 @@ onBeforeRouteLeave((to) => {
             <div class="config-drawer__body">
               <input ref="galleryInputRef" class="gallery-file-input-hidden" type="file"
                 accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple @change="onGalleryFilesSelected" />
+              <input ref="musicInputRef" class="gallery-file-input-hidden" type="file"
+                accept=".mp3,.m4a,.mp4,.aac,.ogg,.wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav"
+                @change="onMusicFileSelected" />
 
               <section class="config-block">
                 <label class="field">
@@ -2485,11 +2531,31 @@ onBeforeRouteLeave((to) => {
                         <label class="field">
                           <span>Canción</span>
                           <select v-model="musicSelection">
+                            <option v-if="asText(getByPath(contentDraft, 'music.audioUrl'))" value="custom">
+                              Canción personalizada cargada
+                            </option>
                             <option v-for="song in musicOptions" :key="song.id" :value="song.id">
                               {{ song.label }}
                             </option>
                           </select>
                         </label>
+                        <div class="music-upload-panel">
+                          <p v-if="asText(getByPath(contentDraft, 'music.audioUrl'))">
+                            Sonará: <strong>{{ asText(getByPath(contentDraft, 'music.title'), 'Mi canción') }}</strong>
+                          </p>
+                          <p v-else>
+                            Todavía no hay un archivo de audio cargado para reproducir.
+                          </p>
+                          <button
+                            type="button"
+                            class="config-secondary-action"
+                            :disabled="!canUploadCustomMusic || isUploadingMusic"
+                            @click="openMusicFilePicker">
+                            {{ isUploadingMusic ? 'Subiendo...' : 'Subir música personalizada' }}
+                          </button>
+                          <small v-if="!canUploadCustomMusic">La música personalizada está disponible en Pro y Planner.</small>
+                          <small v-else>Formatos permitidos: MP3, M4A, AAC, OGG o WAV. Máximo 15 MB.</small>
+                        </div>
                       </div>
 
                       <div v-else-if="section.key === 'gallery'" class="option-panel">
@@ -3705,6 +3771,50 @@ onBeforeRouteLeave((to) => {
 .gallery-panel-copy--processing {
   color: #1d4ed8;
   font-weight: 600;
+}
+
+.music-upload-panel {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border-radius: 11px;
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  background: linear-gradient(180deg, rgba(250, 245, 255, 0.92), rgba(245, 243, 255, 0.72));
+}
+
+.music-upload-panel p,
+.music-upload-panel small {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.music-upload-panel strong {
+  color: #2e1065;
+}
+
+.config-secondary-action {
+  width: 100%;
+  border: 1px solid rgba(124, 58, 237, 0.24);
+  border-radius: 11px;
+  padding: 0.62rem 0.85rem;
+  background: linear-gradient(135deg, #7c3aed, #db5bb6);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.config-secondary-action:hover:not(:disabled),
+.config-secondary-action:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(124, 58, 237, 0.22);
+}
+
+.config-secondary-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .gallery-add-btn {

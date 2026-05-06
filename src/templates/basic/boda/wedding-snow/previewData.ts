@@ -54,7 +54,8 @@ export const createWeddingSnowPreviewData = (
     music: {
       title: 'Can’t Help Falling in Love',
       artist: 'Elvis Presley',
-      youtubeUrl: 'https://www.youtube.com/watch?v=VEgwXzfKen8',
+      audioUrl: '',
+      youtubeUrl: '',
       muted: true,
     },
     rsvp: {
