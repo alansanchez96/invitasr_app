@@ -89,8 +89,8 @@ const router = createRouter({
           name: 'planes',
           component: PlansPage,
           meta: {
-            title: 'Planes',
-            description: 'Compara los planes de InvitaSR y elige la opcion ideal para crear tu invitacion digital.',
+            title: 'Comparar planes',
+            description: 'Compara planes, limites y beneficios para elegir la mejor opcion antes de crear tu invitacion digital.',
           },
         },
         {

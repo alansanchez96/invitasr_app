@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
-  listCatalogPlanFeatures,
   listCatalogPlans,
-  type CatalogPlanFeatureItem,
   type CatalogPlanListItem,
 } from '@/services/catalogs'
 import {
@@ -11,22 +9,17 @@ import {
   formatBillingLabel,
   formatPlanName,
   formatPlanPrice,
-  isFeaturedCommercialPlan,
-  resolvePlanBadge,
   resolvePlanMeta,
   resolvePlanNarrative,
   selectCommercialPlans,
-  sortMarketingFeatures,
 } from '@/utils/publicPlanMarketing'
 
 const props = withDefaults(
   defineProps<{
     primaryActionLabel?: string
-    initialDetailPlanId?: string | number | null
   }>(),
   {
     primaryActionLabel: 'Obtener plan',
-    initialDetailPlanId: null,
   },
 )
 
@@ -37,15 +30,30 @@ const emit = defineEmits<{
 const isLoading = ref(true)
 const loadError = ref<string | null>(null)
 const plans = ref<CatalogPlanListItem[]>([])
-const openDetailPlanId = ref<string | null>(null)
-const detailLoadingPlanId = ref<string | null>(null)
-const detailCache = ref<Record<string, CatalogPlanFeatureItem[]>>({})
 
-const visiblePlans = computed(() => selectCommercialPlans(plans.value))
+const planOrder: Record<string, number> = {
+  basic: 1,
+  pro: 2,
+  planner: 3,
+}
 
-const getPlanId = (plan: CatalogPlanListItem) => {
-  const raw = plan.id
-  return raw === undefined || raw === null ? '' : String(raw)
+const getPlanNameKey = (plan: CatalogPlanListItem) =>
+  String(plan.name ?? '').trim().toLowerCase()
+
+const visiblePlans = computed(() =>
+  [...selectCommercialPlans(plans.value)].sort((left, right) => {
+    const leftOrder = planOrder[getPlanNameKey(left)] ?? 99
+    const rightOrder = planOrder[getPlanNameKey(right)] ?? 99
+    return leftOrder - rightOrder
+  }),
+)
+
+const getCardClass = (plan: CatalogPlanListItem) => ({
+  [`plan-card-${getPlanNameKey(plan)}`]: true,
+})
+
+const handlePrimaryAction = (plan: CatalogPlanListItem) => {
+  emit('select-plan', plan)
 }
 
 const loadPlans = async () => {
@@ -56,481 +64,338 @@ const loadPlans = async () => {
     const response = await listCatalogPlans({ page: 1, perPage: 10 })
     plans.value = response.list
   } catch {
-    loadError.value = 'No pudimos cargar los planes publicos en este momento.'
+    loadError.value = 'No pudimos cargar las opciones disponibles en este momento.'
   } finally {
     isLoading.value = false
   }
 }
 
-const ensureDetailFeatures = async (plan: CatalogPlanListItem) => {
-  const planId = getPlanId(plan)
-  if (!planId || detailCache.value[planId]) return
-
-  detailLoadingPlanId.value = planId
-  try {
-    const features = await listCatalogPlanFeatures(planId)
-    detailCache.value = {
-      ...detailCache.value,
-      [planId]: features.length ? features : plan.features,
-    }
-  } catch {
-    detailCache.value = {
-      ...detailCache.value,
-      [planId]: plan.features,
-    }
-  } finally {
-    if (detailLoadingPlanId.value === planId) {
-      detailLoadingPlanId.value = null
-    }
-  }
-}
-
-const toggleDetails = async (plan: CatalogPlanListItem) => {
-  const planId = getPlanId(plan)
-  if (!planId) return
-
-  if (openDetailPlanId.value === planId) {
-    openDetailPlanId.value = null
-    return
-  }
-
-  openDetailPlanId.value = planId
-  await ensureDetailFeatures(plan)
-}
-
-const maybeOpenInitialDetails = async () => {
-  const targetPlanId =
-    props.initialDetailPlanId === null || props.initialDetailPlanId === undefined
-      ? ''
-      : String(props.initialDetailPlanId).trim()
-  if (!targetPlanId) return
-
-  const targetPlan = visiblePlans.value.find((plan) => getPlanId(plan) === targetPlanId)
-  if (!targetPlan) return
-  await toggleDetails(targetPlan)
-}
-
-const getDetailFeatures = (plan: CatalogPlanListItem) => {
-  const planId = getPlanId(plan)
-  return sortMarketingFeatures(detailCache.value[planId] ?? plan.features)
-}
-
-const handlePrimaryAction = (plan: CatalogPlanListItem) => {
-  emit('select-plan', plan)
-}
-
-onMounted(async () => {
-  await loadPlans()
-  await maybeOpenInitialDetails()
-})
-
-watch(
-  () => props.initialDetailPlanId,
-  async () => {
-    if (!visiblePlans.value.length) return
-    await maybeOpenInitialDetails()
-  },
-)
+onMounted(loadPlans)
 </script>
 
 <template>
-  <div v-if="isLoading" class="plan-catalog-state" role="status" aria-live="polite">
+  <div v-if="isLoading" class="plan-state" role="status" aria-live="polite">
     <span class="spinner" aria-hidden="true"></span>
-    <p>Cargando planes disponibles...</p>
+    <p>Cargando opciones disponibles...</p>
   </div>
 
-  <div v-else-if="loadError" class="plan-catalog-state is-error" role="alert">
+  <div v-else-if="loadError" class="plan-state plan-state-error" role="alert">
     <p>{{ loadError }}</p>
   </div>
 
-  <div v-else class="plan-catalog-grid">
+  <div v-else class="plan-grid">
     <article
-      v-for="(plan, index) in visiblePlans"
-      :key="String(plan.id ?? plan.name ?? index)"
+      v-for="plan in visiblePlans"
+      :key="String(plan.id ?? plan.name)"
       class="plan-card"
-      :class="{
-        featured: isFeaturedCommercialPlan(plan, index),
-        'details-open': openDetailPlanId === String(plan.id ?? ''),
-      }">
-      <div class="plan-card-surface">
-        <div class="plan-card-top">
-          <span class="plan-badge">{{ resolvePlanBadge(plan, index) }}</span>
-          <span class="plan-billing">{{ formatBillingLabel(plan.billing_type) }}</span>
-        </div>
-
-        <div class="plan-copy">
-          <h3>{{ formatPlanName(plan.name) }}</h3>
-          <p class="plan-description">{{ resolvePlanNarrative(plan) }}</p>
-          <strong class="plan-price">{{ formatPlanPrice(plan.price_usd, plan.billing_type) }}</strong>
-          <small v-if="resolvePlanMeta(plan)" class="plan-meta">{{ resolvePlanMeta(plan) }}</small>
-        </div>
-
-        <ul class="plan-highlight-list" aria-label="Funciones destacadas del plan">
-          <li v-for="highlight in buildTopPlanHighlights(plan.features)" :key="`${String(plan.id ?? '')}-${highlight.key}`">
-            <strong>{{ highlight.title }}</strong>
-            <span>{{ highlight.summary }}</span>
-          </li>
-        </ul>
-
-        <div class="plan-card-actions">
-          <button type="button" class="plan-details-trigger" @click="toggleDetails(plan)">
-            {{ openDetailPlanId === String(plan.id ?? '') ? 'Ocultar detalles' : 'Ver detalles' }}
-          </button>
-          <BaseButton variant="primary" @click="handlePrimaryAction(plan)">{{ props.primaryActionLabel }}</BaseButton>
-        </div>
+      :class="getCardClass(plan)">
+      <div class="plan-card-top">
+        <span class="plan-eyebrow">{{ formatBillingLabel(plan.billing_type) }}</span>
+        <span v-if="getPlanNameKey(plan) === 'pro'" class="plan-favorite">Recomendado</span>
+        <span v-else-if="getPlanNameKey(plan) === 'planner'" class="plan-curiosity">Para explorar</span>
       </div>
 
-      <div class="plan-detail-panel" :class="{ open: openDetailPlanId === String(plan.id ?? '') }">
-        <div class="plan-detail-head">
+      <div class="plan-copy">
+        <h3>{{ formatPlanName(plan.name) }}</h3>
+        <p>{{ resolvePlanNarrative(plan) }}</p>
+        <strong>{{ formatPlanPrice(plan.price_usd, plan.billing_type) }}</strong>
+        <small v-if="resolvePlanMeta(plan)">{{ resolvePlanMeta(plan) }}</small>
+      </div>
+
+      <ul class="plan-highlights" aria-label="Beneficios principales">
+        <li v-for="highlight in buildTopPlanHighlights(plan.features)" :key="`${String(plan.id ?? '')}-${highlight.key}`">
+          <span aria-hidden="true"></span>
           <div>
-            <span>Detalles del plan</span>
-            <h4>{{ formatPlanName(plan.name) }}</h4>
+            <strong>{{ highlight.title }}</strong>
+            <p>{{ highlight.summary }}</p>
           </div>
-          <button type="button" class="plan-detail-close" aria-label="Cerrar detalles" @click="toggleDetails(plan)">
-            &times;
-          </button>
-        </div>
+        </li>
+      </ul>
 
-        <div class="plan-detail-summary">
-          <strong>{{ formatPlanPrice(plan.price_usd, plan.billing_type) }}</strong>
-          <p>{{ resolvePlanNarrative(plan) }}</p>
-        </div>
-
-        <div v-if="detailLoadingPlanId === String(plan.id ?? '')" class="plan-detail-state" role="status" aria-live="polite">
-          <span class="spinner" aria-hidden="true"></span>
-          <p>Cargando funcionalidades completas...</p>
-        </div>
-
-        <div v-else class="plan-detail-scroll">
-          <ul class="plan-detail-list" aria-label="Listado completo de funcionalidades">
-            <li
-              v-for="feature in getDetailFeatures(plan)"
-              :key="`${String(plan.id ?? '')}-${feature.key}`"
-              class="plan-detail-item">
-              <div>
-                <strong>{{ feature.title }}</strong>
-                <p>{{ feature.summary }}</p>
-              </div>
-              <span class="plan-detail-badge">{{ feature.badge }}</span>
-            </li>
-          </ul>
-        </div>
+      <div class="plan-actions">
+        <BaseButton variant="primary" @click="handlePrimaryAction(plan)">
+          {{ props.primaryActionLabel }}
+        </BaseButton>
+        <RouterLink class="plan-compare-link" :to="{ name: 'planes', query: { plan: getPlanNameKey(plan) || undefined } }">
+          Comparar planes
+        </RouterLink>
       </div>
     </article>
   </div>
 </template>
 
 <style scoped>
-.plan-catalog-state {
+.plan-state {
   display: grid;
   place-items: center;
   gap: 10px;
-  padding: 34px 20px;
-  border: 1px solid #eadffb;
-  border-radius: 22px;
-  background: linear-gradient(145deg, #fff, #faf5ff);
+  min-height: 260px;
+  border: 1px solid rgba(122, 79, 217, 0.14);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.78);
   color: #65577d;
 }
 
-.plan-catalog-state.is-error {
-  text-align: center;
+.plan-state-error {
   color: #7a3342;
-  background: linear-gradient(145deg, #fff7f8, #fff);
-  border-color: #f2d7df;
+  background: #fff7f8;
 }
 
-.plan-catalog-grid {
+.plan-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
+  grid-template-columns: minmax(240px, 0.92fr) minmax(280px, 1.06fr) minmax(240px, 0.92fr);
+  grid-template-areas: "basic pro planner";
+  gap: 18px;
+  align-items: stretch;
 }
 
 .plan-card {
   position: relative;
-  min-height: 520px;
-  border-radius: 28px;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(250, 245, 255, 0.96)),
-    #fff;
-  border: 1px solid rgba(225, 214, 246, 0.95);
-  box-shadow: 0 24px 52px rgba(72, 39, 120, 0.08);
-}
-
-.plan-card.featured {
-  border-color: rgba(168, 109, 255, 0.5);
-  box-shadow: 0 28px 58px rgba(121, 69, 201, 0.16);
-}
-
-.plan-card-surface,
-.plan-detail-panel {
-  height: 100%;
-}
-
-.plan-card-surface {
   display: grid;
+  grid-template-rows: auto auto 1fr auto;
   gap: 18px;
-  align-content: start;
+  border: 1px solid rgba(224, 211, 247, 0.9);
+  border-radius: 32px;
   padding: 24px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(240, 106, 166, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 245, 255, 0.96));
+  box-shadow: 0 22px 52px rgba(61, 34, 104, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
-.plan-card-top {
+.plan-card:hover {
+  border-color: rgba(122, 79, 217, 0.28);
+  box-shadow: 0 32px 76px rgba(61, 34, 104, 0.14);
+  transform: translateY(-4px);
+}
+
+.plan-card-pro {
+  grid-area: pro;
+  border-color: rgba(239, 93, 168, 0.34);
+  background:
+    radial-gradient(circle at 50% -8%, rgba(240, 106, 166, 0.24), transparent 32%),
+    radial-gradient(circle at 2% 14%, rgba(122, 79, 217, 0.12), transparent 34%),
+    linear-gradient(180deg, #fff, #fff7fd 48%, #f7efff);
+  box-shadow: 0 28px 72px rgba(122, 79, 217, 0.14);
+}
+
+.plan-card-basic {
+  grid-area: basic;
+}
+
+.plan-card-planner {
+  grid-area: planner;
+}
+
+.plan-card-top,
+.plan-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.plan-badge,
-.plan-billing {
+.plan-eyebrow,
+.plan-favorite,
+.plan-curiosity {
   display: inline-flex;
   align-items: center;
+  width: max-content;
   border-radius: 999px;
-  padding: 7px 12px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 900;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.plan-badge {
-  background: rgba(122, 79, 217, 0.12);
+.plan-eyebrow {
+  padding: 8px 11px;
+  background: rgba(122, 79, 217, 0.1);
   color: #6d41c8;
 }
 
-.plan-billing {
-  background: rgba(34, 197, 94, 0.1);
-  color: #0f7a3c;
+.plan-favorite {
+  padding: 8px 12px;
+  color: #fff;
+  background: linear-gradient(120deg, #7a4fd9, #ef5da8);
+  box-shadow: 0 14px 30px rgba(122, 79, 217, 0.2);
+}
+
+.plan-curiosity {
+  padding: 8px 11px;
+  background: rgba(25, 15, 42, 0.08);
+  color: #4b336d;
 }
 
 .plan-copy {
   display: grid;
-  gap: 8px;
-}
-
-.plan-copy h3,
-.plan-detail-head h4 {
-  margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.1rem);
-  line-height: 0.95;
-  color: #2f2145;
-}
-
-.plan-description {
-  margin: 0;
-  color: #635579;
-  min-height: 3.5em;
-}
-
-.plan-price {
-  font-size: 2rem;
-  line-height: 1;
-  color: #5f2bc9;
-}
-
-.plan-meta {
-  color: #7a6c92;
-  font-weight: 600;
-}
-
-.plan-highlight-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
   gap: 10px;
 }
 
-.plan-highlight-list li {
+.plan-copy h3 {
+  margin: 0;
+  color: #2f2145;
+  font-size: clamp(2.1rem, 3.8vw, 3.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+}
+
+.plan-copy p,
+.plan-copy small,
+.plan-highlights p {
+  margin: 0;
+  color: #67597f;
+  line-height: 1.5;
+}
+
+.plan-copy > p {
+  font-weight: 700;
+}
+
+.plan-copy strong {
+  color: #5f2bc9;
+  font-size: clamp(2rem, 3vw, 2.8rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.plan-copy small {
+  font-weight: 800;
+}
+
+.plan-highlights {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-highlights li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(232, 224, 248, 0.92);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(232, 224, 248, 0.95);
+  background: rgba(255, 255, 255, 0.82);
 }
 
-.plan-highlight-list strong {
-  color: #311d53;
-  font-size: 0.95rem;
+.plan-highlights li > span {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #7a4fd9, #ef5da8);
+  box-shadow: 0 0 0 5px rgba(122, 79, 217, 0.08);
 }
 
-.plan-highlight-list span {
-  color: #6a5d82;
-  font-size: 0.92rem;
+.plan-highlights strong {
+  display: block;
+  color: #2f2145;
+  font-size: 0.94rem;
 }
 
-.plan-card-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.plan-highlights p {
+  margin-top: 3px;
+  font-size: 0.9rem;
+}
+
+.plan-actions {
+  align-items: stretch;
   margin-top: auto;
 }
 
-.plan-details-trigger {
-  border: none;
-  background: transparent;
-  color: #6e45cc;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 0;
-}
-
-.plan-detail-panel {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 14px;
-  padding: 24px;
-  background:
-    linear-gradient(135deg, rgba(31, 15, 56, 0.97), rgba(70, 31, 125, 0.98)),
-    #281741;
-  color: #fff;
-  transform: translateX(100%);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform 0.5s ease,
-    opacity 0.5s ease;
-}
-
-.plan-detail-panel.open {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.plan-detail-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: flex-start;
-}
-
-.plan-detail-head span {
-  display: inline-flex;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.plan-detail-close {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  font-size: 1.3rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.plan-detail-summary {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.plan-detail-summary strong {
-  font-size: 1.45rem;
-}
-
-.plan-detail-summary p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.plan-detail-scroll {
-  min-height: 0;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.plan-detail-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 10px;
-}
-
-.plan-detail-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.plan-detail-item strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.plan-detail-item p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 0.92rem;
-}
-
-.plan-detail-badge {
+.plan-actions :deep(.btn),
+.plan-compare-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 48px;
   border-radius: 999px;
-  padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  font-size: 0.76rem;
-  font-weight: 700;
+  padding: 0 18px;
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-decoration: none;
   white-space: nowrap;
 }
 
-.plan-detail-state {
-  display: grid;
-  place-items: center;
-  gap: 10px;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.8);
+.plan-actions :deep(.btn) {
+  flex: 1.1;
 }
 
-@media (max-width: 1080px) {
-  .plan-catalog-grid {
+.plan-compare-link {
+  flex: 1;
+  border: 1px solid rgba(122, 79, 217, 0.2);
+  background: rgba(122, 79, 217, 0.08);
+  color: #6e45cc;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.plan-compare-link:hover,
+.plan-compare-link:focus-visible {
+  background: #6e45cc;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 1120px) {
+  .plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "pro pro"
+      "basic planner";
+  }
+
+  .plan-card-pro {
+    grid-column: 1 / -1;
+  }
+
+  .plan-card,
+  .plan-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 920px) {
+  .plan-grid {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "pro"
+      "basic"
+      "planner";
   }
 
   .plan-card {
-    min-height: 480px;
+    min-height: auto;
   }
 }
 
-@media (max-width: 640px) {
-  .plan-card,
-  .plan-card-surface,
-  .plan-detail-panel {
-    border-radius: 22px;
+@media (max-width: 760px) {
+  .plan-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "pro"
+      "basic"
+      "planner";
   }
 
-  .plan-card-surface,
-  .plan-detail-panel {
+  .plan-card {
+    border-radius: 24px;
     padding: 20px;
   }
 
-  .plan-card-actions {
-    flex-direction: column;
+  .plan-card-top,
+  .plan-actions {
     align-items: stretch;
+    flex-direction: column;
   }
 
-  .plan-detail-item {
-    grid-template-columns: 1fr;
+  .plan-actions :deep(.btn),
+  .plan-compare-link {
+    width: 100%;
   }
 }
 </style>

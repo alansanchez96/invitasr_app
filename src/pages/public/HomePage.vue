@@ -107,27 +107,30 @@ const socialStats: SocialStat[] = [
 
 const socialReviews: SocialReview[] = [
   { quote: '“La hicimos en minutos y todos nos escribieron para decir que estaba hermosa.”', author: '- Camila & Bruno, Boda' },
-  { quote: '“No sabia nada de diseno. Igual pude personalizar todo y quedo super pro.”', author: '- Ana, Cumpleanos' },
+  { quote: '“No sabia nada de diseno. Igual pude personalizar todo y quedo super lindo 😍”', author: '- Ana, Cumpleanos' },
   { quote: '“Para eventos corporativos nos ahorro tiempo y mejoro la imagen de marca.”', author: '- Equipo Nexus, Corporativo' },
 ]
 
 const socialTags: string[] = ['Bodas', 'XV Años', 'Baby Shower', 'Bautismo', 'Cumpleanos', 'Corporativo']
 
-const inspirationCards: { title: string; description: string; tag: string }[] = [
+const inspirationCards: { title: string; description: string; tag: string; mark: string }[] = [
   {
     title: 'Boda elegante en la nieve',
     description: 'Una entrada emocional, música suave, galería y confirmación clara para que nadie se pierda ningún detalle.',
     tag: 'Romántica',
+    mark: '01',
   },
   {
     title: 'XV con efecto wow',
     description: 'Una invitación visual, divertida y fácil de compartir para que tus invitados sientan la fiesta antes de llegar.',
     tag: 'Celebración',
+    mark: '02',
   },
   {
     title: 'Evento empresarial impecable',
     description: 'Diseño sobrio, ubicación visible y respuestas ordenadas para transmitir confianza desde el primer clic.',
     tag: 'Profesional',
+    mark: '03',
   },
 ]
 
@@ -173,9 +176,10 @@ const prevSlide = () => {
 
 const handleSelectHomePlan = (plan: CatalogPlanListItem) => {
   router.push({
-    name: 'planes',
+    name: 'public-onboarding-flow',
     query: {
-      plan: plan.id === undefined || plan.id === null ? undefined : String(plan.id),
+      planId: plan.id === undefined || plan.id === null ? undefined : String(plan.id),
+      planName: plan.name ?? undefined,
     },
   })
 }
@@ -219,7 +223,7 @@ onUnmounted(() => {
 
           <div class="hero-actions">
             <BaseButton as="RouterLink" to="/demo" variant="primary">{{ activeSlide.cta }}</BaseButton>
-            <BaseButton as="RouterLink" to="/planes" variant="ghost">Ver planes y precios</BaseButton>
+            <BaseButton as="RouterLink" to="/demo" variant="ghost">Explorar demos</BaseButton>
           </div>
 
           <div class="hero-micro-proof" aria-label="Confianza de producto">
@@ -261,7 +265,7 @@ onUnmounted(() => {
   <section class="social-proof" aria-labelledby="social-proof-title">
     <div class="container social-proof-shell">
       <div class="social-proof-head">
-        <p class="social-proof-kicker">Prueba social real</p>
+        <p class="social-proof-kicker">Nuestra reputación</p>
         <h2 id="social-proof-title">La forma mas facil de crear invitaciones que tus invitados si quieren abrir</h2>
       </div>
 
@@ -302,9 +306,14 @@ onUnmounted(() => {
 
       <div class="inspiration-grid">
         <article v-for="item in inspirationCards" :key="item.title" class="inspiration-card">
-          <span>{{ item.tag }}</span>
-          <h3>{{ item.title }}</h3>
-          <p>{{ item.description }}</p>
+          <div class="inspiration-card-top">
+            <span>{{ item.tag }}</span>
+            <strong aria-hidden="true">{{ item.mark }}</strong>
+          </div>
+          <div class="inspiration-card-body">
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.description }}</p>
+          </div>
           <RouterLink to="/demo">Probar este estilo</RouterLink>
         </article>
       </div>
@@ -319,7 +328,7 @@ onUnmounted(() => {
           </p>
           <div class="conversion-actions">
             <BaseButton as="RouterLink" to="/demo" variant="primary">Crear una demo gratis</BaseButton>
-            <BaseButton as="RouterLink" to="/planes" variant="ghost">Comparar planes</BaseButton>
+            <BaseButton as="RouterLink" to="/demo" variant="ghost">Ver plantillas</BaseButton>
           </div>
         </div>
         <ol class="inspiration-steps">
@@ -333,12 +342,21 @@ onUnmounted(() => {
   </section>
 
   <section id="planes" class="plans-section" aria-labelledby="plans-title">
-    <div class="container">
+    <div class="container plans-shell">
       <div class="plans-head">
-        <p class="plans-kicker">Planes</p>
-        <h2 id="plans-title">Elige el plan ideal y comienza hoy</h2>
+        <div>
+          <p class="plans-kicker">Planes</p>
+          <h2 id="plans-title">Elige el ritmo ideal para crear tu invitación</h2>
+        </div>
+        <p>
+          Compara opciones simples, visuales y listas para activar. Puedes empezar con algo puntual,
+          sumar más posibilidades o explorar una experiencia mensual más completa.
+        </p>
       </div>
-      <PublicPlanCatalogGrid primary-action-label="Quiero este plan" @select-plan="handleSelectHomePlan" />
+
+      <PublicPlanCatalogGrid
+        primary-action-label="Obtener plan"
+        @select-plan="handleSelectHomePlan" />
     </div>
   </section>
 
@@ -365,8 +383,8 @@ onUnmounted(() => {
         <p>Hazlo en minutos con una experiencia clara, visual y lista para vender emocion.</p>
       </div>
       <div class="closing-actions">
-        <BaseButton as="RouterLink" to="/planes" variant="primary">Comenzar ahora</BaseButton>
-        <BaseButton as="RouterLink" to="/planes" variant="ghost">Ver planes</BaseButton>
+        <BaseButton as="RouterLink" to="/demo" variant="primary">Crear una demo gratis</BaseButton>
+        <BaseButton as="RouterLink" to="/demo" variant="ghost">Explorar plantillas</BaseButton>
       </div>
     </div>
   </section>
@@ -686,8 +704,7 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.inspiration-head,
-.plans-head {
+.inspiration-head {
   display: grid;
   gap: 18px;
   margin-bottom: 18px;
@@ -713,6 +730,49 @@ onUnmounted(() => {
   color: #2b1a44;
   font-size: clamp(26px, 3.2vw, 38px);
   line-height: 1.12;
+}
+
+.plans-section {
+  padding: 104px 0 112px;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(122, 79, 217, 0.16), transparent 34%),
+    radial-gradient(circle at 88% 10%, rgba(240, 106, 166, 0.16), transparent 32%),
+    linear-gradient(180deg, #fff 0%, #fff8fd 45%, #f7f0ff 100%);
+}
+
+.plans-shell {
+  display: grid;
+  gap: 28px;
+  width: min(1320px, 92vw);
+}
+
+.plans-head {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.5fr);
+  align-items: end;
+  gap: 22px;
+}
+
+.plans-head h2 {
+  max-width: 780px;
+  font-size: clamp(38px, 5.4vw, 72px);
+  line-height: 0.92;
+  letter-spacing: -0.07em;
+}
+
+.plans-head > p {
+  margin: 0;
+  border: 1px solid rgba(122, 79, 217, 0.14);
+  border-radius: 28px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(240, 106, 166, 0.13), transparent 34%),
+    rgba(255, 255, 255, 0.74);
+  color: #67597f;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.65;
+  box-shadow: 0 20px 50px rgba(72, 39, 120, 0.08);
 }
 
 .inspiration-section {
@@ -749,41 +809,34 @@ onUnmounted(() => {
 .inspiration-card {
   position: relative;
   overflow: hidden;
-  min-height: 290px;
+  min-height: 300px;
   border-radius: 28px;
-  border: 1px solid rgba(229, 214, 253, 0.95);
+  border: 1px solid rgba(224, 211, 247, 0.92);
   background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(252, 246, 255, 0.9)),
-    radial-gradient(circle at 82% 0%, rgba(240, 106, 166, 0.2), transparent 36%);
+    radial-gradient(circle at 100% 0%, rgba(240, 106, 166, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 255, 0.94));
   padding: 24px;
   display: grid;
-  align-content: end;
-  gap: 10px;
-  box-shadow: 0 22px 52px rgba(122, 79, 217, 0.11);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.inspiration-card::before {
-  content: "";
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  width: 82px;
-  height: 82px;
-  border-radius: 28px;
-  background:
-    linear-gradient(135deg, rgba(122, 79, 217, 0.9), rgba(240, 106, 166, 0.82)),
-    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.75), transparent 18%);
-  transform: rotate(10deg);
-  opacity: 0.92;
+  grid-template-rows: auto 1fr auto;
+  gap: 18px;
+  box-shadow: 0 22px 52px rgba(61, 34, 104, 0.09);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .inspiration-card:hover {
+  border-color: rgba(122, 79, 217, 0.24);
   transform: translateY(-6px);
   box-shadow: 0 28px 70px rgba(122, 79, 217, 0.18);
 }
 
-.inspiration-card > span {
+.inspiration-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.inspiration-card-top span {
   width: fit-content;
   border-radius: 999px;
   padding: 7px 11px;
@@ -795,11 +848,34 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
+.inspiration-card-top strong {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #7a4fd9, #ef5da8);
+  font-size: 16px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  box-shadow: 0 18px 34px rgba(122, 79, 217, 0.18);
+}
+
+.inspiration-card-body {
+  display: grid;
+  align-content: end;
+  gap: 10px;
+  min-width: 0;
+}
+
 .inspiration-card h3 {
   margin: 0;
   color: #352153;
-  font-size: 24px;
-  line-height: 1.05;
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
 }
 
 .inspiration-card p,
@@ -811,15 +887,25 @@ onUnmounted(() => {
 }
 
 .inspiration-card a {
-  width: fit-content;
-  margin-top: 8px;
-  color: #6e48c4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 79, 217, 0.18);
+  padding: 0 16px;
+  color: #5f35bc;
+  background: rgba(122, 79, 217, 0.08);
   font-weight: 900;
   text-decoration: none;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .inspiration-card a:hover {
-  color: #f06aa6;
+  color: #fff;
+  background: linear-gradient(120deg, #7a4fd9, #ef5da8);
+  transform: translateY(-1px);
 }
 
 .inspiration-conversion {
@@ -912,47 +998,118 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-.plans-section {
-  padding: 74px 0;
-  background:
-    radial-gradient(circle at 84% 20%, rgba(90, 222, 191, 0.12), transparent 34%),
-    linear-gradient(180deg, #ffffff 0%, #f9f4ff 100%);
-}
-
 .faq-section {
-  padding: 74px 0;
-  background: #fff;
+  padding: 88px 0;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(122, 79, 217, 0.12), transparent 34%),
+    radial-gradient(circle at 90% 18%, rgba(240, 106, 166, 0.12), transparent 32%),
+    linear-gradient(180deg, #fff 0%, #fbf7ff 100%);
 }
 
 .faq-shell {
   display: grid;
-  gap: 16px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(360px, 1.2fr);
+  align-items: start;
+  gap: 28px;
 }
 
 .faq-head {
+  position: sticky;
+  top: calc(var(--public-header-height, 80px) + 24px);
   display: grid;
-  gap: 8px;
+  gap: 12px;
   max-width: 740px;
+  border: 1px solid rgba(122, 79, 217, 0.12);
+  border-radius: 30px;
+  padding: 26px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(240, 106, 166, 0.15), transparent 34%),
+    rgba(255, 255, 255, 0.78);
+  box-shadow: 0 22px 56px rgba(61, 34, 104, 0.08);
 }
 
 .faq-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .faq-item {
-  border-radius: 14px;
-  border: 1px solid rgba(224, 208, 248, 0.9);
-  background: linear-gradient(180deg, #fff, #fcf8ff);
-  padding: 12px 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(224, 208, 248, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 248, 255, 0.9));
+  padding: 0;
+  box-shadow: 0 16px 40px rgba(61, 34, 104, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.faq-item[open],
+.faq-item:hover {
+  border-color: rgba(122, 79, 217, 0.24);
+  box-shadow: 0 22px 54px rgba(61, 34, 104, 0.1);
+  transform: translateY(-1px);
 }
 
 .faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   cursor: pointer;
   list-style: none;
   color: #3f265f;
-  font-weight: 700;
-  font-size: 15px;
+  font-weight: 900;
+  font-size: 16px;
+  padding: 18px 20px;
+}
+
+.faq-item summary::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 79, 217, 0.18);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.95), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(246, 239, 255, 0.96));
+  color: #6e48c4;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 22px rgba(122, 79, 217, 0.12);
+  transition:
+    transform 0.22s ease,
+    background 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.faq-item summary:hover::after,
+.faq-item summary:focus-visible::after {
+  border-color: rgba(239, 93, 168, 0.28);
+  transform: translateY(-1px) scale(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 14px 28px rgba(122, 79, 217, 0.18);
+}
+
+.faq-item[open] summary::after {
+  content: "−";
+  border-color: rgba(255, 255, 255, 0.32);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.34), transparent 28%),
+    linear-gradient(135deg, #7a4fd9 0%, #b44bd8 48%, #ef5da8 100%);
+  color: #fff;
+  transform: rotate(180deg) scale(1.02);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    0 16px 34px rgba(122, 79, 217, 0.26);
 }
 
 .faq-item summary::-webkit-details-marker {
@@ -960,10 +1117,11 @@ onUnmounted(() => {
 }
 
 .faq-item p {
-  margin: 10px 0 0;
+  margin: 0;
+  padding: 0 20px 18px;
   color: #66567f;
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 .closing-cta {
@@ -1026,8 +1184,124 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .inspiration-section {
+    padding: 76px 0;
+    background:
+      radial-gradient(circle at 8% 5%, rgba(122, 79, 217, 0.16), transparent 38%),
+      radial-gradient(circle at 92% 22%, rgba(240, 106, 166, 0.13), transparent 34%),
+      linear-gradient(180deg, #fbf7ff 0%, #ffffff 100%);
+  }
+
+  .inspiration-shell {
+    gap: 22px;
+  }
+
+  .inspiration-head {
+    max-width: 760px;
+    gap: 12px;
+  }
+
+  .inspiration-head h2 {
+    max-width: 720px;
+    font-size: clamp(34px, 5.8vw, 54px);
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+  }
+
+  .inspiration-head > p {
+    max-width: 650px;
+    font-size: 15px;
+    line-height: 1.68;
+  }
+
   .inspiration-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .inspiration-card {
+    min-height: 250px;
+    border-radius: 24px;
+    padding: 22px;
+  }
+
+  .inspiration-card h3 {
+    max-width: 100%;
+    font-size: 23px;
+  }
+
+  .inspiration-card p {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .plans-section {
+    padding: 82px 0 88px;
+  }
+
+  .plans-shell {
+    width: min(1160px, 94vw);
+    gap: 22px;
+  }
+
+  .plans-head {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 16px;
+  }
+
+  .plans-head h2 {
+    max-width: 760px;
+    font-size: clamp(34px, 5.8vw, 56px);
+  }
+
+  .plans-head > p {
+    max-width: 720px;
+  }
+
+  .faq-shell {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .faq-head {
+    position: relative;
+    top: auto;
+    max-width: 760px;
+    padding: 22px;
+  }
+
+  .inspiration-conversion {
+    border-radius: 30px;
+    padding: 28px;
+    gap: 20px;
+  }
+
+  .conversion-copy h3 {
+    max-width: 700px;
+    font-size: clamp(34px, 5.2vw, 48px);
+  }
+
+  .conversion-copy p {
+    max-width: 680px;
+  }
+
+  .inspiration-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .inspiration-steps li {
+    grid-template-columns: 1fr;
+    align-content: start;
+  }
+
+  .inspiration-steps strong {
+    width: 42px;
+    height: 42px;
+  }
+
+  .inspiration-steps span {
+    font-size: 13px;
   }
 
   .closing-cta-shell {
@@ -1075,10 +1349,67 @@ onUnmounted(() => {
     padding: 56px 0 64px;
   }
 
-  .inspiration-section,
-  .plans-section,
+  .inspiration-section {
+    padding: 62px 0;
+    background:
+      radial-gradient(circle at 12% 3%, rgba(122, 79, 217, 0.18), transparent 42%),
+      radial-gradient(circle at 90% 32%, rgba(240, 106, 166, 0.13), transparent 36%),
+      linear-gradient(180deg, #fbf7ff 0%, #ffffff 100%);
+  }
+
   .faq-section {
     padding: 58px 0;
+  }
+
+  .plans-section {
+    padding: 66px 0 72px;
+  }
+
+  .plans-shell {
+    width: min(100% - 32px, 560px);
+    gap: 18px;
+  }
+
+  .plans-head {
+    gap: 12px;
+  }
+
+  .plans-head h2 {
+    font-size: clamp(31px, 9vw, 44px);
+    line-height: 0.96;
+    letter-spacing: -0.055em;
+  }
+
+  .plans-head > p {
+    border-radius: 22px;
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .inspiration-shell {
+    gap: 18px;
+  }
+
+  .inspiration-head {
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .inspiration-kicker {
+    font-size: 11px;
+  }
+
+  .inspiration-head h2 {
+    font-size: clamp(30px, 9vw, 42px);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+  }
+
+  .inspiration-head > p {
+    border-left: 3px solid rgba(122, 79, 217, 0.28);
+    padding-left: 12px;
+    font-size: 14px;
+    line-height: 1.62;
   }
 
   .closing-cta {
@@ -1087,10 +1418,131 @@ onUnmounted(() => {
 
   .inspiration-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .inspiration-card {
+    min-height: auto;
+    border-radius: 22px;
+    padding: 18px 18px 18px 20px;
+    align-content: start;
+    box-shadow: 0 16px 38px rgba(122, 79, 217, 0.1);
+  }
+
+  .inspiration-card-top span {
+    padding: 6px 9px;
+    font-size: 10px;
+  }
+
+  .inspiration-card-top strong {
+    width: 46px;
+    height: 46px;
+    border-radius: 16px;
+    font-size: 14px;
+  }
+
+  .inspiration-card h3 {
+    max-width: 100%;
+    font-size: 22px;
+    line-height: 1.04;
+  }
+
+  .inspiration-card p {
+    font-size: 14px;
+    line-height: 1.52;
+  }
+
+  .inspiration-card a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 14px;
+    border: 1px solid rgba(122, 79, 217, 0.2);
+    background: linear-gradient(120deg, rgba(122, 79, 217, 0.1), rgba(240, 106, 166, 0.09));
+    color: #4c1d95;
+  }
+
+  .inspiration-conversion {
+    gap: 18px;
+    border-radius: 26px;
+    padding: 20px;
+    background:
+      radial-gradient(circle at 88% 0%, rgba(240, 106, 166, 0.32), transparent 34%),
+      linear-gradient(145deg, #211238 0%, #42246f 58%, #6e48c4 100%);
+    box-shadow: 0 22px 56px rgba(35, 20, 63, 0.22);
+  }
+
+  .conversion-copy {
+    gap: 10px;
+  }
+
+  .conversion-copy > span {
+    font-size: 10px;
+    padding: 7px 10px;
+  }
+
+  .conversion-copy h3 {
+    font-size: clamp(28px, 8vw, 38px);
+    line-height: 0.98;
+  }
+
+  .conversion-copy p {
+    font-size: 14px;
+    line-height: 1.58;
+  }
+
+  .inspiration-steps {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .inspiration-steps li {
+    grid-template-columns: 38px minmax(0, 1fr);
+    border-radius: 17px;
+    padding: 12px;
+  }
+
+  .inspiration-steps strong {
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    font-size: 16px;
+  }
+
+  .inspiration-steps span {
+    font-size: 13px;
   }
 
   .conversion-actions {
     flex-direction: column;
+  }
+
+  .faq-shell {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .faq-head {
+    position: relative;
+    top: auto;
+    border-radius: 24px;
+    padding: 18px;
+  }
+
+  .faq-item {
+    border-radius: 18px;
+  }
+
+  .faq-item summary {
+    padding: 16px;
+    font-size: 15px;
+  }
+
+  .faq-item p {
+    padding: 0 16px 16px;
+    font-size: 14px;
   }
 }
 
@@ -1114,10 +1566,39 @@ onUnmounted(() => {
     padding: 7px 8px;
   }
 
-  .inspiration-section,
-  .plans-section,
+  .inspiration-section {
+    padding: 50px 0;
+  }
+
+  .plans-section {
+    padding: 52px 0 58px;
+  }
+
   .faq-section {
     padding: 52px 0;
+  }
+
+  .inspiration-head h2 {
+    font-size: clamp(28px, 10vw, 38px);
+  }
+
+  .inspiration-card {
+    padding: 16px;
+  }
+
+  .inspiration-card h3 {
+    max-width: 100%;
+    font-size: 20px;
+  }
+
+  .inspiration-conversion {
+    margin-inline: -2px;
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .conversion-actions :deep(.btn) {
+    width: 100%;
   }
 
   .closing-cta {

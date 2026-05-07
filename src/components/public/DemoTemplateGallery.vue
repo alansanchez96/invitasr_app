@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   listCatalogPlans,
   listCatalogTemplates,
@@ -37,6 +38,7 @@ const selectedTypeEventId = ref<string>('')
 const selectedPlanName = ref<string>('')
 const isLoading = ref(false)
 const loadError = ref('')
+const route = useRoute()
 
 const planRank: Record<string, number> = {
   demo: 0,
@@ -207,6 +209,17 @@ const selectPlan = (planName: string) => {
   selectedPlanName.value = planName
 }
 
+const applyRoutePlanFilter = () => {
+  const planQuery = String(route.query.plan ?? '').trim()
+  if (!planQuery) {
+    selectedPlanName.value = ''
+    return
+  }
+
+  const matchingPlan = planFilterOptions.value.find((plan) => normalize(plan.name) === normalize(planQuery))
+  selectedPlanName.value = matchingPlan?.name ? String(matchingPlan.name) : planQuery
+}
+
 const handleTryDemoUnavailable = () => {
   notifyWarning('No pudimos abrir esta demo todavía. Prueba con otra plantilla disponible.')
 }
@@ -227,6 +240,7 @@ const loadCatalogs = async () => {
 
     const firstWithTemplates = typeEvents.value.find((event) => hasTemplatesForType(event.id))
     selectedTypeEventId.value = firstWithTemplates?.id == null ? '' : String(firstWithTemplates.id)
+    applyRoutePlanFilter()
   } catch {
     loadError.value = 'No pudimos cargar la galeria de plantillas. Intenta nuevamente en unos segundos.'
   } finally {
@@ -235,6 +249,11 @@ const loadCatalogs = async () => {
 }
 
 onMounted(loadCatalogs)
+
+watch(
+  () => route.query.plan,
+  () => applyRoutePlanFilter(),
+)
 </script>
 
 <template>

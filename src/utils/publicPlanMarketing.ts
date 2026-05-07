@@ -29,9 +29,9 @@ const FEATURE_COPY: Record<
     summary: () => 'Confirma asistentes desde la invitacion sin friccion extra.',
   },
   companions_enabled: {
-    title: 'Acompanantes por invitado',
+    title: 'Acompañantes por invitado',
     priority: 94,
-    summary: () => 'Cada invitado puede gestionar acompanantes con mas contexto.',
+    summary: () => 'Cada invitado puede gestionar acompañantes con mas contexto.',
   },
   whatsapp_confirmations_enabled: {
     title: 'Confirmaciones por WhatsApp',
@@ -359,20 +359,23 @@ const fallbackFeatureTitle = (feature: CatalogPlanFeatureItem) => {
 export const toMarketingFeature = (feature: CatalogPlanFeatureItem): MarketingFeature => {
   const key = String(feature.key ?? '').trim()
   const mapping = FEATURE_COPY[key]
-  const title = mapping?.title ?? fallbackFeatureTitle(feature)
-  const summary = mapping?.summary(feature) ?? feature.description?.trim() ?? 'Incluida dentro del plan.'
+  const publicTitle = String(feature.public_title ?? '').trim()
+  const publicDescription = String(feature.public_description ?? '').trim()
+  const publicBadge = String(feature.public_badge ?? '').trim()
+  const title = publicTitle || mapping?.title || fallbackFeatureTitle(feature)
+  const summary = publicDescription || mapping?.summary(feature) || feature.description?.trim() || 'Incluida dentro del plan.'
   const badge = isUnlimited(feature.limit)
     ? 'Ilimitado'
     : feature.limit && Number(feature.limit) > 0
       ? `Hasta ${Number(feature.limit)}`
-      : 'Incluido'
+      : publicBadge || 'Incluido'
 
   return {
     key,
     title,
     summary,
     badge,
-    priority: mapping?.priority ?? (feature.type === 'limit' ? 52 : 50),
+    priority: Number(feature.public_priority ?? mapping?.priority ?? (feature.type === 'limit' ? 52 : 50)),
   }
 }
 

@@ -61,12 +61,14 @@ const defaultDesktopNavItems: PublicNavItem[] = [
     { label: 'Como funciona', href: '/#demo-teaser' },
     { label: 'Inspiracion', href: '/#inspiracion' },
     { label: 'Planes', to: '/planes' },
+    { label: 'FAQ', href: '/#faq' },
 ]
 const defaultMobileNavItems: PublicNavItem[] = [
     { label: 'Demo', to: '/demo', subtitle: 'Explora plantillas reales antes de comprar' },
     { label: 'Planes', to: '/planes', subtitle: 'Elige la opcion ideal para tu evento' },
     { label: 'Como funciona', href: '/#demo-teaser', subtitle: 'Mira lo facil que es crear y publicar' },
     { label: 'Inspiracion', href: '/#inspiracion', subtitle: 'Descubre estilos para tu tipo de evento' },
+    { label: 'FAQ', href: '/#faq', subtitle: 'Resuelve dudas antes de comenzar' },
     { label: 'Noticias', to: '/noticias', subtitle: 'Novedades y tendencias del momento' },
 ]
 const desktopNavItems = computed(() => defaultDesktopNavItems)
@@ -374,9 +376,9 @@ watch(
 
 .brand-row {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 24px;
+    gap: clamp(12px, 1.5vw, 22px);
 }
 
 .brand {
@@ -386,7 +388,7 @@ watch(
 }
 
 .brand-logo {
-    width: 140px;
+    width: clamp(124px, 10vw, 140px);
     height: 44px;
     object-fit: contain;
     transition: filter 0.35s ease;
@@ -395,7 +397,7 @@ watch(
 .nav-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: clamp(8px, 1vw, 12px);
 }
 
 .login-menu {
@@ -422,10 +424,12 @@ watch(
 .nav-links {
     display: flex;
     justify-content: center;
-    gap: 22px;
+    gap: clamp(10px, 1.45vw, 20px);
     font-weight: 600;
+    font-size: clamp(0.82rem, 0.9vw, 0.95rem);
     color: var(--muted);
     transition: color 0.35s ease;
+    white-space: nowrap;
 }
 
 .nav-links a {

@@ -41,6 +41,11 @@ export type CatalogPlanFeatureItem = {
   key?: string
   type?: string
   description?: string
+  public_title?: string | null
+  public_description?: string | null
+  public_badge?: string | null
+  public_priority?: number | null
+  public_visible?: boolean
   status?: string
   plan_id?: number | string
   feature_id?: number | string
@@ -59,6 +64,45 @@ export type CatalogPlanListItem = {
   created_at?: string
   updated_at?: string
   features: CatalogPlanFeatureItem[]
+}
+
+export type CatalogPlanComparisonPlan = {
+  id?: number | string
+  name?: string
+  label?: string
+  billing_type?: string
+  price_usd?: number | string | null
+  event_credits?: number | null
+  credit_expiration_days?: number | null
+}
+
+export type CatalogPlanComparisonValue = {
+  included: boolean
+  raw_limit?: number | string | null
+  display_value?: string | null
+}
+
+export type CatalogPlanComparisonItem = {
+  key: string
+  label: string
+  description?: string | null
+  category?: string | null
+  display_type?: string | null
+  badge?: string | null
+  priority?: number | null
+  values: Record<string, CatalogPlanComparisonValue>
+}
+
+export type CatalogPlanComparisonGroup = {
+  key: string
+  label: string
+  order?: number
+  items: CatalogPlanComparisonItem[]
+}
+
+export type CatalogPlanComparison = {
+  plans: CatalogPlanComparisonPlan[]
+  groups: CatalogPlanComparisonGroup[]
 }
 
 export type CatalogTypeEventItem = {
@@ -186,6 +230,17 @@ const normalizeCatalogPlanFeature = (value: unknown): CatalogPlanFeatureItem => 
     key: (source.key ?? feature.key) as string | undefined,
     type: (source.type ?? feature.type) as string | undefined,
     description: (source.description ?? feature.description) as string | undefined,
+    public_title: (source.public_title ?? source.publicTitle ?? feature.public_title ?? feature.publicTitle ?? null) as string | null,
+    public_description: (
+      source.public_description
+      ?? source.publicDescription
+      ?? feature.public_description
+      ?? feature.publicDescription
+      ?? null
+    ) as string | null,
+    public_badge: (source.public_badge ?? source.publicBadge ?? feature.public_badge ?? feature.publicBadge ?? null) as string | null,
+    public_priority: (source.public_priority ?? source.publicPriority ?? feature.public_priority ?? feature.publicPriority ?? null) as number | null,
+    public_visible: (source.public_visible ?? source.publicVisible ?? feature.public_visible ?? feature.publicVisible ?? true) as boolean,
     status: (source.status ?? feature.status ?? pivot.status) as string | undefined,
     plan_id: (source.plan_id ?? plan.id ?? pivot.plan_id) as number | string | undefined,
     feature_id: (source.feature_id ?? feature.id ?? pivot.feature_id) as number | string | undefined,
@@ -209,6 +264,61 @@ const normalizeCatalogPlan = (value: unknown): CatalogPlanListItem => {
     updated_at: (source.updated_at ?? source.updatedAt) as string | undefined,
     features: Array.isArray(source.features) ? (source.features as unknown[]).map(normalizeCatalogPlanFeature) : [],
   }
+}
+
+const normalizeComparisonValue = (value: unknown): CatalogPlanComparisonValue => {
+  const source = toRecord(value)
+
+  return {
+    included: Boolean(source.included),
+    raw_limit: (source.raw_limit ?? source.rawLimit ?? null) as number | string | null,
+    display_value: (source.display_value ?? source.displayValue ?? null) as string | null,
+  }
+}
+
+const normalizePlanComparison = (value: unknown): CatalogPlanComparison => {
+  const source = toRecord(value)
+  const plans = extractList(source.plans).map((plan) => {
+    const record = toRecord(plan)
+    return {
+      id: record.id as number | string | undefined,
+      name: record.name as string | undefined,
+      label: record.label as string | undefined,
+      billing_type: (record.billing_type ?? record.billingType) as string | undefined,
+      price_usd: (record.price_usd ?? record.priceUsd ?? null) as number | string | null,
+      event_credits: (record.event_credits ?? record.eventCredits ?? null) as number | null,
+      credit_expiration_days: (record.credit_expiration_days ?? record.creditExpirationDays ?? null) as number | null,
+    }
+  })
+
+  const groups = extractList(source.groups).map((group) => {
+    const record = toRecord(group)
+    return {
+      key: String(record.key ?? record.label ?? ''),
+      label: String(record.label ?? record.key ?? ''),
+      order: Number(record.order ?? 0),
+      items: extractList(record.items).map((item) => {
+        const itemRecord = toRecord(item)
+        const rawValues = toRecord(itemRecord.values)
+        const values = Object.fromEntries(
+          Object.entries(rawValues).map(([key, rawValue]) => [key, normalizeComparisonValue(rawValue)]),
+        )
+
+        return {
+          key: String(itemRecord.key ?? ''),
+          label: String(itemRecord.label ?? itemRecord.key ?? ''),
+          description: (itemRecord.description ?? null) as string | null,
+          category: (itemRecord.category ?? null) as string | null,
+          display_type: (itemRecord.display_type ?? itemRecord.displayType ?? null) as string | null,
+          badge: (itemRecord.badge ?? null) as string | null,
+          priority: (itemRecord.priority ?? null) as number | null,
+          values,
+        }
+      }),
+    }
+  })
+
+  return { plans, groups }
 }
 
 const normalizeCatalogTypeEvent = (value: unknown): CatalogTypeEventItem => {
@@ -310,8 +420,21 @@ export const getCatalogPlan = async (planId: string | number) => {
   return normalizeCatalogPlan(payload.data ?? payload.plan ?? payload)
 }
 
-export const listCatalogPlanFeatures = async (planId: string | number) => {
-  const payload = await request<ListResponse<CatalogPlanFeatureItem>>(`${CATALOGS_BASE}/plans/${planId}/features`)
+export const getCatalogPlanComparison = async () => {
+  const payload = await request<GetResponse<CatalogPlanComparison>>(`${CATALOGS_BASE}/plans/comparison`)
+  return normalizePlanComparison(payload.data ?? payload)
+}
+
+export const listCatalogPlanFeatures = async (
+  planId: string | number,
+  params: { page?: number; perPage?: number } = {},
+) => {
+  const payload = await request<ListResponse<CatalogPlanFeatureItem>>(
+    `${CATALOGS_BASE}/plans/${planId}/features${buildQuery({
+      page: params.page ?? 1,
+      perPage: params.perPage ?? 100,
+    })}`,
+  )
   const dataSource = payload.data ?? payload
   return extractList(dataSource).map(normalizeCatalogPlanFeature)
 }
