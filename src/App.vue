@@ -5,6 +5,14 @@ import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const router = useRouter()
+const hasStoredUser = () =>
+  Boolean(localStorage.getItem('user') || sessionStorage.getItem('user'))
+
+const shouldHydrateInitialSession = () => {
+  const route = router.currentRoute.value
+  if (route.meta.requiresAuth) return true
+  return hasStoredUser()
+}
 
 const handleInactiveClient = async () => {
   await session.refreshMe()
@@ -14,7 +22,9 @@ const handleInactiveClient = async () => {
 }
 
 onMounted(() => {
-  void session.hydrateSession()
+  if (shouldHydrateInitialSession()) {
+    void session.hydrateSession()
+  }
   window.addEventListener('invitasr:client-inactive', handleInactiveClient)
 })
 

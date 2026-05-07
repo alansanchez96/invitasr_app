@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import DemoHomeTeaser from '@/components/public/DemoHomeTeaser.vue'
-import PublicPlanCatalogGrid from '@/components/public/PublicPlanCatalogGrid.vue'
 import type { CatalogPlanListItem } from '@/services/catalogs'
 import heroBoda from '@/assets/img/hero/boda.webp'
 import heroEgresados from '@/assets/img/hero/egresados.webp'
@@ -157,8 +155,15 @@ const faqItems: { question: string; answer: string; open?: boolean }[] = [
 ]
 
 const activeIndex = ref(0)
+const demoTeaserHost = ref<HTMLElement | null>(null)
+const plansHost = ref<HTMLElement | null>(null)
+const showDemoTeaser = ref(false)
+const showPlanCatalog = ref(false)
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
+let lazySectionObserver: IntersectionObserver | null = null
 const preloadedHeroImages = new Set<string>()
+const DemoHomeTeaser = defineAsyncComponent(() => import('@/components/public/DemoHomeTeaser.vue'))
+const PublicPlanCatalogGrid = defineAsyncComponent(() => import('@/components/public/PublicPlanCatalogGrid.vue'))
 
 const preloadHeroImage = (index: number) => {
   const image = slides[index]?.image
@@ -213,13 +218,39 @@ const startAutoplay = () => {
   autoplayTimer = setInterval(nextSlide, 7000)
 }
 
+const activateLazySection = (entry: IntersectionObserverEntry) => {
+  if (entry.target === demoTeaserHost.value) showDemoTeaser.value = true
+  if (entry.target === plansHost.value) showPlanCatalog.value = true
+  lazySectionObserver?.unobserve(entry.target)
+}
+
+const setupLazySections = () => {
+  if (!('IntersectionObserver' in window)) {
+    showDemoTeaser.value = true
+    showPlanCatalog.value = true
+    return
+  }
+
+  lazySectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) activateLazySection(entry)
+    })
+  }, { rootMargin: '0px 0px 160px' })
+
+  if (demoTeaserHost.value) lazySectionObserver.observe(demoTeaserHost.value)
+  if (plansHost.value) lazySectionObserver.observe(plansHost.value)
+}
+
 onMounted(() => {
   startAutoplay()
   scheduleNextHeroPreload()
+  setupLazySections()
 })
 
 onUnmounted(() => {
   stopAutoplay()
+  lazySectionObserver?.disconnect()
+  lazySectionObserver = null
 })
 
 watch(activeIndex, () => {
@@ -275,10 +306,10 @@ watch(activeIndex, () => {
           </svg>
         </button>
 
-        <div class="hero-dots" role="tablist" aria-label="Seleccion de slide">
+        <div class="hero-dots" aria-label="Seleccion de slide">
           <button v-for="(slide, index) in slides" :key="slide.tag" type="button" class="hero-dot"
             :class="{ 'is-active': index === activeIndex }" :aria-label="`Ir a slide ${index + 1}`"
-            :aria-selected="index === activeIndex" @click="goToSlide(index)">
+            :aria-current="index === activeIndex ? 'true' : undefined" @click="goToSlide(index)">
           </button>
         </div>
 
@@ -318,7 +349,9 @@ watch(activeIndex, () => {
     </div>
   </section>
 
-  <DemoHomeTeaser />
+  <div ref="demoTeaserHost" class="lazy-section-slot lazy-section-slot--demo">
+    <DemoHomeTeaser v-if="showDemoTeaser" />
+  </div>
 
   <section id="inspiracion" class="inspiration-section" aria-labelledby="inspiration-title">
     <div class="container inspiration-shell">
@@ -383,9 +416,12 @@ watch(activeIndex, () => {
         </p>
       </div>
 
-      <PublicPlanCatalogGrid
-        primary-action-label="Obtener plan"
-        @select-plan="handleSelectHomePlan" />
+      <div ref="plansHost" class="lazy-section-slot lazy-section-slot--plans">
+        <PublicPlanCatalogGrid
+          v-if="showPlanCatalog"
+          primary-action-label="Obtener plan"
+          @select-plan="handleSelectHomePlan" />
+      </div>
     </div>
   </section>
 
@@ -597,29 +633,43 @@ watch(activeIndex, () => {
 .hero-dots {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 2px;
+  padding: 4px 6px;
   border-radius: 999px;
   background: rgba(16, 9, 27, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .hero-dot {
-  width: 9px;
-  height: 9px;
+  position: relative;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 0;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.45);
+  background: transparent;
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
-.hero-dot:hover {
+.hero-dot::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  transform: translate(-50%, -50%);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.hero-dot:hover::after {
   background: rgba(255, 255, 255, 0.72);
 }
 
-.hero-dot.is-active {
-  transform: scale(1.15);
+.hero-dot.is-active::after {
+  transform: translate(-50%, -50%) scale(1.24);
   background: #fff;
 }
 
@@ -731,6 +781,18 @@ watch(activeIndex, () => {
   color: #614389;
   font-size: 13px;
   font-weight: 700;
+}
+
+.lazy-section-slot {
+  display: block;
+}
+
+.lazy-section-slot--demo {
+  min-height: 776px;
+}
+
+.lazy-section-slot--plans {
+  min-height: 680px;
 }
 
 .inspiration-head {
@@ -1268,6 +1330,14 @@ watch(activeIndex, () => {
     padding: 82px 0 88px;
   }
 
+  .lazy-section-slot--demo {
+    min-height: 1080px;
+  }
+
+  .lazy-section-slot--plans {
+    min-height: 1280px;
+  }
+
   .plans-shell {
     width: min(1160px, 94vw);
     gap: 22px;
@@ -1392,6 +1462,14 @@ watch(activeIndex, () => {
 
   .plans-section {
     padding: 66px 0 72px;
+  }
+
+  .lazy-section-slot--demo {
+    min-height: 1180px;
+  }
+
+  .lazy-section-slot--plans {
+    min-height: 1700px;
   }
 
   .plans-shell {

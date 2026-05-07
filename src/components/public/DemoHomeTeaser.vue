@@ -72,7 +72,7 @@
               </div>
             </div>
 
-            <button type="button" class="demo-phone-cta">Probar plantilla</button>
+            <div class="demo-phone-cta">Probar plantilla</div>
           </div>
         </div>
       </div>

@@ -25,28 +25,28 @@ const isHomeFooter = computed(() => route.name === 'home')
 
       <div class="footer-columns">
         <nav class="footer-col" aria-label="Rutas principales">
-          <h3>Navegacion</h3>
+          <p class="footer-col-title">Navegacion</p>
           <a href="/">Inicio</a>
           <a href="/planes">Planes</a>
           <a href="/noticias">Noticias</a>
         </nav>
 
         <nav class="footer-col" aria-label="Secciones de landing">
-          <h3>Secciones</h3>
+          <p class="footer-col-title">Secciones</p>
           <a href="/#como-funciona">Como funciona</a>
           <a href="/#inspiracion">Beneficios</a>
           <a href="/#faq">FAQ</a>
         </nav>
 
         <nav class="footer-col" aria-label="Cuenta">
-          <h3>Cuenta</h3>
+          <p class="footer-col-title">Cuenta</p>
           <a href="/planes">Explorar planes</a>
           <a href="/backoffice">Backoffice</a>
           <span class="footer-note">La experiencia publica se mantiene enfocada en landing y catalogos.</span>
         </nav>
 
         <section class="footer-col" aria-label="Contacto y legal">
-          <h3>Informacion</h3>
+          <p class="footer-col-title">Informacion</p>
           <a href="mailto:hola@invitasr.com">hola@invitasr.com</a>
           <span>Lun a Vie · 9:00 a 18:00 hs</span>
           <div class="footer-legal">
@@ -121,7 +121,7 @@ const isHomeFooter = computed(() => route.name === 'home')
   gap: 8px;
 }
 
-.footer-col h3 {
+.footer-col-title {
   margin: 0 0 2px;
   color: #49306f;
   font-size: 12px;
