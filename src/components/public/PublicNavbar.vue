@@ -238,7 +238,12 @@ watch(
         <div class="container nav">
             <div class="brand-row">
                 <RouterLink v-show="!(isMenuOpen && isMobile)" class="brand" to="/">
-                    <img class="brand-logo" src="/brand/logo-transparent.png" alt="InvitaSR" />
+                    <img
+                        class="brand-logo"
+                        src="/brand/logo-transparent.png"
+                        alt="InvitaSR"
+                        decoding="async"
+                        fetchpriority="high" />
                 </RouterLink>
                 <nav class="nav-links" aria-label="Navegacion principal">
                     <component
@@ -314,7 +319,14 @@ watch(
             aria-label="Iniciar sesion"
             @close="closeLoginMenu">
             <div class="mobile-login-head">
-                <img class="mobile-login-brand" src="/brand/logo_icon.png" alt="InvitaSR" />
+                <img
+                    class="mobile-login-brand"
+                    src="/brand/logo_icon.png"
+                    alt="InvitaSR"
+                    width="256"
+                    height="256"
+                    loading="lazy"
+                    decoding="async" />
                 <h3>Inicia sesion</h3>
                 <p>Accede a tu cuenta y continua donde quedaste.</p>
             </div>

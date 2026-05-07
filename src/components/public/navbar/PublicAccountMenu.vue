@@ -88,7 +88,15 @@ watch(
       aria-haspopup="menu"
       aria-controls="account-dropdown"
       aria-label="Abrir menu de cuenta">
-      <img v-if="isMaster" class="account-logo" src="/brand/logo_icon.png" alt="Cuenta administrativa" />
+      <img
+        v-if="isMaster"
+        class="account-logo"
+        src="/brand/logo_icon.png"
+        alt="Cuenta administrativa"
+        width="256"
+        height="256"
+        loading="lazy"
+        decoding="async" />
       <span v-else class="account-initials" :style="avatarStyle" aria-hidden="true">
         {{ initials }}
       </span>

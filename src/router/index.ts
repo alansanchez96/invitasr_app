@@ -73,6 +73,7 @@ const router = createRouter({
           meta: {
             title: 'Editor demo',
             description: 'Prueba una plantilla editable de InvitaSR y descubre como puedes personalizar tu invitacion digital antes de elegir un plan.',
+            noindex: true,
           },
         },
         {
@@ -82,6 +83,7 @@ const router = createRouter({
           meta: {
             title: 'Demo publicada',
             description: 'Demo publicada de una invitacion digital creada con InvitaSR.',
+            noindex: true,
           },
         },
         {
@@ -112,49 +114,49 @@ const router = createRouter({
           path: 'onboarding/:code',
           name: 'public-onboarding',
           component: PublicOnboarding,
-          meta: { title: 'Onboarding' },
+          meta: { title: 'Onboarding', noindex: true },
         },
         {
           path: 'templates/:templateId/preview',
           name: 'template-preview',
           component: TemplatePreviewPage,
-          meta: { title: 'Preview de template' },
+          meta: { title: 'Preview de template', noindex: true },
         },
         {
           path: 'cuenta-inactiva',
           name: 'client-inactive',
           component: InactiveClientPage,
-          meta: { title: 'Cuenta dada de baja' },
+          meta: { title: 'Cuenta dada de baja', noindex: true },
         },
         {
           path: 'payment/success',
           name: 'payment-success',
           component: PaymentReturnPage,
-          meta: { title: 'Pago confirmado', paymentReturnStatus: 'success' },
+          meta: { title: 'Pago confirmado', paymentReturnStatus: 'success', noindex: true },
         },
         {
           path: 'payment/cancel',
           name: 'payment-cancel',
           component: PaymentReturnPage,
-          meta: { title: 'Pago cancelado', paymentReturnStatus: 'cancel' },
+          meta: { title: 'Pago cancelado', paymentReturnStatus: 'cancel', noindex: true },
         },
         {
           path: 'billing/success',
           name: 'billing-success',
           component: PaymentReturnPage,
-          meta: { title: 'Pago confirmado', paymentReturnStatus: 'success' },
+          meta: { title: 'Pago confirmado', paymentReturnStatus: 'success', noindex: true },
         },
         {
           path: 'billing/failure',
           name: 'billing-failure',
           component: PaymentReturnPage,
-          meta: { title: 'Pago rechazado', paymentReturnStatus: 'failure' },
+          meta: { title: 'Pago rechazado', paymentReturnStatus: 'failure', noindex: true },
         },
         {
           path: 'billing/pending',
           name: 'billing-pending',
           component: PaymentReturnPage,
-          meta: { title: 'Pago pendiente', paymentReturnStatus: 'pending' },
+          meta: { title: 'Pago pendiente', paymentReturnStatus: 'pending', noindex: true },
         },
       ],
     },
@@ -563,22 +565,74 @@ router.beforeEach(async (to) => {
   return true
 })
 
+const upsertMeta = (selector: string, create: () => HTMLMetaElement, content: string) => {
+  let tag = document.querySelector<HTMLMetaElement>(selector)
+  if (!tag) {
+    tag = create()
+    document.head.append(tag)
+  }
+  tag.content = content
+}
+
+const upsertCanonical = (href: string) => {
+  let tag = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+  if (!tag) {
+    tag = document.createElement('link')
+    tag.rel = 'canonical'
+    document.head.append(tag)
+  }
+  tag.href = href
+}
+
 router.afterEach((to) => {
   const appName = import.meta.env.VITE_APP_NAME ?? 'InvitaSR'
   const section = typeof to.meta.title === 'string' ? to.meta.title : ''
   const description = typeof to.meta.description === 'string'
     ? to.meta.description
     : 'InvitaSR te ayuda a crear invitaciones digitales modernas, personalizables y faciles de compartir.'
-  let descriptionTag = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+  const title = section ? `${appName} - ${section}` : appName
+  const siteUrl = (import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin).replace(/\/+$/, '')
+  const canonicalPath = to.path === '/' ? '' : to.path
+  const canonical = `${siteUrl}${canonicalPath}`
+  const shouldNoindex = Boolean(to.meta.requiresAuth || to.meta.noindex)
 
-  if (!descriptionTag) {
-    descriptionTag = document.createElement('meta')
-    descriptionTag.name = 'description'
-    document.head.append(descriptionTag)
-  }
-
-  document.title = section ? `${appName} - ${section}` : appName
-  descriptionTag.content = description
+  document.title = title
+  upsertMeta('meta[name="description"]', () => {
+    const tag = document.createElement('meta')
+    tag.name = 'description'
+    return tag
+  }, description)
+  upsertMeta('meta[name="robots"]', () => {
+    const tag = document.createElement('meta')
+    tag.name = 'robots'
+    return tag
+  }, shouldNoindex ? 'noindex,nofollow' : 'index,follow')
+  upsertMeta('meta[property="og:title"]', () => {
+    const tag = document.createElement('meta')
+    tag.setAttribute('property', 'og:title')
+    return tag
+  }, title)
+  upsertMeta('meta[property="og:description"]', () => {
+    const tag = document.createElement('meta')
+    tag.setAttribute('property', 'og:description')
+    return tag
+  }, description)
+  upsertMeta('meta[property="og:url"]', () => {
+    const tag = document.createElement('meta')
+    tag.setAttribute('property', 'og:url')
+    return tag
+  }, canonical)
+  upsertMeta('meta[name="twitter:title"]', () => {
+    const tag = document.createElement('meta')
+    tag.name = 'twitter:title'
+    return tag
+  }, title)
+  upsertMeta('meta[name="twitter:description"]', () => {
+    const tag = document.createElement('meta')
+    tag.name = 'twitter:description'
+    return tag
+  }, description)
+  upsertCanonical(canonical)
 })
 
 export default router

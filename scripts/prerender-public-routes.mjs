@@ -5,6 +5,7 @@ import process from 'node:process'
 const distDir = path.resolve('dist')
 const siteUrl = String(process.env.VITE_PUBLIC_SITE_URL || 'https://invitasr.com').replace(/\/+$/, '')
 const appName = process.env.VITE_APP_NAME || 'InvitaSR'
+const shareImageUrl = `${siteUrl}/brand/logo-transparent.png`
 
 const routes = [
   {
@@ -13,6 +14,7 @@ const routes = [
     title: `${appName} - Invitaciones digitales personalizables`,
     description: 'Crea invitaciones digitales elegantes, personalizables y listas para compartir. Prueba plantillas, confirma invitados y gestiona tu evento desde InvitaSR.',
     heading: 'Invitaciones digitales que enamoran desde el primer clic',
+    priority: '1.0',
   },
   {
     path: '/demo',
@@ -20,6 +22,7 @@ const routes = [
     title: `${appName} - Demo interactiva`,
     description: 'Explora plantillas reales por tipo de evento, filtra por plan y descubre como se crea una invitacion digital en InvitaSR antes de comprar.',
     heading: 'Demo interactiva de plantillas para invitaciones digitales',
+    priority: '0.9',
   },
   {
     path: '/planes',
@@ -27,6 +30,7 @@ const routes = [
     title: `${appName} - Planes`,
     description: 'Compara los planes de InvitaSR y elige la opcion ideal para crear, publicar y compartir tu invitacion digital.',
     heading: 'Planes para crear tu invitacion digital',
+    priority: '0.9',
   },
   {
     path: '/noticias',
@@ -34,6 +38,7 @@ const routes = [
     title: `${appName} - Noticias`,
     description: 'Ideas, consejos y tendencias para crear invitaciones digitales memorables y mejorar la experiencia de tus invitados.',
     heading: 'Ideas para crear invitaciones digitales memorables',
+    priority: '0.7',
   },
 ]
 
@@ -77,9 +82,12 @@ const buildRouteHtml = (template, route) => {
     `<meta property="og:title" content="${safeTitle}">`,
     `<meta property="og:description" content="${safeDescription}">`,
     `<meta property="og:url" content="${canonical}">`,
+    `<meta property="og:image" content="${shareImageUrl}">`,
+    `<meta property="og:image:alt" content="${escapeHtml(appName)}">`,
     `<meta name="twitter:card" content="summary_large_image">`,
     `<meta name="twitter:title" content="${safeTitle}">`,
     `<meta name="twitter:description" content="${safeDescription}">`,
+    `<meta name="twitter:image" content="${shareImageUrl}">`,
     `<script type="application/ld+json">${structuredData}</script>`,
   ].join('\n    ')
 
@@ -93,8 +101,12 @@ const buildRouteHtml = (template, route) => {
     '</noscript>',
   ].join('')
 
-  return stripExistingMeta(template)
-    .replace('<head>', `<head>\n    ${headTags}`)
+  const withoutExistingMeta = stripExistingMeta(template)
+  const withHeadTags = withoutExistingMeta.includes('<meta charset="UTF-8">')
+    ? withoutExistingMeta.replace('<meta charset="UTF-8">', `<meta charset="UTF-8">\n    ${headTags}`)
+    : withoutExistingMeta.replace('<head>', `<head>\n    ${headTags}`)
+
+  return withHeadTags
     .replace('<div id="app"></div>', `<div id="app">${fallbackContent}</div>`)
 }
 
@@ -105,7 +117,7 @@ const buildSitemap = () => {
       '  <url>',
       `    <loc>${loc}</loc>`,
       '    <changefreq>weekly</changefreq>',
-      '    <priority>0.8</priority>',
+      `    <priority>${route.priority ?? '0.8'}</priority>`,
       '  </url>',
     ].join('\n')
   }).join('\n')

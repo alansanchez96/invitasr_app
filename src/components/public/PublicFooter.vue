@@ -11,7 +11,12 @@ const isHomeFooter = computed(() => route.name === 'home')
   <footer class="public-footer" :class="{ 'is-home-continuation': isHomeFooter }">
     <div class="container footer-shell">
       <section class="footer-brand" aria-label="Informacion general">
-        <img src="/brand/logo-transparent.png" alt="InvitaSR" class="footer-logo" />
+        <img
+          src="/brand/logo-transparent.png"
+          alt="InvitaSR"
+          class="footer-logo"
+          loading="lazy"
+          decoding="async" />
         <p>
           Plataforma de invitaciones digitales para gestionar, personalizar y compartir eventos desde una interfaz
           simple.

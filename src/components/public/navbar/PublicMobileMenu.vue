@@ -41,7 +41,14 @@ const dashboardLabel = computed(() => {
     <aside class="mobile-menu-panel">
       <div class="mobile-menu-head">
         <div class="mobile-brand-icon-wrap">
-          <img class="brand-logo-mobile brand-logo-mobile-icon" src="/brand/logo_icon.png" alt="InvitaSR" />
+          <img
+            class="brand-logo-mobile brand-logo-mobile-icon"
+            src="/brand/logo_icon.png"
+            alt="InvitaSR"
+            width="256"
+            height="256"
+            loading="lazy"
+            decoding="async" />
         </div>
         <button type="button" class="mobile-menu-close" aria-label="Cerrar menu" @click="handleClose">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

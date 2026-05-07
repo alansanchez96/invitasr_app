@@ -22,6 +22,16 @@ a {
   text-decoration: none;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(122, 79, 217, 0.42);
+  outline-offset: 3px;
+}
+
 .container {
   width: min(1120px, 92vw);
   margin: 0 auto;
@@ -163,5 +173,16 @@ a {
 @media (max-width: 420px) {
   .container {
     width: 94vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

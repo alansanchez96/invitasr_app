@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DemoHomeTeaser from '@/components/public/DemoHomeTeaser.vue'
 import PublicPlanCatalogGrid from '@/components/public/PublicPlanCatalogGrid.vue'
@@ -158,6 +158,23 @@ const faqItems: { question: string; answer: string; open?: boolean }[] = [
 
 const activeIndex = ref(0)
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
+const preloadedHeroImages = new Set<string>()
+
+const preloadHeroImage = (index: number) => {
+  const image = slides[index]?.image
+  if (!image || preloadedHeroImages.has(image)) return
+
+  const preload = new Image()
+  preload.decoding = 'async'
+  preload.src = image
+  preloadedHeroImages.add(image)
+}
+
+const scheduleNextHeroPreload = () => {
+  window.setTimeout(() => {
+    preloadHeroImage((activeIndex.value + 1) % slides.length)
+  }, 1800)
+}
 const router = useRouter()
 
 const activeSlide = computed<HeroSlide>(() => slides[activeIndex.value] ?? slides[0] ?? fallbackHeroSlide)
@@ -191,16 +208,22 @@ const stopAutoplay = () => {
 }
 
 const startAutoplay = () => {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   if (autoplayTimer || slides.length <= 1) return
   autoplayTimer = setInterval(nextSlide, 7000)
 }
 
 onMounted(() => {
   startAutoplay()
+  scheduleNextHeroPreload()
 })
 
 onUnmounted(() => {
   stopAutoplay()
+})
+
+watch(activeIndex, () => {
+  scheduleNextHeroPreload()
 })
 </script>
 
@@ -208,9 +231,15 @@ onUnmounted(() => {
   <section class="hero-only" aria-label="Hero principal">
     <div class="hero-carousel" @mouseenter="stopAutoplay" @mouseleave="startAutoplay">
       <div class="hero-media" aria-hidden="true">
-        <figure v-for="(slide, index) in slides" :key="slide.image" class="hero-slide"
-          :class="{ 'is-active': index === activeIndex }">
-          <img :src="slide.image" :alt="slide.alt" loading="eager" decoding="async" />
+        <figure :key="activeSlide.image" class="hero-slide is-active">
+          <img
+            :src="activeSlide.image"
+            :alt="activeSlide.alt"
+            width="1920"
+            height="1072"
+            loading="eager"
+            :fetchpriority="activeIndex === 0 ? 'high' : 'auto'"
+            decoding="async" />
         </figure>
         <div class="hero-overlay"></div>
       </div>
