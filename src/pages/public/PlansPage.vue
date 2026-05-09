@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getCatalogPlanComparison,
+  getCatalogTemplate,
   listCatalogPlanFeatures,
   listCatalogPlans,
   type CatalogPlanComparisonGroup,
@@ -38,6 +39,7 @@ const comparisonGroups = ref<CatalogPlanComparisonGroup[]>([])
 const featureCache = ref<Record<string, CatalogPlanFeatureItem[]>>({})
 const selectedPlan = ref<CatalogPlanListItem | null>(null)
 const isAcquisitionModalOpen = ref(false)
+const demoTemplateMinimumPlan = ref<string>('')
 
 const planOrder: Record<string, number> = {
   basic: 1,
@@ -64,6 +66,15 @@ const visiblePlans = computed(() =>
 const preferredPlanKey = computed(() =>
   String(route.query.plan ?? '').trim().toLowerCase(),
 )
+
+const templateIdFromQuery = computed(() =>
+  String(route.query.template ?? '').trim(),
+)
+
+const minimumPlanRank = computed(() => {
+  if (!demoTemplateMinimumPlan.value) return 0
+  return planOrder[demoTemplateMinimumPlan.value] ?? 0
+})
 
 const getPlanFeatures = (plan: CatalogPlanListItem) => {
   const planId = getPlanId(plan)
@@ -100,6 +111,13 @@ const getPlanCardClass = (plan: CatalogPlanListItem) => ({
   'is-pro': getPlanNameKey(plan) === 'pro',
   'is-preferred': preferredPlanKey.value === getPlanNameKey(plan),
 })
+
+const isPlanCompatibleWithDemo = (plan: CatalogPlanListItem) => {
+  if (!minimumPlanRank.value) return true
+  return (planOrder[getPlanNameKey(plan)] ?? 0) >= minimumPlanRank.value
+}
+
+const compatibleVisiblePlans = computed(() => visiblePlans.value.filter(isPlanCompatibleWithDemo))
 
 const handleSelectPlan = (plan: CatalogPlanListItem) => {
   if (session.isMaster) {
@@ -141,9 +159,12 @@ const loadPlans = async () => {
   loadError.value = null
 
   try {
-    const [response, comparison] = await Promise.all([
+    const [response, comparison, template] = await Promise.all([
       listCatalogPlans({ page: 1, perPage: 10 }),
       getCatalogPlanComparison(),
+      templateIdFromQuery.value
+        ? getCatalogTemplate(templateIdFromQuery.value).catch(() => null)
+        : Promise.resolve(null),
     ])
     const commercialPlans = selectCommercialPlans(response.list)
     const details = await Promise.all(
@@ -163,6 +184,9 @@ const loadPlans = async () => {
     plans.value = commercialPlans
     comparisonPlans.value = comparison.plans
     comparisonGroups.value = comparison.groups
+    const templatePlanId = template?.plan_id === undefined || template?.plan_id === null ? '' : String(template.plan_id)
+    const minimumPlan = commercialPlans.find((plan) => String(plan.id ?? '') === templatePlanId)
+    demoTemplateMinimumPlan.value = minimumPlan ? getPlanNameKey(minimumPlan) : ''
     featureCache.value = Object.fromEntries(details.filter(([planId]) => Boolean(planId)))
   } catch {
     loadError.value = 'No pudimos cargar los planes en este momento.'
@@ -206,9 +230,14 @@ onMounted(loadPlans)
         </div>
 
         <template v-else>
+          <div v-if="demoTemplateMinimumPlan" class="demo-plan-context" role="status">
+            Para conservar la plantilla que probaste, te mostramos los planes compatibles.
+            Siempre puedes volver a plantillas si quieres explorar otros estilos.
+          </div>
+
           <div class="plan-summary-grid">
             <article
-              v-for="plan in visiblePlans"
+              v-for="plan in compatibleVisiblePlans"
               :key="String(plan.id ?? plan.name)"
               class="plan-summary-card"
               :class="getPlanCardClass(plan)">
@@ -452,6 +481,19 @@ onMounted(loadPlans)
 .plans-state-error {
   color: #7a3342;
   background: #fff7f8;
+}
+
+.demo-plan-context {
+  border: 1px solid rgba(155, 107, 255, 0.2);
+  border-radius: 22px;
+  padding: 14px 18px;
+  background:
+    radial-gradient(circle at 8% 20%, rgba(240, 106, 166, 0.12), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 242, 255, 0.92));
+  color: #5f4f78;
+  font-weight: 800;
+  line-height: 1.45;
+  box-shadow: 0 16px 42px rgba(72, 43, 118, 0.08);
 }
 
 .plan-summary-grid {

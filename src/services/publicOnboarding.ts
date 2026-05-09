@@ -22,6 +22,8 @@ export type PublicOnboardingProfileUpdateInput = {
   country_code: string
   register_method?: PublicRegisterMethod
   password?: string
+  demo_user_path?: string | null
+  demo_slug?: string | null
 }
 
 export type PublicOnboardingRegistration = {

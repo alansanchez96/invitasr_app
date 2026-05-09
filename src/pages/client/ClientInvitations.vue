@@ -453,6 +453,16 @@ const publishInvitation = async (item: TenantInvitationItem) => {
 }
 
 const showDemoRestrictedToast = () => {
+  if (route.query.demo_imported === '1') {
+    notifySuccess('Guardamos tu diseño demo como borrador. Puedes seguir editándolo desde esta lista.')
+    sessionStorage.removeItem('invitasr.demo-publication')
+
+    const nextQuery = { ...route.query }
+    delete nextQuery.demo_imported
+    void router.replace({ name: 'client-invitations', query: nextQuery })
+    return
+  }
+
   if (route.query.demo_restricted !== '1') return
 
   notifyWarning('La demo es para personas que todavía están eligiendo un plan. Con tu suscripción activa puedes crear y editar tus invitaciones desde aquí.')

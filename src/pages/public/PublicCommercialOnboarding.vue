@@ -16,6 +16,7 @@ import { useSessionStore } from '@/stores/session'
 import { notifyError, notifySuccess, notifyWarning } from '@/utils/toast'
 
 const DRAFT_KEY = 'public_onboarding_draft'
+const DEMO_PUBLICATION_KEY = 'invitasr.demo-publication'
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
@@ -102,6 +103,26 @@ const saveDraft = (draft: PublicOnboardingRegistrationInput) => {
   sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
 }
 
+const loadDemoReference = (): Pick<PublicOnboardingRegistrationInput, 'demo_user_path' | 'demo_slug'> => {
+  const queryUser = String(route.query.demo_user ?? '').trim()
+  const querySlug = String(route.query.demo_slug ?? '').trim()
+  if (queryUser && querySlug) {
+    return { demo_user_path: queryUser, demo_slug: querySlug }
+  }
+
+  try {
+    const raw = sessionStorage.getItem(DEMO_PUBLICATION_KEY)
+    const parsed = raw ? JSON.parse(raw) as { userPath?: string; slug?: string } : null
+    if (parsed?.userPath && parsed?.slug) {
+      return { demo_user_path: parsed.userPath, demo_slug: parsed.slug }
+    }
+  } catch {
+    return {}
+  }
+
+  return {}
+}
+
 const resetSensitiveState = () => {
   profile.value = null
   draftPayload.value = null
@@ -125,12 +146,18 @@ const buildDraftFromProfile = (
     email: registration.email?.trim() ?? '',
     password: '',
     country_code: registration.country_code?.trim() ?? '',
+    ...loadDemoReference(),
   }
 }
 
 const syncDraftWithPlan = (draft: PublicOnboardingRegistrationInput) => {
   if (planIdFromQuery.value) {
     draft.plan_id = planIdFromQuery.value
+  }
+  const demoReference = loadDemoReference()
+  if (demoReference.demo_user_path && demoReference.demo_slug) {
+    draft.demo_user_path = demoReference.demo_user_path
+    draft.demo_slug = demoReference.demo_slug
   }
   draft.template_id = null
   return draft
@@ -140,23 +167,26 @@ const syncSelectedPlanWithProfile = async () => {
   if (!planIdFromQuery.value || !profile.value) return
 
   const currentPlanId = profile.value.onboarding?.plan_id ? String(profile.value.onboarding.plan_id) : ''
-  if (currentPlanId === planIdFromQuery.value) return
-
   const currentDraft = draftPayload.value ?? buildDraftFromProfile(profile.value)
   if (!currentDraft) return
+  const syncedDraft = syncDraftWithPlan({ ...currentDraft })
+  const hasDemoReference = Boolean(syncedDraft.demo_user_path && syncedDraft.demo_slug)
+  if (currentPlanId === planIdFromQuery.value && !hasDemoReference) return
 
   const response = await updatePublicOnboardingProfile({
     plan_id: planIdFromQuery.value,
     template_id: null,
-    register_method: currentDraft.register_method ?? 'email',
-    full_name: currentDraft.full_name,
-    email: currentDraft.email,
-    country_code: currentDraft.country_code,
+    register_method: syncedDraft.register_method ?? 'email',
+    full_name: syncedDraft.full_name,
+    email: syncedDraft.email,
+    country_code: syncedDraft.country_code,
+    demo_user_path: syncedDraft.demo_user_path ?? null,
+    demo_slug: syncedDraft.demo_slug ?? null,
   })
 
   profile.value = response.profile
   draftPayload.value = {
-    ...currentDraft,
+    ...syncedDraft,
     plan_id: planIdFromQuery.value,
     template_id: null,
   }
@@ -177,9 +207,17 @@ const loadProfile = async () => {
     const backendMessage = payload?.error?.message ?? payload?.message ?? ''
     if (backendMessage.toLowerCase().includes('no existe un onboarding publico pendiente')) {
       if (session.hasActiveClientPlan) {
-        notifySuccess('Tu plan ya esta activo. Te redirigimos al panel cliente.')
+        const demoReference = loadDemoReference()
+        const hasDemoReference = Boolean(demoReference.demo_user_path && demoReference.demo_slug)
+        notifySuccess(
+          hasDemoReference
+            ? 'Tu diseño demo ya está guardado. Te llevamos a tus invitaciones.'
+            : 'Tu plan ya esta activo. Te redirigimos al panel cliente.',
+        )
         isLoading.value = false
-        await router.replace({ name: 'client-home' })
+        await router.replace(hasDemoReference
+          ? { name: 'client-invitations', query: { demo_imported: '1' } }
+          : { name: 'client-home' })
         return
       }
 
@@ -283,6 +321,8 @@ const saveEditedProfile = async () => {
     full_name: editForm.full_name.trim(),
     email: editForm.email.trim(),
     country_code: editForm.country_code.trim(),
+    demo_user_path: draftPayload.value.demo_user_path ?? null,
+    demo_slug: draftPayload.value.demo_slug ?? null,
   }
 
   isSavingProfile.value = true

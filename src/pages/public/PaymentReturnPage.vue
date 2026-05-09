@@ -6,6 +6,7 @@ import { useSessionStore } from '@/stores/session'
 type ReturnStatus = 'success' | 'cancel' | 'failure' | 'pending'
 
 const SUCCESS_REDIRECT_SECONDS = 5
+const DEMO_PUBLICATION_KEY = 'invitasr.demo-publication'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +37,27 @@ const successVisitKey = computed(() => {
 
 const isSuccess = computed(() => returnStatus.value === 'success')
 
+const hasDemoPublicationReference = () => {
+  if (typeof window === 'undefined') return false
+
+  try {
+    const raw = sessionStorage.getItem(DEMO_PUBLICATION_KEY)
+    const parsed = raw ? JSON.parse(raw) as { userPath?: string; slug?: string } : null
+    return Boolean(parsed?.userPath && parsed?.slug)
+  } catch {
+    return false
+  }
+}
+
+const successRedirectTarget = computed(() => {
+  if (!isSuccess.value || !hasDemoPublicationReference()) return '/panel'
+
+  return {
+    name: 'client-invitations',
+    query: { demo_imported: '1' },
+  }
+})
+
 const content = computed(() => {
   if (isSuccess.value) {
     return {
@@ -43,7 +65,7 @@ const content = computed(() => {
       title: 'Tu pago fue aprobado',
       description: 'En unos segundos te llevaremos a tu panel para que empieces con tu invitacion.',
       primaryLabel: 'Ir ahora a mi panel',
-      primaryTo: '/panel',
+      primaryTo: successRedirectTarget.value,
       secondaryLabel: 'Volver al inicio',
       secondaryTo: '/',
     }
@@ -98,7 +120,7 @@ const clearTimers = () => {
 
 const redirectToPanel = () => {
   clearTimers()
-  void router.replace('/panel')
+  void router.replace(successRedirectTarget.value)
 }
 
 const startSuccessRedirect = () => {

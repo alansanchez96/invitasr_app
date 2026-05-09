@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import AuthProviders from '@/components/auth/AuthProviders.vue'
 import { registerPublicOnboarding, type PublicOnboardingRegistrationInput } from '@/services/publicOnboarding'
@@ -33,6 +33,7 @@ const emit = defineEmits<{
 const session = useSessionStore()
 const catalogStore = useCatalogStore()
 const router = useRouter()
+const route = useRoute()
 const { countries } = storeToRefs(catalogStore)
 const mode = ref<'decision' | 'register' | 'email'>('decision')
 const isSubmitting = ref(false)
@@ -111,10 +112,14 @@ const validateForm = () => {
 const loadPublishedDemoRef = (): { userPath?: string; slug?: string } | null => {
   try {
     const raw = sessionStorage.getItem(DEMO_PUBLICATION_KEY)
-    return raw ? JSON.parse(raw) as { userPath?: string; slug?: string } : null
+    if (raw) return JSON.parse(raw) as { userPath?: string; slug?: string }
   } catch {
-    return null
+    // Fallback below keeps the flow alive if storage is unavailable.
   }
+
+  const userPath = String(route.query.demo_user ?? '').trim()
+  const slug = String(route.query.demo_slug ?? '').trim()
+  return userPath && slug ? { userPath, slug } : null
 }
 
 const submitRegister = async () => {

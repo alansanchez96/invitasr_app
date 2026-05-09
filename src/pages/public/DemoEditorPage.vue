@@ -39,6 +39,7 @@ const showCheckinPreview = ref(false)
 const hasLoadedStoredState = ref(false)
 const publicSlug = ref('')
 const isPublishing = ref(false)
+const isContinuingToPlans = ref(false)
 const publishUrl = ref('')
 const galleryInputRef = ref<HTMLInputElement | null>(null)
 const publishedDemoRef = ref<{ userPath: string; slug: string } | null>(null)
@@ -439,8 +440,8 @@ const dataUrlToFile = async (dataUrl: string, fallbackName: string): Promise<Fil
   return new File([blob], `${fallbackName}.${extension}`, { type: blob.type || 'image/jpeg' })
 }
 
-const publishDemo = async () => {
-  if (!demoData.value || !catalogTemplate.value) return
+const publishDemoPublication = async (options: { openPreview?: boolean; showSuccess?: boolean } = {}) => {
+  if (!demoData.value || !catalogTemplate.value) return null
 
   const slug = normalizeSlug(publicSlug.value)
 
@@ -480,14 +481,25 @@ const publishDemo = async () => {
       slug: response.publication.slug,
     }
     window.sessionStorage.setItem(publishedDemoStorageKey, JSON.stringify(publishedDemoRef.value))
-    notifySuccess('Tu demo quedó publicada por 24 horas.')
-    window.open(response.url, '_blank', 'noopener,noreferrer')
+    if (options.showSuccess !== false) {
+      notifySuccess('Tu demo quedó publicada por 24 horas.')
+    }
+    if (options.openPreview) {
+      window.open(response.url, '_blank', 'noopener,noreferrer')
+    }
+
+    return response
   } catch (error) {
     const payload = error as { message?: string }
     notifyError(payload?.message ?? 'No pudimos publicar la demo.')
+    return null
   } finally {
     isPublishing.value = false
   }
+}
+
+const publishDemo = async () => {
+  await publishDemoPublication({ openPreview: true, showSuccess: true })
 }
 
 const resetDemo = () => {
@@ -504,9 +516,21 @@ const resetDemo = () => {
   notifySuccess('La demo volvió a su versión inicial.')
 }
 
-const continueToPlans = () => {
+const continueToPlans = async () => {
   persistDemoState(false)
-  router.push({
+
+  isContinuingToPlans.value = true
+  const response = await publishDemoPublication({ openPreview: false, showSuccess: false })
+  isContinuingToPlans.value = false
+
+  if (!response || !publishedDemoRef.value) {
+    notifyError('No pudimos preparar tu diseño para conservarlo. Intenta nuevamente.')
+    return
+  }
+
+  notifySuccess('Guardamos tu diseño demo para conservarlo al comprar.')
+
+  await router.push({
     name: 'planes',
     query: {
       template: catalogTemplate.value?.id ? String(catalogTemplate.value.id) : undefined,
@@ -647,7 +671,9 @@ onMounted(loadDemo)
           <BaseButton variant="ghost" :disabled="isPublishing" @click="publishDemo">
             {{ isPublishing ? 'Publicando...' : 'Publicar demo 24h' }}
           </BaseButton>
-          <BaseButton variant="primary" @click="continueToPlans">Conservar este diseño</BaseButton>
+          <BaseButton variant="primary" :disabled="isPublishing || isContinuingToPlans" @click="continueToPlans">
+            {{ isContinuingToPlans ? 'Preparando...' : 'Conservar este diseño' }}
+          </BaseButton>
         </div>
       </div>
     </section>
