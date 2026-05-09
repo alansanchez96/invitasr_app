@@ -344,8 +344,8 @@ onMounted(fetchList)
       </div>
     </section>
 
-    <div v-if="showForm" class="modal-backdrop" role="dialog" aria-modal="true">
-      <form class="update-modal" @submit.prevent="submitForm">
+    <div v-if="showForm" class="modal-backdrop" role="dialog" aria-modal="true" @click.self="closeForm">
+      <form class="update-modal" @submit.prevent="submitForm" @click.stop>
         <header>
           <div>
             <p>Versión de app</p>
@@ -394,8 +394,8 @@ onMounted(fetchList)
       </form>
     </div>
 
-    <div v-if="confirmDeleteId" class="modal-backdrop" role="dialog" aria-modal="true">
-      <div class="confirm-modal">
+    <div v-if="confirmDeleteId" class="modal-backdrop" role="dialog" aria-modal="true" @click.self="confirmDeleteId = null">
+      <div class="confirm-modal" @click.stop>
         <h2>Eliminar actualización</h2>
         <p>Esta noticia dejará de aparecer en la landing. Puedes crear otra versión cuando lo necesites.</p>
         <footer>

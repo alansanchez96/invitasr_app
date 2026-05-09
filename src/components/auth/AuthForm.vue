@@ -8,7 +8,7 @@ const props = withDefaults(
     defineProps<{
         submitLabel?: string
         showLinks?: boolean
-        forgotHref?: string
+        forgotHref?: string | null
         signupHref?: string
         errorMessage?: string | null
         fieldErrors?: FieldErrors
@@ -17,8 +17,8 @@ const props = withDefaults(
     {
         submitLabel: 'Entrar a mi cuenta',
         showLinks: true,
-        forgotHref: '#',
-        signupHref: '#',
+        forgotHref: null,
+        signupHref: '/planes',
         errorMessage: null,
         fieldErrors: () => ({}),
         loading: false,
@@ -27,6 +27,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     (event: 'submit', payload: { email: string; password: string; remember: boolean }): void
+    (event: 'forgot'): void
 }>()
 
 const email = ref('')
@@ -90,7 +91,8 @@ const handleSubmit = () => {
         </BaseButton>
         <p v-if="props.errorMessage" class="auth-error auth-error--general" role="alert">{{ props.errorMessage }}</p>
         <div v-if="props.showLinks" class="auth-links">
-            <a :href="props.forgotHref">Olvidaste tu password?</a>
+            <a v-if="props.forgotHref" :href="props.forgotHref">Olvidaste tu contrasena?</a>
+            <button v-else type="button" class="auth-link-button" @click="emit('forgot')">Olvidaste tu contrasena?</button>
             <a :href="props.signupHref">Todavia no tienes tu cuenta?</a>
         </div>
     </form>

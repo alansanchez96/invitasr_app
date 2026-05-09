@@ -2,8 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
-import AuthForm from '@/components/auth/AuthForm.vue'
-import AuthProviders from '@/components/auth/AuthProviders.vue'
+import AuthAccessPanel from '@/components/auth/AuthAccessPanel.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import { buildAvatarPaletteStyle, buildDisplayInitials } from '@/utils/userIdentity'
@@ -23,6 +22,7 @@ const isLoginLoading = computed(() => session.isLoading)
 const isHomeRoute = computed(() => route.name === 'home')
 const isHomeHeroZone = ref(false)
 const isLoginMenuOpen = ref(false)
+const authPanelMode = ref<'login' | 'forgot'>('login')
 const loginMenuRef = ref<HTMLElement | null>(null)
 const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
@@ -78,6 +78,7 @@ let homeHeroElement: HTMLElement | null = null
 const resetLoginState = () => {
     loginError.value = null
     loginFieldErrors.value = {}
+    authPanelMode.value = 'login'
 }
 
 const resolveNavItemProps = (item: PublicNavItem) => {
@@ -270,10 +271,11 @@ watch(
                                 role="dialog"
                                 aria-label="Acceso a cuenta"
                                 @click.stop>
-                                <AuthForm :loading="isLoginLoading" :error-message="loginError"
-                                    :field-errors="loginFieldErrors" @submit="handleLoginSubmit" />
-                                <div class="auth-divider"></div>
-                                <AuthProviders :providers="['google', 'facebook']" />
+                                <AuthAccessPanel
+                                    :loading="isLoginLoading"
+                                    :error-message="loginError"
+                                    :field-errors="loginFieldErrors"
+                                    @login="handleLoginSubmit" />
                             </div>
                         </div>
                         <BaseButton as="RouterLink" to="/planes" variant="primary">Ver planes</BaseButton>
@@ -318,7 +320,7 @@ watch(
             panel-class="mobile-login-panel"
             aria-label="Iniciar sesion"
             @close="closeLoginMenu">
-            <div class="mobile-login-head">
+            <div v-if="authPanelMode === 'login'" class="mobile-login-head">
                 <img
                     class="mobile-login-brand"
                     src="/brand/logo_icon.png"
@@ -330,10 +332,12 @@ watch(
                 <h3>Inicia sesion</h3>
                 <p>Accede a tu cuenta y continua donde quedaste.</p>
             </div>
-            <AuthForm :loading="isLoginLoading" :error-message="loginError" :field-errors="loginFieldErrors"
-                @submit="handleLoginSubmit" />
-            <div class="mobile-login-divider"></div>
-            <AuthProviders :providers="['google', 'facebook']" />
+            <AuthAccessPanel
+                :loading="isLoginLoading"
+                :error-message="loginError"
+                :field-errors="loginFieldErrors"
+                @login="handleLoginSubmit"
+                @mode-change="authPanelMode = $event" />
         </BaseModal>
     </header>
 </template>

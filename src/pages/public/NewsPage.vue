@@ -59,17 +59,16 @@ onMounted(loadUpdates)
       <template v-else>
         <article v-if="featuredUpdate" class="featured-update">
           <div>
-            <span class="version-pill">Versión {{ featuredUpdate.version }}</span>
+            <div class="featured-meta">
+              <span class="version-pill">Versión {{ featuredUpdate.version }}</span>
+              <span class="date-pill">{{ formatDate(featuredUpdate.published_at) }}</span>
+            </div>
             <h2>{{ featuredUpdate.title }}</h2>
             <p>{{ featuredUpdate.summary }}</p>
             <ul v-if="featuredUpdate.changes.length" class="change-list">
               <li v-for="change in featuredUpdate.changes" :key="change">{{ change }}</li>
             </ul>
           </div>
-          <aside class="featured-date">
-            <span>Publicado</span>
-            <strong>{{ formatDate(featuredUpdate.published_at) }}</strong>
-          </aside>
         </article>
 
         <div v-if="secondaryUpdates.length" class="updates-grid">
@@ -120,6 +119,7 @@ onMounted(loadUpdates)
 
 .news-kicker,
 .version-pill,
+.date-pill,
 .empty-news span {
   width: fit-content;
   border-radius: 999px;
@@ -130,6 +130,17 @@ onMounted(loadUpdates)
   font-weight: 900;
   letter-spacing: 0.09em;
   text-transform: uppercase;
+}
+
+.featured-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.date-pill {
+  background: rgba(240, 106, 166, 0.12);
+  color: #a33a76;
 }
 
 .news-hero h1 {
@@ -172,10 +183,6 @@ onMounted(loadUpdates)
 }
 
 .featured-update {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 28px;
-  align-items: stretch;
   border: 1px solid rgba(122, 79, 217, 0.2);
   border-radius: 34px;
   padding: clamp(24px, 5vw, 42px);
@@ -191,29 +198,6 @@ onMounted(loadUpdates)
   font-size: clamp(30px, 4vw, 52px);
   line-height: 1;
   letter-spacing: -0.045em;
-}
-
-.featured-date {
-  display: grid;
-  align-content: end;
-  gap: 8px;
-  border-radius: 26px;
-  padding: 24px;
-  background: linear-gradient(145deg, #25133d, #7a4fd9 58%, #f06aa6);
-  color: #fff;
-  min-height: 220px;
-}
-
-.featured-date span {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  opacity: 0.8;
-}
-
-.featured-date strong {
-  font-size: 24px;
-  line-height: 1.1;
 }
 
 .change-list,
@@ -270,13 +254,20 @@ onMounted(loadUpdates)
 }
 
 .update-card-head span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(122, 79, 217, 0.11);
   color: #7a4fd9;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .update-card-head small {
-  color: #8b7aa4;
-  font-weight: 700;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(240, 106, 166, 0.1);
+  color: #9a4078;
+  font-weight: 800;
 }
 
 .update-card h3,

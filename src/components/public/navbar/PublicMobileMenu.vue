@@ -75,7 +75,7 @@ const dashboardLabel = computed(() => {
         </component>
       </nav>
 
-      <div class="mobile-menu-actions">
+      <div class="mobile-menu-actions" :class="{ 'mobile-menu-actions--guest': !props.isAuthenticated }">
         <template v-if="!props.isAuthenticated">
           <BaseButton variant="ghost" type="button" @click="handleLogin">
             Iniciar sesion
@@ -125,14 +125,17 @@ const dashboardLabel = computed(() => {
 }
 
 .mobile-menu-panel {
-  height: 100%;
-  padding: calc(20px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: calc(clamp(12px, 2.4dvh, 20px) + env(safe-area-inset-top)) clamp(14px, 3vw, 18px)
+    calc(clamp(12px, 2.2dvh, 18px) + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: clamp(8px, 1.7dvh, 14px);
   background: linear-gradient(170deg, #fff 0%, #f9f4ff 100%);
   border-left: 1px solid rgba(233, 220, 255, 0.9);
   box-shadow: -22px 0 44px rgba(36, 22, 60, 0.18);
+  overflow: hidden;
 }
 
 .mobile-menu-head {
@@ -154,8 +157,8 @@ const dashboardLabel = computed(() => {
 }
 
 .mobile-brand-icon-wrap {
-  width: 44px;
-  height: 44px;
+  width: clamp(38px, 6dvh, 44px);
+  height: clamp(38px, 6dvh, 44px);
   border-radius: 12px;
   display: grid;
   place-items: center;
@@ -164,8 +167,8 @@ const dashboardLabel = computed(() => {
 }
 
 .mobile-menu-close {
-  width: 42px;
-  height: 42px;
+  width: clamp(38px, 6dvh, 42px);
+  height: clamp(38px, 6dvh, 42px);
   border-radius: 12px;
   border: 1px solid rgba(155, 107, 255, 0.26);
   background: #fff;
@@ -184,16 +187,16 @@ const dashboardLabel = computed(() => {
 .mobile-links {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
-  padding-right: 4px;
+  gap: clamp(6px, 1.2dvh, 10px);
+  overflow: visible;
+  padding-right: 0;
   min-height: 0;
 }
 
 .mobile-link-card {
   display: grid;
   gap: 2px;
-  padding: 13px 14px;
+  padding: clamp(9px, 1.8dvh, 13px) 14px;
   border-radius: 14px;
   border: 1px solid rgba(155, 107, 255, 0.14);
   background: rgba(255, 255, 255, 0.74);
@@ -208,36 +211,43 @@ const dashboardLabel = computed(() => {
 }
 
 .mobile-link-title {
-  font-size: 16px;
+  font-size: clamp(14px, 2.2dvh, 16px);
   line-height: 1.2;
   font-weight: 700;
   color: #2f1f47;
 }
 
 .mobile-link-subtitle {
-  font-size: 12px;
-  line-height: 1.3;
+  font-size: clamp(10.5px, 1.7dvh, 12px);
+  line-height: 1.2;
   color: #6a5a84;
 }
 
 .mobile-menu-caption {
   margin: 0;
   color: #5f4f78;
-  font-size: 14px;
-  line-height: 1.4;
-  max-width: 32ch;
+  font-size: clamp(12px, 1.9dvh, 14px);
+  line-height: 1.25;
+  max-width: 34ch;
 }
 
 .mobile-menu-actions {
   margin-top: auto;
   display: grid;
-  gap: 10px;
-  padding-top: 10px;
+  gap: clamp(7px, 1.3dvh, 10px);
+  padding-top: clamp(7px, 1.4dvh, 10px);
   border-top: 1px solid rgba(155, 107, 255, 0.18);
+}
+
+.mobile-menu-actions--guest {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .mobile-menu-actions .btn {
   width: 100%;
+  min-height: clamp(42px, 6.2dvh, 48px);
+  padding-inline: 12px;
+  white-space: nowrap;
 }
 
 .mobile-logout-btn {
@@ -298,6 +308,31 @@ const dashboardLabel = computed(() => {
 
   .mobile-menu-scrim {
     display: none;
+  }
+}
+
+@media (max-height: 680px) {
+  .mobile-menu-caption {
+    max-width: none;
+  }
+
+  .mobile-link-card {
+    border-radius: 12px;
+  }
+}
+
+@media (max-height: 590px) {
+  .mobile-menu-caption {
+    display: none;
+  }
+
+  .mobile-link-subtitle {
+    display: none;
+  }
+
+  .mobile-link-card {
+    min-height: 42px;
+    align-content: center;
   }
 }
 </style>

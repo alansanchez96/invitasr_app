@@ -161,12 +161,17 @@ watch(
 }
 
 .account-trigger {
+  padding: 0;
+  display: grid;
+  place-items: center;
   width: 48px;
   height: 48px;
   border-radius: 50%;
   border: 2px solid rgb(208, 181, 253);
   background: #fff;
   cursor: pointer;
+  overflow: hidden;
+  line-height: 1;
   box-shadow: var(--shadow-card);
   transition: background 0.35s ease;
 }
@@ -176,22 +181,24 @@ watch(
 }
 
 .account-logo {
-  margin-top: -1px;
-  margin-left: -1px;
+  width: 34px;
+  height: 34px;
   object-fit: contain;
   filter: brightness(1.1);
 }
 
 .account-initials {
-  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #3c4043;
   background: #d7e3fc;
   border: none;
-  padding: 9px;
-  display: flex;
+  display: grid;
+  place-items: center;
 }
 
 .account-dropdown {

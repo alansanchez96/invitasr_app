@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getCatalogPlanComparison,
@@ -22,9 +22,13 @@ import {
   sortMarketingFeatures,
   type MarketingFeature,
 } from '@/utils/publicPlanMarketing'
+import { useSessionStore } from '@/stores/session'
+import { notifyWarning } from '@/utils/toast'
 
 const route = useRoute()
 const router = useRouter()
+const session = useSessionStore()
+const PlanAcquisitionModal = defineAsyncComponent(() => import('@/components/public/PlanAcquisitionModal.vue'))
 
 const isLoading = ref(true)
 const loadError = ref<string | null>(null)
@@ -32,6 +36,8 @@ const plans = ref<CatalogPlanListItem[]>([])
 const comparisonPlans = ref<CatalogPlanComparisonPlan[]>([])
 const comparisonGroups = ref<CatalogPlanComparisonGroup[]>([])
 const featureCache = ref<Record<string, CatalogPlanFeatureItem[]>>({})
+const selectedPlan = ref<CatalogPlanListItem | null>(null)
+const isAcquisitionModalOpen = ref(false)
 
 const planOrder: Record<string, number> = {
   basic: 1,
@@ -96,6 +102,31 @@ const getPlanCardClass = (plan: CatalogPlanListItem) => ({
 })
 
 const handleSelectPlan = (plan: CatalogPlanListItem) => {
+  if (session.isMaster) {
+    notifyWarning('Esta compra se realiza desde una cuenta cliente.')
+    return
+  }
+
+  if (!session.isAuthenticated) {
+    selectedPlan.value = plan
+    isAcquisitionModalOpen.value = true
+    return
+  }
+
+  router.push({
+    name: 'public-onboarding-flow',
+    query: {
+      planId: plan.id,
+      planName: plan.name,
+    },
+  })
+}
+
+const handleRegisteredPlan = () => {
+  const plan = selectedPlan.value
+  isAcquisitionModalOpen.value = false
+  if (!plan) return
+
   router.push({
     name: 'public-onboarding-flow',
     query: {
@@ -283,6 +314,12 @@ onMounted(loadPlans)
         </template>
       </div>
     </section>
+
+    <PlanAcquisitionModal
+      v-model="isAcquisitionModalOpen"
+      :plan="selectedPlan"
+      :show-decision-step="false"
+      @registered="handleRegisteredPlan" />
   </main>
 </template>
 

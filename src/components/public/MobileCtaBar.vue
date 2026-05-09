@@ -2,8 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
-import AuthForm from '@/components/auth/AuthForm.vue'
-import AuthProviders from '@/components/auth/AuthProviders.vue'
+import AuthAccessPanel from '@/components/auth/AuthAccessPanel.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 
@@ -14,6 +13,7 @@ const isMaster = computed(() => session.isMaster)
 const hasActiveClientPlan = computed(() => session.hasActiveClientPlan)
 const isLoginLoading = computed(() => session.isLoading)
 const isLoginOpen = ref(false)
+const authPanelMode = ref<'login' | 'forgot'>('login')
 const loginError = ref<string | null>(null)
 const loginFieldErrors = ref<Record<string, string[]>>({})
 const clientEntryPath = computed(() =>
@@ -26,6 +26,7 @@ const clientEntryLabel = computed(() =>
 const openLogin = () => {
   loginError.value = null
   loginFieldErrors.value = {}
+  authPanelMode.value = 'login'
   isLoginOpen.value = true
 }
 
@@ -33,6 +34,7 @@ const closeLogin = () => {
   isLoginOpen.value = false
   loginError.value = null
   loginFieldErrors.value = {}
+  authPanelMode.value = 'login'
 }
 
 const handleLoginSubmit = async (payload: { email: string; password: string; remember: boolean }) => {
@@ -80,7 +82,7 @@ const handleLogout = () => {
       panel-class="mobile-login-panel"
       aria-label="Iniciar sesion"
       @close="closeLogin">
-      <div class="mobile-login-head">
+      <div v-if="authPanelMode === 'login'" class="mobile-login-head">
         <img
           class="mobile-login-brand"
           src="/brand/logo_icon.png"
@@ -94,13 +96,12 @@ const handleLogout = () => {
       </div>
 
       <div class="mobile-login-body">
-        <AuthForm
+        <AuthAccessPanel
           :loading="isLoginLoading"
           :error-message="loginError"
           :field-errors="loginFieldErrors"
-          @submit="handleLoginSubmit" />
-        <div class="mobile-login-divider"></div>
-        <AuthProviders :providers="['google', 'facebook']" />
+          @login="handleLoginSubmit"
+          @mode-change="authPanelMode = $event" />
       </div>
     </BaseModal>
   </div>

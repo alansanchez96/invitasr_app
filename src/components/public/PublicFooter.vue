@@ -1,10 +1,51 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
 
 const currentYear = new Date().getFullYear()
 const route = useRoute()
+const session = useSessionStore()
 const isHomeFooter = computed(() => route.name === 'home')
+
+const accountLinks = computed(() => {
+  if (!session.isAuthenticated) {
+    return [
+      { label: 'Explorar planes', href: '/planes' },
+      { label: 'Probar demo', href: '/demo' },
+      { label: 'Crear cuenta', href: '/planes' },
+    ]
+  }
+
+  if (session.isMaster) {
+    return [
+      { label: 'Backoffice', href: '/backoffice' },
+      { label: 'Clientes', href: '/backoffice/clients' },
+      { label: 'Pagos', href: '/backoffice/payments' },
+    ]
+  }
+
+  if (session.isClientInactive) {
+    return [
+      { label: 'Estado de cuenta', href: '/cuenta-inactiva' },
+      { label: 'Contactar soporte', href: 'mailto:hola@invitasr.com' },
+    ]
+  }
+
+  if (session.canRenewSubscription || session.requiresSubscriptionRenewal) {
+    return [
+      { label: 'Renovar suscripcion', href: '/panel/renovar-suscripcion' },
+      { label: 'Mis pagos', href: '/panel/pagos' },
+      { label: 'Seguridad', href: '/panel/seguridad' },
+    ]
+  }
+
+  return [
+    { label: 'Mi panel', href: '/panel' },
+    { label: 'Mis invitaciones', href: '/panel/invitaciones' },
+    { label: 'Mis pagos', href: '/panel/pagos' },
+  ]
+})
 </script>
 
 <template>
@@ -33,16 +74,14 @@ const isHomeFooter = computed(() => route.name === 'home')
 
         <nav class="footer-col" aria-label="Secciones de landing">
           <p class="footer-col-title">Secciones</p>
-          <a href="/#como-funciona">Como funciona</a>
+          <a href="/#demo-teaser">Como funciona</a>
           <a href="/#inspiracion">Beneficios</a>
           <a href="/#faq">FAQ</a>
         </nav>
 
         <nav class="footer-col" aria-label="Cuenta">
           <p class="footer-col-title">Cuenta</p>
-          <a href="/planes">Explorar planes</a>
-          <a href="/backoffice">Backoffice</a>
-          <span class="footer-note">La experiencia publica se mantiene enfocada en landing y catalogos.</span>
+          <a v-for="link in accountLinks" :key="link.label" :href="link.href">{{ link.label }}</a>
         </nav>
 
         <section class="footer-col" aria-label="Contacto y legal">
@@ -50,8 +89,8 @@ const isHomeFooter = computed(() => route.name === 'home')
           <a href="mailto:hola@invitasr.com">hola@invitasr.com</a>
           <span>Lun a Vie · 9:00 a 18:00 hs</span>
           <div class="footer-legal">
-            <span class="footer-legal-item">Privacidad</span>
-            <span class="footer-legal-item">Terminos</span>
+            <a class="footer-legal-item" href="/privacidad">Privacidad</a>
+            <a class="footer-legal-item" href="/terminos">Terminos</a>
           </div>
         </section>
       </div>
@@ -148,7 +187,8 @@ const isHomeFooter = computed(() => route.name === 'home')
   transition: color 0.25s ease, transform 0.25s ease;
 }
 
-.footer-col a:hover {
+.footer-col a:hover,
+.footer-legal-item:hover {
   color: #5f2ec8;
   transform: translateX(2px);
 }
@@ -163,6 +203,7 @@ const isHomeFooter = computed(() => route.name === 'home')
 .footer-legal-item {
   color: #85759d;
   font-size: 13px;
+  font-weight: 600;
 }
 
 .footer-bottom {

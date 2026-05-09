@@ -9,6 +9,8 @@ const DemoEditorPage = () => import('@/pages/public/DemoEditorPage.vue')
 const PublicDemoInvitationPage = () => import('@/pages/public/PublicDemoInvitationPage.vue')
 const PlansPage = () => import('@/pages/public/PlansPage.vue')
 const NewsPage = () => import('@/pages/public/NewsPage.vue')
+const LegalPage = () => import('@/pages/public/LegalPage.vue')
+const PasswordResetPage = () => import('@/pages/public/PasswordResetPage.vue')
 const PublicOnboarding = () => import('@/pages/public/PublicOnboarding.vue')
 const PublicCommercialOnboarding = () => import('@/pages/public/PublicCommercialOnboarding.vue')
 const PaymentReturnPage = () => import('@/pages/public/PaymentReturnPage.vue')
@@ -102,6 +104,34 @@ const router = createRouter({
           meta: {
             title: 'Noticias',
             description: 'Consejos, ideas y tendencias para crear invitaciones digitales con mejor experiencia para tus invitados.',
+          },
+        },
+        {
+          path: 'terminos',
+          name: 'terms',
+          component: LegalPage,
+          meta: {
+            title: 'Terminos y Condiciones',
+            description: 'Lee las condiciones de uso de InvitaSR para crear, pagar y publicar invitaciones digitales.',
+          },
+        },
+        {
+          path: 'privacidad',
+          name: 'privacy',
+          component: LegalPage,
+          meta: {
+            title: 'Politica de Privacidad',
+            description: 'Conoce como InvitaSR trata datos de cuenta, pagos, invitaciones, invitados y estadisticas.',
+          },
+        },
+        {
+          path: 'recuperar-password',
+          name: 'password-reset',
+          component: PasswordResetPage,
+          meta: {
+            title: 'Crear nueva contrasena',
+            description: 'Crea una nueva contrasena para volver a tu cuenta de InvitaSR.',
+            noindex: true,
           },
         },
         {

@@ -2,6 +2,8 @@
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { CatalogPlanListItem } from '@/services/catalogs'
+import { useSessionStore } from '@/stores/session'
+import { notifyWarning } from '@/utils/toast'
 import heroBoda from '@/assets/img/hero/boda.webp'
 import heroEgresados from '@/assets/img/hero/egresados.webp'
 import heroBabyShower from '@/assets/img/hero/babyshower.webp'
@@ -116,19 +118,19 @@ const inspirationCards: { title: string; description: string; tag: string; mark:
     title: 'Boda elegante en la nieve',
     description: 'Una entrada emocional, música suave, galería y confirmación clara para que nadie se pierda ningún detalle.',
     tag: 'Romántica',
-    mark: '01',
+    mark: '1',
   },
   {
     title: 'XV con efecto wow',
     description: 'Una invitación visual, divertida y fácil de compartir para que tus invitados sientan la fiesta antes de llegar.',
     tag: 'Celebración',
-    mark: '02',
+    mark: '2',
   },
   {
     title: 'Evento empresarial impecable',
     description: 'Diseño sobrio, ubicación visible y respuestas ordenadas para transmitir confianza desde el primer clic.',
     tag: 'Profesional',
-    mark: '03',
+    mark: '3',
   },
 ]
 
@@ -159,11 +161,14 @@ const demoTeaserHost = ref<HTMLElement | null>(null)
 const plansHost = ref<HTMLElement | null>(null)
 const showDemoTeaser = ref(false)
 const showPlanCatalog = ref(false)
+const selectedPlan = ref<CatalogPlanListItem | null>(null)
+const isAcquisitionModalOpen = ref(false)
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
 let lazySectionObserver: IntersectionObserver | null = null
 const preloadedHeroImages = new Set<string>()
 const DemoHomeTeaser = defineAsyncComponent(() => import('@/components/public/DemoHomeTeaser.vue'))
 const PublicPlanCatalogGrid = defineAsyncComponent(() => import('@/components/public/PublicPlanCatalogGrid.vue'))
+const PlanAcquisitionModal = defineAsyncComponent(() => import('@/components/public/PlanAcquisitionModal.vue'))
 
 const preloadHeroImage = (index: number) => {
   const image = slides[index]?.image
@@ -181,6 +186,7 @@ const scheduleNextHeroPreload = () => {
   }, 1800)
 }
 const router = useRouter()
+const session = useSessionStore()
 
 const activeSlide = computed<HeroSlide>(() => slides[activeIndex.value] ?? slides[0] ?? fallbackHeroSlide)
 
@@ -197,6 +203,31 @@ const prevSlide = () => {
 }
 
 const handleSelectHomePlan = (plan: CatalogPlanListItem) => {
+  if (session.isMaster) {
+    notifyWarning('Esta compra se realiza desde una cuenta cliente.')
+    return
+  }
+
+  if (!session.isAuthenticated) {
+    selectedPlan.value = plan
+    isAcquisitionModalOpen.value = true
+    return
+  }
+
+  router.push({
+    name: 'public-onboarding-flow',
+    query: {
+      planId: plan.id === undefined || plan.id === null ? undefined : String(plan.id),
+      planName: plan.name ?? undefined,
+    },
+  })
+}
+
+const handleRegisteredHomePlan = () => {
+  const plan = selectedPlan.value
+  isAcquisitionModalOpen.value = false
+  if (!plan) return
+
   router.push({
     name: 'public-onboarding-flow',
     query: {
@@ -453,6 +484,11 @@ watch(activeIndex, () => {
       </div>
     </div>
   </section>
+
+  <PlanAcquisitionModal
+    v-model="isAcquisitionModalOpen"
+    :plan="selectedPlan"
+    @registered="handleRegisteredHomePlan" />
 </template>
 
 <style scoped>
