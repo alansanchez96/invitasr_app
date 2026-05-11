@@ -12,6 +12,10 @@ export const createWeddingSnowPreviewData = (
   const invitationTitle = resolveText(context.invitationTitle, 'Mi invitación de boda')
 
   return {
+    hero: {
+      title: 'Nos casamos',
+      subtitle: 'Diseñada para que puedas personalizarla en minutos y compartirla con tu gente.',
+    },
     couple: {
       headline: 'Nos casamos',
       brideName: 'Alan',

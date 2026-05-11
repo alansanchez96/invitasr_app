@@ -45,6 +45,13 @@ type EditorSection = {
   featureKey?: string
 }
 
+type ConfigBarItem = {
+  key: string
+  label: string
+  target: string
+  icon: string
+}
+
 type EditableFieldBinding = {
   paths: string[]
   fallback: string
@@ -144,7 +151,11 @@ const {
 const showCheckinPreview = ref(false)
 const isCheckinConfigEditing = ref(false)
 const isSidebarOpen = ref(false)
+const isConfigBarCollapsed = ref(false)
+const activeConfigTarget = ref('config-content')
+const hoveredConfigTooltip = ref<{ label: string; left: number } | null>(null)
 const collapsedOptionalSections = ref<Record<string, boolean>>({})
+const configBarScrollRef = ref<HTMLElement | null>(null)
 
 const isLoading = ref(false)
 const isLoadingTemplates = ref(false)
@@ -607,6 +618,7 @@ const setByPath = (source: JsonRecord, path: string, value: unknown): void => {
 const ensureDefaultFeatureData = () => {
   let nextContent = cloneRecord(contentDraft.value)
   const nextSettings = cloneRecord(settingsDraft.value)
+  delete nextContent.theme
 
   if (!asText(getByPath(nextContent, 'music.title'))) {
     const defaultSong = musicOptions[0]!
@@ -806,6 +818,69 @@ const optionalSections = computed(() => {
 
   return list
 })
+
+const baseConfigBarItems: ConfigBarItem[] = [
+  { key: 'content', label: 'Datos', target: 'config-content', icon: 'content' },
+  { key: 'style', label: 'Estilo', target: 'config-style', icon: 'style' },
+]
+
+const configBarItems = computed<ConfigBarItem[]>(() => [
+  ...baseConfigBarItems,
+  ...optionalSections.value.map((section) => ({
+    key: section.key,
+    label: section.label,
+    target: `config-section-${section.key}`,
+    icon: section.key,
+  })),
+])
+
+const selectedOptionalSectionKey = computed(() =>
+  activeConfigTarget.value.startsWith('config-section-')
+    ? activeConfigTarget.value.replace('config-section-', '')
+    : '',
+)
+
+const selectedOptionalSections = computed(() =>
+  selectedOptionalSectionKey.value
+    ? optionalSections.value.filter((section) => section.key === selectedOptionalSectionKey.value)
+    : [],
+)
+
+const activeConfigItem = computed(() =>
+  configBarItems.value.find((item) => item.target === activeConfigTarget.value) ?? configBarItems.value[0] ?? null,
+)
+
+const configDrawerTitle = computed(() => activeConfigItem.value?.label ?? 'Personaliza tu invitación')
+const configDrawerSubtitle = computed(() => {
+  if (activeConfigTarget.value === 'config-content') {
+    return 'Ajusta el nombre visible y el enlace de tu invitación.'
+  }
+
+  if (activeConfigTarget.value === 'config-style') {
+    return 'Revisa el estilo base de tu invitación.'
+  }
+
+  return 'Activa, desactiva y configura esta sección.'
+})
+
+const configBarIconPaths: Record<string, string[]> = {
+  content: ['M4 6h16', 'M4 12h16', 'M4 18h10'],
+  style: ['M12 3l7 4v10l-7 4-7-4V7l7-4Z', 'M12 8v8'],
+  checkin: ['M12 3l7 7-7 11-7-11 7-7Z', 'M9.5 10h5'],
+  countdown: ['M12 8v5l3 2', 'M5 3h14', 'M7 21h10', 'M12 5a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z'],
+  music: ['M9 18V5l10-2v13', 'M9 18a3 3 0 1 1-2-2.83', 'M19 16a3 3 0 1 1-2-2.83'],
+  gallery: ['M4 5h16v14H4z', 'M8 11l3 3 2-2 3 4', 'M8 8h.01'],
+  faq: ['M12 18h.01', 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.5 1-1.5 2.2', 'M4 4h16v16H4z'],
+  wall: ['M4 5h16v11H8l-4 4V5Z', 'M8 9h8', 'M8 13h5'],
+  rsvp: ['M4 6h16', 'M4 12h10', 'M4 18h8', 'M16 17l2 2 4-5'],
+  location: ['M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z', 'M12 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z'],
+  saveDate: ['M7 3v4', 'M17 3v4', 'M4 7h16v14H4z', 'M8 13h8'],
+  dressCode: ['M8 4l4 3 4-3 3 5-3 1v10H8V10L5 9l3-5Z'],
+  default: ['M12 5v14', 'M5 12h14'],
+}
+
+const getConfigBarIconPaths = (icon: string): string[] =>
+  configBarIconPaths[icon] ?? ['M12 5v14', 'M5 12h14']
 
 const isOptionalSectionExpanded = (sectionKey: string): boolean =>
   !Boolean(collapsedOptionalSections.value[sectionKey])
@@ -1034,12 +1109,62 @@ const snapshotFromSerializedState = (state: string): EditorSnapshot | null => {
   }
 }
 
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value
-}
-
 const closeSidebar = () => {
   isSidebarOpen.value = false
+}
+
+const toggleConfigBarCollapsed = () => {
+  isConfigBarCollapsed.value = !isConfigBarCollapsed.value
+  if (isConfigBarCollapsed.value) {
+    closeSidebar()
+  }
+}
+
+const openConfigTarget = (target: string) => {
+  if (isSidebarOpen.value && activeConfigTarget.value === target) {
+    closeSidebar()
+    return
+  }
+
+  activeConfigTarget.value = target
+  isConfigBarCollapsed.value = false
+
+  if (target.startsWith('config-section-')) {
+    const sectionKey = target.replace('config-section-', '')
+    collapsedOptionalSections.value = {
+      ...collapsedOptionalSections.value,
+      [sectionKey]: false,
+    }
+  }
+
+  isSidebarOpen.value = true
+}
+
+const showConfigTooltip = (item: ConfigBarItem, event: MouseEvent | FocusEvent) => {
+  const button = event.currentTarget as HTMLElement | null
+  const bar = button?.closest('.editor-config-bar__inner') as HTMLElement | null
+  const buttonRect = button?.getBoundingClientRect()
+  const barRect = bar?.getBoundingClientRect()
+
+  hoveredConfigTooltip.value = {
+    label: item.label,
+    left: buttonRect && barRect ? buttonRect.left - barRect.left + buttonRect.width / 2 : 48,
+  }
+}
+
+const hideConfigTooltip = () => {
+  hoveredConfigTooltip.value = null
+}
+
+const scrollConfigBar = (direction: 'left' | 'right') => {
+  const rail = configBarScrollRef.value
+  if (!rail) return
+
+  const distance = Math.max(rail.clientWidth * 0.72, 180)
+  rail.scrollBy({
+    left: direction === 'left' ? -distance : distance,
+    behavior: 'smooth',
+  })
 }
 
 const closeLeavePrompt = () => {
@@ -2335,13 +2460,6 @@ onBeforeRouteLeave((to) => {
             </svg>
             <span>Vista inmersiva</span>
           </button>
-          <button type="button" class="editor-settings-fab" :aria-expanded="isSidebarOpen" @click="toggleSidebar">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M19.14 12.94a7.96 7.96 0 0 0 .06-.94 7.96 7.96 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.34 7.34 0 0 0-1.62-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.57.22-1.11.53-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.72 8.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.07.62-.07.94s.03.63.07.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.41 1.05.72 1.62.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.57-.22 1.12-.53 1.62-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z" />
-            </svg>
-            <span>{{ isSidebarOpen ? 'Ocultar configuración' : 'Configuración' }}</span>
-          </button>
         </div>
 
         <article class="bo-card preview-card">
@@ -2388,7 +2506,8 @@ onBeforeRouteLeave((to) => {
             <header class="config-drawer__header">
               <div class="config-drawer__title-wrap">
                 <p class="config-drawer__eyebrow">Modo editor</p>
-                <h2>Configuración</h2>
+                <h2>{{ configDrawerTitle }}</h2>
+                <p class="config-drawer__subtitle">{{ configDrawerSubtitle }}</p>
               </div>
               <button type="button" class="config-drawer__close" aria-label="Cerrar configuración"
                 title="Cerrar configuración" @click="closeSidebar">
@@ -2406,48 +2525,52 @@ onBeforeRouteLeave((to) => {
                 accept=".mp3,.m4a,.mp4,.aac,.ogg,.wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav"
                 @change="onMusicFileSelected" />
 
-              <section class="config-block">
-                <label class="field">
-                  <span>Título</span>
-                  <input v-model="title" type="text" placeholder="Ej: Boda de Sofía y Mateo" />
-                </label>
+              <Transition name="config-panel-swap" mode="out-in">
+                <div :key="activeConfigTarget" class="config-panel-slot">
+                  <section v-if="activeConfigTarget === 'config-content'" id="config-content"
+                    class="config-block config-block--content">
+                    <label class="field">
+                      <span>Título</span>
+                      <input v-model="title" type="text" placeholder="Ej: Boda de Sofía y Mateo" />
+                    </label>
 
-                <label class="field">
-                  <span>Enlace corto (Subdominio)</span>
-                  <input v-model="slug" type="text" maxlength="63" autocapitalize="off" autocomplete="off"
-                    spellcheck="false" placeholder="boda-sofia-mateo" />
-                  <small class="field-hint">Usa solo letras minúsculas, números y guiones.</small>
-                  <small class="field-hint field-hint--subdomain">{{ subdomainChangeHelp }}</small>
-                  <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
-                </label>
-              </section>
+                    <label class="field">
+                      <span>Enlace corto (Subdominio)</span>
+                      <input v-model="slug" type="text" maxlength="63" autocapitalize="off" autocomplete="off"
+                        spellcheck="false" placeholder="boda-sofia-mateo" />
+                      <small class="field-hint">Usa solo letras minúsculas, números y guiones.</small>
+                      <small class="field-hint field-hint--subdomain">{{ subdomainChangeHelp }}</small>
+                      <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
+                    </label>
+                  </section>
 
-              <section class="config-block">
-                <h3>Estilo de plantilla</h3>
-                <p v-if="isDraft">Puedes cambiar el estilo mientras sea borrador.</p>
-                <p v-else>El estilo queda fijo después de publicar.</p>
+                  <section v-else-if="activeConfigTarget === 'config-style'" id="config-style"
+                    class="config-block config-block--style">
+                    <h3>Estilo de plantilla</h3>
+                    <p v-if="isDraft">Puedes cambiar el estilo mientras sea borrador.</p>
+                    <p v-else>El estilo queda fijo después de publicar.</p>
 
-                <label class="field">
-                  <span>Plantilla</span>
-                  <select v-model="selectedTemplateId" :disabled="!isDraft || isChangingTemplate || isLoadingTemplates">
-                    <option v-for="item in availableTemplates" :key="String(item.id)" :value="String(item.id)">
-                      {{ item.name ?? `Plantilla #${item.id}` }}
-                    </option>
-                  </select>
-                </label>
+                    <label class="field">
+                      <span>Plantilla</span>
+                      <select v-model="selectedTemplateId"
+                        :disabled="!isDraft || isChangingTemplate || isLoadingTemplates">
+                        <option v-for="item in availableTemplates" :key="String(item.id)" :value="String(item.id)">
+                          {{ item.name ?? `Plantilla #${item.id}` }}
+                        </option>
+                      </select>
+                    </label>
 
-                <BaseButton v-if="isDraft" type="button" variant="ghost"
-                  :disabled="!hasPendingTemplateChange || isChangingTemplate" @click="applyTemplateChange">
-                  {{ isChangingTemplate ? 'Aplicando estilo...' : 'Aplicar estilo' }}
-                </BaseButton>
-              </section>
+                    <BaseButton v-if="isDraft" type="button" variant="ghost"
+                      :disabled="!hasPendingTemplateChange || isChangingTemplate" @click="applyTemplateChange">
+                      {{ isChangingTemplate ? 'Aplicando estilo...' : 'Aplicar estilo' }}
+                    </BaseButton>
+                  </section>
 
-              <section class="config-block">
-                <h3>Opcionales</h3>
-                <p>Activa o desactiva secciones y configura cada bloque.</p>
-
-                <div class="option-group">
-                  <article v-for="section in optionalSections" :key="section.key" class="feature-item">
+                  <section v-else-if="selectedOptionalSections.length" id="config-sections"
+                    class="config-block config-block--sections">
+                    <div class="option-group">
+                      <article v-for="section in selectedOptionalSections" :id="`config-section-${section.key}`"
+                        :key="section.key" class="feature-item">
                     <div class="feature-header">
                       <button type="button" class="feature-accordion-toggle"
                         :aria-expanded="isOptionalSectionExpanded(section.key) ? 'true' : 'false'"
@@ -2818,14 +2941,62 @@ onBeforeRouteLeave((to) => {
                       <div v-else class="option-panel">
                         <h4>{{ section.label }}</h4>
                       </div>
+
                     </div>
-                  </article>
+                      </article>
+                    </div>
+                  </section>
                 </div>
-              </section>
+              </Transition>
             </div>
           </div>
         </aside>
       </Transition>
+
+      <nav class="editor-config-bar" :class="{ 'is-collapsed': isConfigBarCollapsed }"
+        aria-label="Configuración rápida de la invitación">
+        <div class="editor-config-bar__inner">
+          <span v-if="hoveredConfigTooltip" class="editor-config-bar__tooltip"
+            :style="{ left: `${hoveredConfigTooltip.left}px` }">
+            {{ hoveredConfigTooltip.label }}
+          </span>
+
+          <button type="button" class="editor-config-bar__toggle"
+            :aria-label="isConfigBarCollapsed ? 'Mostrar configuración' : 'Minimizar configuración'"
+            :title="isConfigBarCollapsed ? 'Mostrar configuración' : 'Minimizar configuración'"
+            @click="toggleConfigBarCollapsed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path :d="isConfigBarCollapsed ? 'm7 14 5-5 5 5' : 'm7 10 5 5 5-5'" />
+            </svg>
+          </button>
+
+          <div class="editor-config-bar__scroll-wrap">
+            <button type="button" class="editor-config-bar__scroll-btn editor-config-bar__scroll-btn--left"
+              aria-label="Ver opciones anteriores" title="Ver opciones anteriores" @click="scrollConfigBar('left')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            <div ref="configBarScrollRef" class="editor-config-bar__scroll" role="list">
+              <button v-for="item in configBarItems" :key="item.key" type="button" class="editor-config-bar__item"
+                :class="{ 'is-active': isSidebarOpen && activeConfigTarget === item.target }" :data-label="item.label"
+                :aria-label="item.label" :title="item.label" role="listitem" @mouseenter="showConfigTooltip(item, $event)"
+                @focus="showConfigTooltip(item, $event)" @mouseleave="hideConfigTooltip" @blur="hideConfigTooltip"
+                @click="openConfigTarget(item.target)">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in getConfigBarIconPaths(item.icon)" :key="path" :d="path" />
+                </svg>
+              </button>
+            </div>
+            <button type="button" class="editor-config-bar__scroll-btn editor-config-bar__scroll-btn--right"
+              aria-label="Ver más opciones" title="Ver más opciones" @click="scrollConfigBar('right')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 6 6 6-6 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </nav>
     </section>
 
     <Transition name="leave-modal">
@@ -3168,36 +3339,236 @@ onBeforeRouteLeave((to) => {
   color: #0f172a;
 }
 
-.editor-settings-fab {
+.editor-config-bar {
   position: fixed;
-  right: 32px;
-  bottom: 88px;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  background: linear-gradient(160deg, #ffffff 0%, #eef4ff 100%);
-  color: #0f172a;
+  left: 94px;
+  right: 0;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 82;
+  display: grid;
+  justify-items: center;
+  padding: 0 14px;
+  pointer-events: none;
+}
+
+.editor-config-bar__inner {
+  width: min(1040px, 100%);
+  min-width: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(219, 203, 255, 0.74);
   border-radius: 999px;
-  min-height: 40px;
-  padding: 0.45rem 0.7rem;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(219, 91, 182, 0.16), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(250, 246, 255, 0.92));
+  box-shadow:
+    0 22px 46px rgba(45, 24, 84, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+  transition: transform 0.28s ease, opacity 0.28s ease, max-width 0.28s ease;
+}
+
+.editor-config-bar.is-collapsed .editor-config-bar__inner {
+  max-width: 64px;
+  grid-template-columns: auto;
+  padding-inline: 8px;
+}
+
+.editor-config-bar__toggle,
+.editor-config-bar__item {
+  border: 0;
+  color: #2b1748;
   display: inline-flex;
   align-items: center;
-  gap: 0.42rem;
-  font-weight: 700;
+  justify-content: center;
   cursor: pointer;
-  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.2);
-  z-index: 78;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.editor-settings-fab:hover {
+.editor-config-bar__toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7a4fd9, #db5bb6);
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(122, 79, 217, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.editor-config-bar__toggle:hover,
+.editor-config-bar__toggle:focus-visible {
   transform: translateY(-1px);
-  background: linear-gradient(160deg, #ffffff 0%, #dbeafe 100%);
-  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.24);
+  box-shadow: 0 18px 32px rgba(122, 79, 217, 0.34);
 }
 
-.editor-settings-fab svg {
-  width: 17px;
-  height: 17px;
-  fill: currentColor;
+.editor-config-bar__toggle svg,
+.editor-config-bar__item svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.editor-config-bar__toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.editor-config-bar__scroll-wrap {
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.editor-config-bar.is-collapsed .editor-config-bar__scroll-wrap {
+  display: none;
+}
+
+.editor-config-bar__scroll-wrap::before,
+.editor-config-bar__scroll-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 34px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.editor-config-bar__scroll-wrap::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.96), transparent);
+}
+
+.editor-config-bar__scroll-wrap::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(250, 246, 255, 0.96), transparent);
+}
+
+.editor-config-bar__scroll {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 3px 44px;
+  scroll-snap-type: x proximity;
+}
+
+.editor-config-bar__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-config-bar__scroll-btn {
+  position: absolute;
+  top: 50%;
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(155, 107, 255, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 255, 0.9));
+  color: #4b2a73;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    0 10px 22px rgba(45, 24, 84, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transform: translateY(-50%);
+  transition: transform 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.editor-config-bar__scroll-btn--left {
+  left: 3px;
+}
+
+.editor-config-bar__scroll-btn--right {
+  right: 3px;
+}
+
+.editor-config-bar__scroll-btn:hover,
+.editor-config-bar__scroll-btn:focus-visible {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.7);
+  background: linear-gradient(135deg, #7a4fd9, #db5bb6);
+  box-shadow: 0 14px 26px rgba(122, 79, 217, 0.28);
+  transform: translateY(-50%) scale(1.04);
+}
+
+.editor-config-bar__scroll-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.editor-config-bar__item {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  position: relative;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 245, 255, 0.84));
+  border: 1px solid rgba(155, 107, 255, 0.17);
+  box-shadow: 0 8px 18px rgba(45, 24, 84, 0.08);
+  scroll-snap-align: center;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.editor-config-bar__item:hover,
+.editor-config-bar__item:focus-visible,
+.editor-config-bar__item.is-active {
+  transform: translateY(-3px);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.72);
+  background: linear-gradient(135deg, #7a4fd9, #db5bb6);
+  box-shadow:
+    0 16px 30px rgba(122, 79, 217, 0.3),
+    0 8px 16px rgba(219, 91, 182, 0.16);
+}
+
+.editor-config-bar__item svg {
+  width: 19px;
+  height: 19px;
+}
+
+.editor-config-bar__tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  transform: translate(-50%, 6px);
+  max-width: 190px;
+  width: max-content;
+  padding: 0.42rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(31, 18, 53, 0.94);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+  opacity: 1;
+  pointer-events: none;
+  box-shadow: 0 12px 26px rgba(24, 15, 42, 0.24);
+  animation: editor-config-tooltip-in 0.18s ease forwards;
+}
+
+@keyframes editor-config-tooltip-in {
+  to {
+    transform: translate(-50%, 0);
+  }
 }
 
 .preview-card {
@@ -3253,19 +3624,24 @@ onBeforeRouteLeave((to) => {
   z-index: 79;
   border: 0;
   background:
-    radial-gradient(circle at 84% 18%, rgba(56, 189, 248, 0.18), transparent 35%),
-    rgba(15, 23, 42, 0.42);
-  backdrop-filter: blur(3px);
+    radial-gradient(circle at 82% 12%, rgba(219, 91, 182, 0.2), transparent 28%),
+    radial-gradient(circle at 10% 88%, rgba(122, 79, 217, 0.18), transparent 34%),
+    rgba(24, 15, 42, 0.48);
+  backdrop-filter: blur(6px);
 }
 
 .config-drawer {
   position: fixed;
-  top: 84px;
-  right: 12px;
-  width: min(446px, calc(100vw - 24px));
-  height: calc(100dvh - 96px);
+  left: 94px;
+  right: 0;
+  bottom: 118px;
+  max-height: min(64dvh, 680px);
+  padding: 0 16px;
   z-index: 80;
   min-width: 0;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
 }
 
 .config-drawer,
@@ -3276,29 +3652,54 @@ onBeforeRouteLeave((to) => {
 }
 
 .config-drawer__shell {
-  height: 100%;
+  width: min(920px, 100%);
+  max-height: min(64dvh, 680px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  border-radius: 18px;
+  border-radius: 28px;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  border: 1px solid rgba(219, 203, 255, 0.82);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(246, 250, 255, 0.98) 100%);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(251, 247, 255, 0.97) 100%);
   box-shadow:
-    0 28px 52px rgba(2, 6, 23, 0.28),
-    0 1px 0 rgba(255, 255, 255, 0.7) inset;
-  backdrop-filter: blur(8px);
+    0 34px 70px rgba(24, 15, 42, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.config-panel-slot {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.config-panel-swap-enter-active,
+.config-panel-swap-leave-active {
+  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.config-panel-swap-enter-from {
+  opacity: 0;
+  transform: translateY(14px) scale(0.992);
+}
+
+.config-panel-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.992);
 }
 
 .config-drawer__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  gap: 14px;
+  padding: 18px 18px 15px;
+  border-bottom: 1px solid rgba(219, 203, 255, 0.66);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 252, 255, 0.95) 100%);
+    radial-gradient(circle at 14% 0%, rgba(219, 91, 182, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 255, 0.92));
 }
 
 .config-drawer__title-wrap {
@@ -3309,18 +3710,27 @@ onBeforeRouteLeave((to) => {
 
 .config-drawer__eyebrow {
   margin: 0;
-  font-size: 0.69rem;
-  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #64748b;
-  font-weight: 700;
+  color: #7b5aa7;
+  font-weight: 900;
 }
 
 .config-drawer h2 {
   margin: 0;
-  font-size: 1.08rem;
-  font-weight: 800;
-  color: #0f172a;
+  color: #1f1235;
+  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.config-drawer__subtitle {
+  margin: 2px 0 0;
+  max-width: 34ch;
+  color: #76658f;
+  font-size: 0.82rem;
+  line-height: 1.32;
 }
 
 .config-drawer__body {
@@ -3328,12 +3738,13 @@ onBeforeRouteLeave((to) => {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 12px 24px;
+  padding: 14px 14px 26px;
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  align-content: start;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.62) transparent;
+  scrollbar-color: rgba(122, 79, 217, 0.44) transparent;
 }
 
 .config-drawer__body::-webkit-scrollbar {
@@ -3346,49 +3757,67 @@ onBeforeRouteLeave((to) => {
 
 .config-drawer__body::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.55);
+  background: linear-gradient(180deg, rgba(122, 79, 217, 0.5), rgba(219, 91, 182, 0.44));
 }
 
 .config-drawer__body::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.74);
+  background: linear-gradient(180deg, rgba(122, 79, 217, 0.68), rgba(219, 91, 182, 0.58));
 }
 
 .config-block {
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 14px;
-  padding: 11px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.94));
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+  position: relative;
+  border: 1px solid rgba(219, 203, 255, 0.72);
+  border-radius: 22px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(240, 106, 166, 0.09), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(250, 247, 255, 0.88));
+  box-shadow:
+    0 14px 30px rgba(45, 24, 84, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset;
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  scroll-margin-top: 82px;
+  overflow: visible;
+}
+
+.config-block::before {
+  content: '';
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7a4fd9, #db5bb6);
+  box-shadow: 0 6px 14px rgba(122, 79, 217, 0.22);
 }
 
 .config-block h3 {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #0f172a;
+  color: #1f1235;
+  font-size: 1rem;
+  font-weight: 950;
+  letter-spacing: -0.02em;
 }
 
 .config-block p {
   margin: 0;
-  color: #64748b;
+  color: #76658f;
   font-size: 0.82rem;
   line-height: 1.36;
 }
 
 .field {
   display: grid;
-  gap: 0.28rem;
+  gap: 0.34rem;
   min-width: 0;
 }
 
 .field span {
-  font-size: 0.83rem;
-  font-weight: 700;
-  color: var(--brand-ink);
+  color: #2b1a44;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
 }
 
 .field input,
@@ -3398,13 +3827,33 @@ onBeforeRouteLeave((to) => {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  min-height: 38px;
-  border-radius: 9px;
-  border: 1px solid rgba(15, 23, 42, 0.16);
-  background: #fff;
-  padding: 0.52rem 0.6rem;
-  color: var(--brand-ink);
+  min-height: 44px;
+  border-radius: 15px;
+  border: 1px solid rgba(155, 107, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.9));
+  padding: 0.68rem 0.78rem;
+  color: #24133b;
   font-family: inherit;
+  box-shadow: 0 8px 18px rgba(45, 24, 84, 0.04);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  border-color: rgba(122, 79, 217, 0.32);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: rgba(122, 79, 217, 0.52);
+  box-shadow:
+    0 0 0 4px rgba(122, 79, 217, 0.1),
+    0 12px 24px rgba(45, 24, 84, 0.1);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .field textarea {
@@ -3413,7 +3862,7 @@ onBeforeRouteLeave((to) => {
 
 .field-hint {
   font-size: 0.74rem;
-  color: #64748b;
+  color: #7b6b8f;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -3452,13 +3901,26 @@ onBeforeRouteLeave((to) => {
 .feature-item {
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  padding: 10px;
+  border: 1px solid rgba(219, 203, 255, 0.74);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(122, 79, 217, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 246, 255, 0.86));
+  padding: 12px;
   display: grid;
-  gap: 10px;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+  gap: 12px;
+  box-shadow:
+    0 12px 24px rgba(45, 24, 84, 0.07),
+    0 1px 0 rgba(255, 255, 255, 0.86) inset;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.feature-item:hover {
+  border-color: rgba(122, 79, 217, 0.34);
+  box-shadow:
+    0 16px 30px rgba(45, 24, 84, 0.11),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transform: translateY(-1px);
 }
 
 .feature-header {
@@ -3467,9 +3929,9 @@ onBeforeRouteLeave((to) => {
   justify-content: initial;
   align-items: center;
   gap: 10px;
-  color: #0f172a;
+  color: #24133b;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 950;
 }
 
 .feature-accordion-toggle {
@@ -3481,7 +3943,7 @@ onBeforeRouteLeave((to) => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   text-align: left;
   color: inherit;
   cursor: pointer;
@@ -3493,14 +3955,14 @@ onBeforeRouteLeave((to) => {
 }
 
 .feature-accordion-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.65;
+  opacity: 0.58;
   transition: transform 0.22s ease, opacity 0.22s ease;
 }
 
@@ -3510,9 +3972,9 @@ onBeforeRouteLeave((to) => {
 }
 
 .feature-accordion-toggle:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.35);
-  outline-offset: 3px;
-  border-radius: 10px;
+  outline: 2px solid rgba(122, 79, 217, 0.28);
+  outline-offset: 5px;
+  border-radius: 13px;
 }
 
 .feature-header .switch {
@@ -3522,7 +3984,7 @@ onBeforeRouteLeave((to) => {
 
 .feature-body {
   display: grid;
-  gap: 10px;
+  gap: 11px;
   min-width: 0;
 }
 
@@ -3530,8 +3992,8 @@ onBeforeRouteLeave((to) => {
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 44px;
-  height: 26px;
+  width: 48px;
+  height: 28px;
 }
 
 .switch input {
@@ -3544,9 +4006,12 @@ onBeforeRouteLeave((to) => {
 .switch-track {
   position: absolute;
   inset: 0;
-  background: rgba(148, 163, 184, 0.55);
+  background: linear-gradient(180deg, rgba(196, 181, 253, 0.66), rgba(148, 163, 184, 0.52));
   border-radius: 999px;
-  transition: background 0.2s ease;
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.13),
+    0 6px 14px rgba(45, 24, 84, 0.08);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .switch-track::before {
@@ -3554,31 +4019,37 @@ onBeforeRouteLeave((to) => {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
   transition: transform 0.2s ease;
 }
 
 .switch input:checked+.switch-track {
-  background: #2563eb;
+  background: linear-gradient(135deg, #7a4fd9, #db5bb6);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.24),
+    0 10px 18px rgba(122, 79, 217, 0.22);
 }
 
 .switch input:checked+.switch-track::before {
-  transform: translateX(18px);
+  transform: translateX(20px);
 }
 
 .option-panel {
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 12px;
-  padding: 10px;
+  border: 1px solid rgba(155, 107, 255, 0.16);
+  border-radius: 18px;
+  padding: 12px;
   display: grid;
-  gap: 10px;
-  background: #ffffff;
+  gap: 11px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(219, 91, 182, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 22px rgba(45, 24, 84, 0.05);
 }
 
 .option-panel h4 {
@@ -3600,17 +4071,17 @@ onBeforeRouteLeave((to) => {
 .location-panel-title {
   margin: 0;
   font-size: 0.8rem;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 900;
+  color: #2b1a44;
 }
 
 .location-add-btn {
-  border: 1px solid rgba(37, 99, 235, 0.25);
+  border: 1px solid rgba(122, 79, 217, 0.22);
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
+  background: rgba(122, 79, 217, 0.08);
+  color: #5b2fb8;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1;
   padding: 0.5rem 0.72rem;
   cursor: pointer;
@@ -3619,8 +4090,8 @@ onBeforeRouteLeave((to) => {
 
 .location-add-btn:hover:not(:disabled),
 .location-add-btn:focus-visible:not(:disabled) {
-  background: rgba(37, 99, 235, 0.16);
-  color: #1e40af;
+  background: rgba(122, 79, 217, 0.14);
+  color: #4b259b;
   transform: translateY(-1px);
 }
 
@@ -3630,12 +4101,14 @@ onBeforeRouteLeave((to) => {
 }
 
 .location-item-card {
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 12px;
-  padding: 10px;
+  border: 1px solid rgba(219, 203, 255, 0.72);
+  border-radius: 16px;
+  padding: 12px;
   display: grid;
-  gap: 8px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+  gap: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 247, 255, 0.9));
+  box-shadow: 0 10px 22px rgba(45, 24, 84, 0.06);
 }
 
 .location-item-card__head {
@@ -3646,8 +4119,9 @@ onBeforeRouteLeave((to) => {
 }
 
 .location-item-card__head strong {
-  font-size: 0.82rem;
-  color: #0f172a;
+  color: #2b1a44;
+  font-size: 0.84rem;
+  font-weight: 950;
 }
 
 .location-remove-btn {
@@ -3675,10 +4149,10 @@ onBeforeRouteLeave((to) => {
 }
 
 .location-meta {
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 10px;
-  padding: 8px 9px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(241, 245, 249, 0.82));
+  border: 1px solid rgba(155, 107, 255, 0.16);
+  border-radius: 14px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(248, 245, 255, 0.88), rgba(255, 255, 255, 0.78));
   display: grid;
   gap: 6px;
   min-width: 0;
@@ -3729,9 +4203,9 @@ onBeforeRouteLeave((to) => {
 .feature-inline-switch span {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #2b1a44;
   line-height: 1.3;
 }
 
@@ -3757,14 +4231,14 @@ onBeforeRouteLeave((to) => {
 .gallery-panel-head p {
   margin: 0;
   font-size: 0.8rem;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 900;
+  color: #2b1a44;
 }
 
 .gallery-panel-copy {
   margin: 0;
   font-size: 0.76rem;
-  color: #64748b;
+  color: #7b6b8f;
   line-height: 1.35;
 }
 
@@ -3776,10 +4250,12 @@ onBeforeRouteLeave((to) => {
 .music-upload-panel {
   display: grid;
   gap: 8px;
-  padding: 9px;
-  border-radius: 11px;
+  padding: 11px;
+  border-radius: 16px;
   border: 1px solid rgba(124, 58, 237, 0.18);
-  background: linear-gradient(180deg, rgba(250, 245, 255, 0.92), rgba(245, 243, 255, 0.72));
+  background:
+    radial-gradient(circle at top right, rgba(219, 91, 182, 0.1), transparent 36%),
+    linear-gradient(180deg, rgba(250, 245, 255, 0.94), rgba(255, 255, 255, 0.76));
 }
 
 .music-upload-panel p,
@@ -4130,24 +4606,26 @@ onBeforeRouteLeave((to) => {
 }
 
 .config-drawer__close {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(148, 163, 184, 0.42);
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #eef4ff 100%);
-  color: #0f172a;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(155, 107, 255, 0.2);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 245, 255, 0.9));
+  color: #2b1a44;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-shadow: 0 10px 20px rgba(45, 24, 84, 0.08);
 }
 
 .config-drawer__close:hover,
 .config-drawer__close:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.16);
-  background: linear-gradient(180deg, #ffffff 0%, #e8f0ff 100%);
+  box-shadow: 0 14px 24px rgba(45, 24, 84, 0.14);
+  background: #fff;
 }
 
 .config-drawer__close svg {
@@ -4281,7 +4759,7 @@ onBeforeRouteLeave((to) => {
 
 .config-drawer-enter-from,
 .config-drawer-leave-to {
-  transform: translateX(28px) scale(0.985);
+  transform: translateY(34px) scale(0.985);
   opacity: 0;
 }
 
@@ -4709,11 +5187,54 @@ onBeforeRouteLeave((to) => {
     text-align: center;
   }
 
+  .editor-config-bar {
+    left: 0;
+    padding: 0 8px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .editor-config-bar__inner {
+    width: 100%;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .editor-config-bar__toggle,
+  .editor-config-bar__item {
+    width: 40px;
+    height: 40px;
+  }
+
+  .editor-config-bar__item {
+    flex-basis: 40px;
+    border-radius: 14px;
+  }
+
+  .editor-config-bar__scroll {
+    padding-inline: 40px;
+  }
+
+  .editor-config-bar__scroll-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .editor-config-bar__tooltip {
+    display: none;
+  }
+
   .config-drawer {
-    top: 68px;
-    right: 8px;
-    width: calc(100vw - 16px);
-    height: calc(100dvh - 78px);
+    left: 0;
+    right: 0;
+    bottom: 88px;
+    width: auto;
+    height: auto;
+    max-height: min(70dvh, calc(100dvh - 146px));
+    padding: 0 8px;
+  }
+
+  .config-drawer__shell {
+    max-height: min(70dvh, calc(100dvh - 146px));
   }
 
   .config-drawer__header {
@@ -4728,12 +5249,6 @@ onBeforeRouteLeave((to) => {
     padding: 10px;
   }
 
-  .editor-settings-fab {
-    right: 12px;
-    bottom: 72px;
-  }
-
-  .editor-settings-fab span,
   .editor-topbar-back span,
   .editor-topbar-help span {
     display: none;

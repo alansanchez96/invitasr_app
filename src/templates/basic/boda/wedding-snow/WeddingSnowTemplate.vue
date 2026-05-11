@@ -1281,7 +1281,7 @@ watch(
       </div>
     </header>
 
-    <section v-if="isSectionVisible('countdown')" class="snow-card">
+    <section v-if="isSectionVisible('countdown')" class="snow-card snow-section snow-section--countdown">
       <h2>{{ countdown.title }}</h2>
       <p v-if="!isEditing('countdown_note')" class="editable" @dblclick="startEdit('countdown_note')">
         {{ countdown.note }}
@@ -1311,7 +1311,7 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('story')" class="snow-card">
+    <section v-if="isSectionVisible('story')" class="snow-card snow-section snow-section--story">
       <p class="section-kicker">Historia</p>
       <h2 v-if="!isEditing('story_title')" class="editable" @dblclick="startEdit('story_title')">
         {{ storyPrimary.title }}
@@ -1326,7 +1326,7 @@ watch(
         @input="updateText('story_description', $event)" @blur="finishEdit" @keydown.esc.prevent="finishEdit" />
     </section>
 
-    <section v-if="isSectionVisible('gallery') && galleryItems.length > 0" class="snow-card">
+    <section v-if="isSectionVisible('gallery') && galleryItems.length > 0" class="snow-card snow-section snow-section--gallery">
       <p class="section-kicker">Galería</p>
       <div class="snow-gallery-carousel">
         <div class="snow-gallery-carousel__stage">
@@ -1368,7 +1368,7 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall">
+    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall snow-section snow-section--wall">
       <div class="snow-wall__head">
         <p class="section-kicker">{{ wallConfig.title }}</p>
         <button v-if="!editable && !props.demoMode && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
@@ -1429,7 +1429,7 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('location')" class="snow-card snow-location">
+    <section v-if="isSectionVisible('location')" class="snow-card snow-location snow-section snow-section--location">
       <p class="section-kicker">Ubicación</p>
       <div class="snow-location-grid" :class="{ 'snow-location-grid--single': locationCards.length <= 1 }">
         <article v-for="(locationCard, index) in locationCards" :key="locationCard.id || `location-${index}`"
@@ -1448,7 +1448,7 @@ watch(
     </section>
 
     <div v-if="isSectionVisible('saveDate') || isSectionVisible('dressCode')" class="snow-dual-grid">
-      <section v-if="isSectionVisible('saveDate')" class="snow-card snow-card--half">
+      <section v-if="isSectionVisible('saveDate')" class="snow-card snow-card--half snow-section snow-section--save-date">
         <p class="section-kicker">Save the date</p>
         <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">
           {{ saveDateLabel }}
@@ -1458,14 +1458,14 @@ watch(
         </button>
       </section>
 
-      <section v-if="isSectionVisible('dressCode')" class="snow-card snow-card--half">
+      <section v-if="isSectionVisible('dressCode')" class="snow-card snow-card--half snow-section snow-section--dress-code">
         <p class="section-kicker">Dress code</p>
         <h2>{{ dressCode.title }}</h2>
         <p>{{ dressCode.description }}</p>
       </section>
     </div>
 
-    <section v-if="isSectionVisible('rsvp')" class="snow-card snow-rsvp">
+    <section v-if="isSectionVisible('rsvp')" class="snow-card snow-rsvp snow-section snow-section--rsvp">
       <p class="section-kicker">Confirmación</p>
       <div class="snow-rsvp-layout">
         <div class="snow-rsvp-main">
@@ -1547,7 +1547,7 @@ watch(
       <strong>{{ branding.ctaLabel }}</strong>
     </RouterLink>
 
-    <section v-if="isSectionVisible('faq') && !isSectionVisible('rsvp')" class="snow-card snow-faq">
+    <section v-if="isSectionVisible('faq') && !isSectionVisible('rsvp')" class="snow-card snow-faq snow-section snow-section--faq">
       <p class="section-kicker">Información importante</p>
       <h3>Preguntas frecuentes que conviene leer antes de confirmar</h3>
       <p class="snow-faq__lead">
@@ -1669,7 +1669,7 @@ watch(
     }">
       <div class="snow-checkin-overlay__glow snow-checkin-overlay__glow--one"></div>
       <div class="snow-checkin-overlay__glow snow-checkin-overlay__glow--two"></div>
-      <div class="snow-checkin-overlay__card">
+      <div class="snow-checkin-overlay__card snow-section snow-section--checkin">
         <p class="section-kicker">{{ props.checkinPreview ? 'Vista previa check-in' : 'Bienvenida interactiva' }}</p>
         <h3>{{ checkinTitle }}</h3>
         <p>{{ checkinMessage }}</p>
@@ -1686,14 +1686,26 @@ watch(
 .snow-template {
   --snow-thumb-size: 64px;
   --snow-thumb-gap: 8px;
+  --snow-primary: #7a4fd9;
+  --snow-secondary: #f06aa6;
+  --snow-text: #1d0f2f;
+  --snow-bg: #f6f7fb;
+  --snow-bg-paint: linear-gradient(180deg, #f6f7fb 0%, #eef2ff 100%);
+  --snow-bg-accent: #eef2ff;
+  --snow-section-bg: #ffffff;
+  --snow-button-bg: #7a4fd9;
+  --snow-button-bg-alt: #f06aa6;
+  --snow-button-text: #ffffff;
+  --snow-primary-soft: rgba(122, 79, 217, 0.12);
+  --snow-secondary-soft: rgba(240, 106, 166, 0.14);
   display: grid;
   gap: 14px;
   padding: 14px;
   border-radius: 18px;
   background:
-    radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.95), rgba(248, 251, 255, 0.9)),
-    linear-gradient(180deg, #f6f7fb 0%, #f2f5fa 100%);
-  color: #1f2937;
+    radial-gradient(circle at 10% 20%, color-mix(in srgb, var(--snow-section-bg) 92%, transparent), transparent 34%),
+    var(--snow-bg-paint);
+  color: var(--snow-text);
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -1708,15 +1720,46 @@ watch(
 .snow-card {
   border-radius: 16px;
   border: 1px solid rgba(31, 41, 55, 0.08);
-  background: white;
+  background: var(--snow-section-bg);
   padding: 16px;
+}
+
+.snow-section {
+  --section-bg: var(--snow-section-bg);
+  --section-surface: var(--snow-section-bg);
+  --section-text: var(--snow-text);
+  --section-accent: var(--snow-primary);
+  --section-button-bg: var(--snow-button-bg);
+  --section-button-text: var(--snow-button-text);
+  background: var(--section-bg);
+  color: var(--section-text);
+  border-color: color-mix(in srgb, var(--section-accent) 18%, transparent);
+}
+
+.snow-section .section-kicker,
+.snow-section .snow-card h2,
+.snow-section h2,
+.snow-section h3,
+.snow-section p {
+  color: var(--section-text);
+}
+
+.snow-section .snow-action,
+.snow-section .snow-rsvp__button,
+.snow-section .snow-link,
+.snow-section .snow-gallery-carousel__open {
+  background: var(--section-button-bg);
+  color: var(--section-button-text);
+  border-color: color-mix(in srgb, var(--section-accent) 28%, transparent);
 }
 
 .snow-wall {
   position: relative;
   overflow: hidden;
-  border-color: rgba(122, 79, 217, 0.24);
-  background: linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%);
+  border-color: color-mix(in srgb, var(--section-accent, var(--snow-primary)) 28%, transparent);
+  background:
+    radial-gradient(circle at 82% 14%, color-mix(in srgb, var(--section-accent, var(--snow-primary)) 14%, transparent), transparent 36%),
+    linear-gradient(180deg, var(--section-bg, #f8fbff) 0%, color-mix(in srgb, var(--section-bg, #f8fbff) 84%, var(--section-accent, var(--snow-primary))) 100%);
 }
 
 .snow-wall::before {
@@ -1745,7 +1788,7 @@ watch(
 
 .snow-wall__description {
   margin: 0;
-  color: rgba(45, 24, 10, 0.88);
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-wall__meta {
@@ -1763,14 +1806,14 @@ watch(
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: #3b1f63;
+  color: var(--section-accent, var(--snow-primary));
   background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(122, 79, 217, 0.22);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 26%, transparent);
 }
 
 .snow-wall__chip--soft {
-  color: #6a557e;
-  border-color: rgba(110, 90, 136, 0.22);
+  color: color-mix(in srgb, var(--snow-text) 72%, #ffffff);
+  border-color: color-mix(in srgb, var(--snow-text) 22%, transparent);
 }
 
 .snow-wall__add {
@@ -1779,7 +1822,7 @@ watch(
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.06);
-  color: #0f172a;
+  color: var(--snow-text);
   font-size: 1.2rem;
   font-weight: 700;
   cursor: pointer;
@@ -1865,8 +1908,8 @@ watch(
   padding: 0.8rem;
   border-radius: 12px;
   border: 1px dashed rgba(119, 82, 49, 0.45);
-  color: rgba(57, 34, 14, 0.9);
-  background: rgba(255, 252, 245, 0.85);
+  color: var(--section-text, var(--snow-text));
+  background: color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 86%, var(--section-accent, var(--snow-primary)));
 }
 
 .snow-wall__form {
@@ -1881,7 +1924,7 @@ watch(
 
 .snow-wall__form span {
   font-size: 0.78rem;
-  color: #64748b;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 72%, #ffffff);
   font-weight: 700;
 }
 
@@ -1889,18 +1932,18 @@ watch(
   justify-self: end;
   margin-top: -2px;
   font-size: 0.72rem;
-  color: #64748b;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 68%, #ffffff);
   font-weight: 600;
 }
 
 .snow-wall__form input,
 .snow-wall__form textarea {
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 20%, transparent);
   padding: 0.65rem 0.75rem;
   font-size: 0.9rem;
-  color: #0f172a;
-  background: #fff;
+  color: var(--section-text, var(--snow-text));
+  background: color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 96%, #ffffff);
 }
 
 .snow-wall__form textarea {
@@ -1916,8 +1959,8 @@ watch(
 }
 
 .snow-wall-note {
-  --note-bg: #fff9b4;
-  --note-edge: #f4eb8d;
+  --note-bg: var(--section-surface, #fff9b4);
+  --note-edge: color-mix(in srgb, var(--section-surface, #f4eb8d) 78%, var(--section-accent, #f4eb8d));
   --pin-color: #db4f57;
   --note-paper-rotation: -1.4deg;
   position: relative;
@@ -1977,22 +2020,22 @@ watch(
 }
 
 .snow-wall-note:nth-child(2n) {
-  --note-bg: #c7ecff;
-  --note-edge: #afe2fa;
+  --note-bg: color-mix(in srgb, var(--section-surface, #c7ecff) 88%, #ffffff);
+  --note-edge: color-mix(in srgb, var(--section-surface, #afe2fa) 78%, var(--section-accent, #2f65cc));
   --pin-color: #2f65cc;
   --note-paper-rotation: 1.4deg;
 }
 
 .snow-wall-note:nth-child(3n) {
-  --note-bg: #ffe6ee;
-  --note-edge: #ffd8e5;
+  --note-bg: color-mix(in srgb, var(--section-surface, #ffe6ee) 84%, var(--section-accent, #f0d43f));
+  --note-edge: color-mix(in srgb, var(--section-surface, #ffd8e5) 72%, var(--section-accent, #f0d43f));
   --pin-color: #f0d43f;
   --note-paper-rotation: -0.9deg;
 }
 
 .snow-wall-note:nth-child(4n) {
-  --note-bg: #d8f6cf;
-  --note-edge: #c6edbc;
+  --note-bg: color-mix(in srgb, var(--section-surface, #d8f6cf) 86%, #ffffff);
+  --note-edge: color-mix(in srgb, var(--section-surface, #c6edbc) 74%, var(--section-accent, #2f65cc));
   --pin-color: #2f65cc;
   --note-paper-rotation: 1.1deg;
 }
@@ -2030,24 +2073,24 @@ watch(
   font-size: 0.74rem;
   font-weight: 800;
   color: #ffffff;
-  background: linear-gradient(130deg, #7a4fd9 0%, #f06aa6 100%);
-  box-shadow: 0 4px 10px rgba(122, 79, 217, 0.38);
+  background: linear-gradient(130deg, var(--section-accent, var(--snow-primary)) 0%, var(--snow-secondary) 100%);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--section-accent, var(--snow-primary)) 38%, transparent);
 }
 
 .snow-wall-note strong {
   font-size: 0.83rem;
-  color: rgba(44, 23, 8, 0.96);
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-wall-note time {
   font-size: 0.71rem;
-  color: rgba(84, 58, 35, 0.8);
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 72%, #ffffff);
   padding-top: 2px;
 }
 
 .snow-wall-note p {
   margin: 0;
-  color: rgba(44, 23, 8, 0.92);
+  color: var(--section-text, var(--snow-text));
   white-space: pre-wrap;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -2059,22 +2102,22 @@ watch(
   margin-top: 0.5rem;
   border: 0;
   background: transparent;
-  color: #40207a;
+  color: var(--section-accent, var(--snow-primary));
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.01em;
   padding: 0;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: rgba(64, 32, 122, 0.45);
+  text-decoration-color: color-mix(in srgb, var(--section-accent, var(--snow-primary)) 45%, transparent);
   text-underline-offset: 2px;
   transition: color 0.2s ease, text-decoration-color 0.2s ease;
 }
 
 .snow-wall-note__more:hover,
 .snow-wall-note__more:focus-visible {
-  color: #2f65cc;
-  text-decoration-color: rgba(47, 101, 204, 0.6);
+  color: var(--snow-secondary);
+  text-decoration-color: color-mix(in srgb, var(--snow-secondary) 60%, transparent);
 }
 
 .snow-modal--wall {
@@ -2087,21 +2130,22 @@ watch(
   font-size: 0.74rem;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: #64748b;
+  color: color-mix(in srgb, var(--snow-primary) 54%, #64748b);
 }
 
 .snow-title {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1;
+  color: var(--snow-text);
 }
 
 .snow-action {
   border: 0;
   border-radius: 999px;
   padding: 0.65rem 1rem;
-  background: #0f172a;
-  color: #fff;
+  background: var(--snow-button-bg);
+  color: var(--snow-button-text);
   font-weight: 700;
   cursor: pointer;
   margin-top: 0.62rem;
@@ -2114,7 +2158,7 @@ watch(
 
 .snow-subtitle {
   margin: 0.75rem 0 0;
-  color: #4b5563;
+  color: color-mix(in srgb, var(--snow-text) 78%, #ffffff);
   max-width: 52ch;
 }
 
@@ -2136,24 +2180,25 @@ watch(
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
-  color: #475569;
+  color: color-mix(in srgb, var(--snow-text) 72%, #ffffff);
 }
 
 .snow-meta p {
   margin: 0;
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
-  background: rgba(226, 232, 240, 0.5);
+  background: var(--snow-primary-soft);
 }
 
 .snow-card h2 {
   margin: 0 0 0.45rem;
   font-size: 1.2rem;
+  color: var(--snow-text);
 }
 
 .snow-card p {
   margin: 0;
-  color: #374151;
+  color: var(--snow-text);
 }
 
 .snow-countdown {
@@ -2164,14 +2209,14 @@ watch(
   gap: 0.35rem;
   padding: 0.5rem 0.65rem;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 22%, transparent);
+  background: linear-gradient(180deg, var(--section-surface, #ffffff) 0%, color-mix(in srgb, var(--section-surface, #ffffff) 84%, var(--section-accent, var(--snow-primary))) 100%);
 }
 
 .snow-countdown__unit {
   border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: var(--section-surface, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 20%, transparent);
   padding: 0.46rem 0.56rem;
   text-align: center;
   min-width: 64px;
@@ -2181,17 +2226,18 @@ watch(
   display: block;
   font-size: 1.03rem;
   line-height: 1.1;
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-countdown__unit span {
   font-size: 0.72rem;
-  color: #64748b;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 68%, #ffffff);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .snow-countdown__divider {
-  color: #64748b;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 76%, #ffffff);
   font-size: 1.2rem;
   font-weight: 700;
   padding-bottom: 0.26rem;
@@ -2255,7 +2301,7 @@ watch(
   overflow: hidden;
   border-radius: 16px;
   cursor: zoom-in;
-  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, var(--section-surface, #f8fafc) 0%, color-mix(in srgb, var(--section-surface, #f8fafc) 82%, var(--section-accent, var(--snow-primary))) 100%);
   transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
   aspect-ratio: 3 / 4;
@@ -2380,14 +2426,14 @@ watch(
 .snow-gallery-carousel__meta span {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #334155;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 78%, #ffffff);
 }
 
 .snow-gallery-carousel__open {
-  border: 1px solid rgba(15, 23, 42, 0.2);
+  border: 1px solid color-mix(in srgb, var(--snow-primary) 24%, transparent);
   border-radius: 999px;
-  background: #fff;
-  color: #0f172a;
+  background: var(--snow-section-bg);
+  color: var(--snow-text);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.35rem 0.72rem;
@@ -2590,6 +2636,7 @@ watch(
 .snow-location strong {
   display: block;
   margin-bottom: 0.35rem;
+  color: var(--snow-text);
 }
 
 .snow-location-grid {
@@ -2603,10 +2650,16 @@ watch(
 }
 
 .snow-location-card {
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 18%, transparent);
   border-radius: 12px;
   padding: 0.75rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 98%, #ffffff) 0%,
+      color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 92%, var(--section-accent, var(--snow-primary))) 100%
+    );
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-dual-grid {
@@ -2632,8 +2685,8 @@ watch(
   justify-content: center;
   border-radius: 999px;
   padding: 0.55rem 0.9rem;
-  border: 1px solid rgba(15, 23, 42, 0.2);
-  color: #0f172a;
+  border: 1px solid color-mix(in srgb, var(--snow-primary) 24%, transparent);
+  color: var(--snow-text);
   text-decoration: none;
   font-weight: 700;
   margin-top: 0.42rem;
@@ -2643,8 +2696,8 @@ watch(
   border: 0;
   border-radius: 999px;
   padding: 0.75rem 1.1rem;
-  background: linear-gradient(120deg, #0f172a 0%, #1e293b 100%);
-  color: #fff;
+  background: var(--snow-button-bg);
+  color: var(--snow-button-text);
   font-weight: 700;
   cursor: pointer;
   margin-top: 0.92rem;
@@ -2663,7 +2716,7 @@ watch(
 .snow-rsvp__button:not(:disabled):focus-visible {
   cursor: pointer;
   transform: translateY(-1px);
-  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.24);
+  box-shadow: 0 12px 20px color-mix(in srgb, var(--snow-primary) 24%, transparent);
 }
 
 .snow-rsvp__button:disabled {
@@ -2690,35 +2743,35 @@ watch(
 
 .snow-rsvp__intro {
   margin: 0;
-  color: #475569;
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-rsvp__faq-gate {
   margin-top: 0.65rem;
   border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.2);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 22%, transparent);
   background:
-    radial-gradient(circle at top right, rgba(250, 204, 21, 0.2), transparent 45%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.93));
+    radial-gradient(circle at top right, color-mix(in srgb, var(--section-accent, var(--snow-primary)) 14%, transparent), transparent 45%),
+    linear-gradient(180deg, color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 96%, #ffffff), color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 90%, var(--section-accent, var(--snow-primary))));
   padding: 0.8rem 0.85rem;
   display: grid;
   gap: 0.35rem;
 }
 
 .snow-rsvp__faq-gate strong {
-  color: #1e293b;
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-rsvp__faq-gate p {
   margin: 0;
-  color: #475569;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 82%, #ffffff);
   font-size: 0.9rem;
 }
 
 .snow-rsvp__hint {
   margin: 0.2rem 0 0;
   font-size: 0.86rem;
-  color: #64748b;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 70%, #ffffff);
 }
 
 .snow-rsvp__success {
@@ -2738,17 +2791,19 @@ watch(
 
 .snow-rsvp-form span {
   font-size: 0.84rem;
-  color: #475569;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 82%, #ffffff);
   font-weight: 600;
 }
 
 .snow-rsvp-form input {
-  border: 1px solid rgba(15, 23, 42, 0.16);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 18%, transparent);
   border-radius: 10px;
   min-height: 40px;
   padding: 0.5rem 0.65rem;
   font: inherit;
   margin-top: 0.12rem;
+  color: var(--section-text, var(--snow-text));
+  background: color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 96%, #ffffff);
 }
 
 .snow-rsvp-form input:disabled {
@@ -2757,20 +2812,20 @@ watch(
 
 .snow-faq h3 {
   margin: 0.2rem 0 0;
-  color: #0f172a;
+  color: var(--snow-text);
   font-size: 1.15rem;
 }
 
 .snow-faq--side {
-  border: 1px solid rgba(15, 23, 42, 0.15);
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 18%, transparent);
   border-radius: 12px;
   padding: 0.85rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 252, 0.94));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 97%, #ffffff), color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 92%, var(--section-accent, var(--snow-primary))));
 }
 
 .snow-faq__lead {
   margin: 0.55rem 0 0;
-  color: #475569;
+  color: color-mix(in srgb, var(--snow-text) 78%, #ffffff);
 }
 
 .snow-action--cta {
@@ -2894,7 +2949,8 @@ watch(
 }
 
 .snow-music-fab.active {
-  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+  background: var(--snow-music-button-bg);
+  color: var(--snow-music-button-text);
 }
 
 .music-wave {
@@ -2947,7 +3003,7 @@ watch(
   padding: 0.62rem 0.82rem;
   color: #fff;
   text-decoration: none;
-  background: linear-gradient(135deg, rgba(122, 79, 217, 0.92), rgba(240, 106, 166, 0.9));
+  background: linear-gradient(135deg, var(--snow-primary), var(--snow-secondary));
   box-shadow: 0 18px 36px rgba(66, 36, 105, 0.28);
   backdrop-filter: blur(14px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -3035,8 +3091,8 @@ watch(
   overflow: auto;
   border-radius: 24px;
   padding: 1.4rem 1.35rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(241, 245, 249, 0.95) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--section-bg) 96%, #ffffff) 0%, color-mix(in srgb, var(--section-surface) 92%, var(--section-accent)) 100%);
+  border: 1px solid color-mix(in srgb, var(--section-accent) 22%, transparent);
   box-shadow: 0 32px 62px rgba(15, 23, 42, 0.5);
   display: grid;
   gap: 0.86rem;
@@ -3057,20 +3113,21 @@ watch(
 .snow-checkin-overlay__card h3 {
   margin: 0;
   font-size: clamp(1.6rem, 3vw, 2.4rem);
-  color: #0f172a;
+  color: var(--section-text, var(--snow-text));
 }
 
 .snow-checkin-overlay__card p {
   margin: 0;
-  color: #334155;
+  color: color-mix(in srgb, var(--section-text, var(--snow-text)) 82%, #ffffff);
   line-height: 1.5;
 }
 
 .snow-checkin-overlay__meta {
   padding: 0.55rem 0.75rem;
   border-radius: 12px;
-  background: rgba(219, 234, 254, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: color-mix(in srgb, var(--section-surface) 86%, var(--section-accent));
+  border: 1px solid color-mix(in srgb, var(--section-accent) 22%, transparent);
+  color: var(--section-text, var(--snow-text));
   font-weight: 600;
 }
 
@@ -3084,12 +3141,13 @@ watch(
 
 .snow-modal__head h3 {
   margin: 0;
+  color: var(--snow-text);
 }
 
 .snow-modal__head button {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: #fff;
-  color: #334155;
+  border: 1px solid color-mix(in srgb, var(--snow-primary) 20%, transparent);
+  background: var(--snow-section-bg);
+  color: var(--snow-text);
   width: 34px;
   height: 34px;
   border-radius: 999px;
@@ -3116,10 +3174,12 @@ watch(
 
 .snow-modal__body h4 {
   margin: 0 0 0.25rem;
+  color: var(--snow-text);
 }
 
 .snow-modal__body p {
   margin: 0;
+  color: color-mix(in srgb, var(--snow-text) 84%, #ffffff);
 }
 
 @keyframes music-wave-idle {

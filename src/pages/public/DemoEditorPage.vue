@@ -90,7 +90,6 @@ const publicPathPreview = computed(() => {
   const slug = normalizeSlug(publicSlug.value)
   return slug ? `@${slug}` : 'se generará automáticamente'
 })
-
 const musicOptions = [
   {
     id: 'song_1',
@@ -630,6 +629,7 @@ const loadDemo = async () => {
     if (!demoData.value) {
       throw new Error('template_not_available')
     }
+
   } catch {
     loadError.value = 'No pudimos abrir esta demo. Vuelve a la galería y prueba nuevamente.'
     notifyError(loadError.value)
@@ -1242,7 +1242,7 @@ onMounted(loadDemo)
   padding: 12px;
 }
 
-.demo-editor-section-row div {
+.demo-editor-section-row>div:first-child {
   display: grid;
   gap: 3px;
 }

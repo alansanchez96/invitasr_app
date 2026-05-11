@@ -167,6 +167,10 @@ export type InvitationDressCodeConfig = {
 }
 
 export type WeddingTemplateData = {
+  hero?: {
+    title?: string
+    subtitle?: string
+  }
   couple: {
     headline: string
     brideName: string
