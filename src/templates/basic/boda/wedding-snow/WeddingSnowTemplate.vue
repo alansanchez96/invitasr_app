@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
-import type { InvitationTemplateRendererProps } from '@/templates/types'
+import type {
+  InvitationTemplateRendererProps,
+  InvitationThemeGradientConfig,
+  InvitationThemeSectionConfig,
+} from '@/templates/types'
 import { notifyError, notifySuccess } from '@/utils/toast'
 
 type TemplateProps = InvitationTemplateRendererProps<'wedding'> & {
@@ -108,6 +112,106 @@ const demoWallMessages: WallMessage[] = [
 const resolveText = (value: unknown, fallback: string): string => {
   if (typeof value !== 'string') return fallback
   return value.trim().length ? value : fallback
+}
+
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/
+type ThemeGradientType = 'linear' | 'radial' | 'conic'
+
+const resolveColor = (value: unknown, fallback = ''): string => {
+  const color = typeof value === 'string' ? value.trim() : ''
+  return HEX_COLOR_PATTERN.test(color) ? color : fallback
+}
+
+const isThemeGradientType = (value: unknown): value is ThemeGradientType =>
+  value === 'linear' || value === 'radial' || value === 'conic'
+
+const resolveGradientAngle = (value: unknown): number => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 135
+  return Math.min(360, Math.max(0, Math.round(numericValue)))
+}
+
+const resolveGradientPaint = (
+  config: InvitationThemeGradientConfig | undefined,
+  fallbackColors: string[],
+  fallbackPaint = '',
+): string => {
+  if (!config?.enabled) return fallbackPaint
+
+  const colors = Array.isArray(config.colors)
+    ? config.colors.map((color) => resolveColor(color)).filter(Boolean).slice(0, 5)
+    : []
+  const resolvedColors = colors.length >= 2 ? colors : fallbackColors.filter(Boolean)
+
+  if (resolvedColors.length < 2) return fallbackPaint
+
+  const type = isThemeGradientType(config.type) ? config.type : 'linear'
+  const angle = resolveGradientAngle(config.angle)
+  const colorStops = resolvedColors.join(', ')
+
+  if (type === 'radial') return `radial-gradient(circle, ${colorStops})`
+  if (type === 'conic') return `conic-gradient(from ${angle}deg, ${colorStops})`
+  return `linear-gradient(${angle}deg, ${colorStops})`
+}
+
+const templateThemeStyle = computed<Record<string, string>>(() => {
+  const theme = props.data.theme ?? {}
+  const background = resolveColor(theme.background, '#f6f7fb')
+  const hasCustomBackgroundAccent = typeof theme.backgroundAccent === 'string' && Boolean(resolveColor(theme.backgroundAccent))
+  const backgroundAccent = hasCustomBackgroundAccent
+    ? resolveColor(theme.backgroundAccent, '#eef2ff')
+    : theme.background
+      ? background
+      : '#eef2ff'
+  const defaultBackgroundPaint = backgroundAccent === background
+    ? background
+    : `linear-gradient(180deg, ${background} 0%, ${backgroundAccent} 100%)`
+  const backgroundGradient = theme.gradients?.background?.enabled
+    ? theme.gradients.background
+    : theme.gradients?.backgroundAccent
+  const backgroundPaint = resolveGradientPaint(
+    backgroundGradient,
+    [background, backgroundAccent],
+    defaultBackgroundPaint,
+  )
+  const buttonBackground = resolveColor(theme.buttonBackground, '#7a4fd9')
+  const buttonBackgroundAlt = resolveColor(theme.buttonBackgroundAlt, '#f06aa6')
+  const buttonBackgroundPaint = resolveGradientPaint(
+    theme.gradients?.buttonBackground,
+    [buttonBackground, buttonBackgroundAlt],
+    buttonBackground,
+  )
+
+  return {
+    '--snow-primary': resolveColor(theme.primary, '#7a4fd9'),
+    '--snow-secondary': resolveColor(theme.secondary, '#f06aa6'),
+    '--snow-text': resolveColor(theme.text, '#1d0f2f'),
+    '--snow-bg': background,
+    '--snow-bg-accent': backgroundAccent,
+    '--snow-bg-paint': backgroundPaint,
+    '--snow-section-bg': '#ffffff',
+    '--snow-button-bg': buttonBackground,
+    '--snow-button-bg-paint': buttonBackgroundPaint,
+    '--snow-button-bg-alt': buttonBackgroundAlt,
+    '--snow-button-text': resolveColor(theme.buttonText, '#ffffff'),
+  }
+})
+
+const sectionThemeStyle = (sectionKey: string): Record<string, string> => {
+  const sections = props.data.theme?.sections ?? {}
+  const config = sections[sectionKey] as InvitationThemeSectionConfig | undefined
+  if (!config) return {}
+
+  const surface = resolveColor(config.surface)
+  const counterText = resolveColor(config.counterText)
+  const accent = resolveColor(config.accent)
+  const style: Record<string, string> = {}
+
+  if (surface) style['--section-surface'] = surface
+  if (counterText) style['--section-counter-text'] = counterText
+  if (accent) style['--section-accent'] = accent
+
+  return style
 }
 
 const toDate = (value: string): Date | null => {
@@ -1236,8 +1340,9 @@ watch(
 <template>
   <article
     class="snow-template"
-    :class="[{ 'snow-template--public': !editable }, previewViewportClassName, previewButtonsFontClass]">
-    <header v-if="isSectionVisible('hero')" class="snow-hero">
+    :class="[{ 'snow-template--public': !editable }, previewViewportClassName, previewButtonsFontClass]"
+    :style="templateThemeStyle">
+    <header v-if="isSectionVisible('hero')" class="snow-hero" :style="sectionThemeStyle('hero')">
       <p class="snow-tag">Wedding Snow</p>
 
       <h1 v-if="!isEditing('hero_title')" class="snow-title editable" @dblclick="startEdit('hero_title')">
@@ -1281,7 +1386,8 @@ watch(
       </div>
     </header>
 
-    <section v-if="isSectionVisible('countdown')" class="snow-card snow-section snow-section--countdown">
+    <section v-if="isSectionVisible('countdown')" class="snow-card snow-section snow-section--countdown"
+      :style="sectionThemeStyle('countdown')">
       <h2>{{ countdown.title }}</h2>
       <p v-if="!isEditing('countdown_note')" class="editable" @dblclick="startEdit('countdown_note')">
         {{ countdown.note }}
@@ -1311,7 +1417,8 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('story')" class="snow-card snow-section snow-section--story">
+    <section v-if="isSectionVisible('story')" class="snow-card snow-section snow-section--story"
+      :style="sectionThemeStyle('story')">
       <p class="section-kicker">Historia</p>
       <h2 v-if="!isEditing('story_title')" class="editable" @dblclick="startEdit('story_title')">
         {{ storyPrimary.title }}
@@ -1326,7 +1433,8 @@ watch(
         @input="updateText('story_description', $event)" @blur="finishEdit" @keydown.esc.prevent="finishEdit" />
     </section>
 
-    <section v-if="isSectionVisible('gallery') && galleryItems.length > 0" class="snow-card snow-section snow-section--gallery">
+    <section v-if="isSectionVisible('gallery') && galleryItems.length > 0"
+      class="snow-card snow-section snow-section--gallery" :style="sectionThemeStyle('gallery')">
       <p class="section-kicker">Galería</p>
       <div class="snow-gallery-carousel">
         <div class="snow-gallery-carousel__stage">
@@ -1368,7 +1476,8 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall snow-section snow-section--wall">
+    <section v-if="isSectionVisible('wall')" class="snow-card snow-wall snow-section snow-section--wall"
+      :style="sectionThemeStyle('wall')">
       <div class="snow-wall__head">
         <p class="section-kicker">{{ wallConfig.title }}</p>
         <button v-if="!editable && !props.demoMode && (wallHasMessages || wallReachedLimit)" type="button" class="snow-wall__add"
@@ -1429,7 +1538,8 @@ watch(
       </div>
     </section>
 
-    <section v-if="isSectionVisible('location')" class="snow-card snow-location snow-section snow-section--location">
+    <section v-if="isSectionVisible('location')" class="snow-card snow-location snow-section snow-section--location"
+      :style="sectionThemeStyle('location')">
       <p class="section-kicker">Ubicación</p>
       <div class="snow-location-grid" :class="{ 'snow-location-grid--single': locationCards.length <= 1 }">
         <article v-for="(locationCard, index) in locationCards" :key="locationCard.id || `location-${index}`"
@@ -1448,7 +1558,8 @@ watch(
     </section>
 
     <div v-if="isSectionVisible('saveDate') || isSectionVisible('dressCode')" class="snow-dual-grid">
-      <section v-if="isSectionVisible('saveDate')" class="snow-card snow-card--half snow-section snow-section--save-date">
+      <section v-if="isSectionVisible('saveDate')" class="snow-card snow-card--half snow-section snow-section--save-date"
+        :style="sectionThemeStyle('saveDate')">
         <p class="section-kicker">Save the date</p>
         <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">
           {{ saveDateLabel }}
@@ -1458,14 +1569,16 @@ watch(
         </button>
       </section>
 
-      <section v-if="isSectionVisible('dressCode')" class="snow-card snow-card--half snow-section snow-section--dress-code">
+      <section v-if="isSectionVisible('dressCode')"
+        class="snow-card snow-card--half snow-section snow-section--dress-code" :style="sectionThemeStyle('dressCode')">
         <p class="section-kicker">Dress code</p>
         <h2>{{ dressCode.title }}</h2>
         <p>{{ dressCode.description }}</p>
       </section>
     </div>
 
-    <section v-if="isSectionVisible('rsvp')" class="snow-card snow-rsvp snow-section snow-section--rsvp">
+    <section v-if="isSectionVisible('rsvp')" class="snow-card snow-rsvp snow-section snow-section--rsvp"
+      :style="sectionThemeStyle('rsvp')">
       <p class="section-kicker">Confirmación</p>
       <div class="snow-rsvp-layout">
         <div class="snow-rsvp-main">
@@ -1547,7 +1660,8 @@ watch(
       <strong>{{ branding.ctaLabel }}</strong>
     </RouterLink>
 
-    <section v-if="isSectionVisible('faq') && !isSectionVisible('rsvp')" class="snow-card snow-faq snow-section snow-section--faq">
+    <section v-if="isSectionVisible('faq') && !isSectionVisible('rsvp')"
+      class="snow-card snow-faq snow-section snow-section--faq" :style="sectionThemeStyle('faq')">
       <p class="section-kicker">Información importante</p>
       <h3>Preguntas frecuentes que conviene leer antes de confirmar</h3>
       <p class="snow-faq__lead">
@@ -1694,6 +1808,7 @@ watch(
   --snow-bg-accent: #eef2ff;
   --snow-section-bg: #ffffff;
   --snow-button-bg: #7a4fd9;
+  --snow-button-bg-paint: var(--snow-button-bg);
   --snow-button-bg-alt: #f06aa6;
   --snow-button-text: #ffffff;
   --snow-primary-soft: rgba(122, 79, 217, 0.12);
@@ -1720,7 +1835,8 @@ watch(
 .snow-card {
   border-radius: 16px;
   border: 1px solid rgba(31, 41, 55, 0.08);
-  background: var(--snow-section-bg);
+  background: var(--section-bg-paint, var(--section-bg, var(--snow-section-bg)));
+  color: var(--section-text, var(--snow-text));
   padding: 16px;
 }
 
@@ -1728,10 +1844,14 @@ watch(
   --section-bg: var(--snow-section-bg);
   --section-surface: var(--snow-section-bg);
   --section-text: var(--snow-text);
+  --section-primary-text: var(--section-text);
+  --section-secondary-text: var(--section-text);
+  --section-counter-text: var(--section-text);
   --section-accent: var(--snow-primary);
   --section-button-bg: var(--snow-button-bg);
+  --section-button-bg-paint: var(--snow-button-bg-paint, var(--section-button-bg));
   --section-button-text: var(--snow-button-text);
-  background: var(--section-bg);
+  background: var(--section-bg-paint, var(--section-bg));
   color: var(--section-text);
   border-color: color-mix(in srgb, var(--section-accent) 18%, transparent);
 }
@@ -1739,8 +1859,26 @@ watch(
 .snow-section .section-kicker,
 .snow-section .snow-card h2,
 .snow-section h2,
-.snow-section h3,
+.snow-section h3 {
+  color: var(--section-primary-text, var(--section-text));
+}
+
 .snow-section p {
+  color: var(--section-secondary-text, var(--section-text));
+}
+
+.snow-section--countdown .snow-countdown__unit strong,
+.snow-section--countdown .snow-countdown__unit span,
+.snow-section--countdown .snow-countdown__divider {
+  color: var(--section-counter-text, var(--section-text));
+}
+
+.snow-section--countdown .snow-countdown__unit span {
+  opacity: 0.72;
+}
+
+.snow-section .snow-wall__note p,
+.snow-section .snow-rsvp__form p {
   color: var(--section-text);
 }
 
@@ -1748,7 +1886,7 @@ watch(
 .snow-section .snow-rsvp__button,
 .snow-section .snow-link,
 .snow-section .snow-gallery-carousel__open {
-  background: var(--section-button-bg);
+  background: var(--section-button-bg-paint, var(--section-button-bg));
   color: var(--section-button-text);
   border-color: color-mix(in srgb, var(--section-accent) 28%, transparent);
 }
@@ -1759,7 +1897,7 @@ watch(
   border-color: color-mix(in srgb, var(--section-accent, var(--snow-primary)) 28%, transparent);
   background:
     radial-gradient(circle at 82% 14%, color-mix(in srgb, var(--section-accent, var(--snow-primary)) 14%, transparent), transparent 36%),
-    linear-gradient(180deg, var(--section-bg, #f8fbff) 0%, color-mix(in srgb, var(--section-bg, #f8fbff) 84%, var(--section-accent, var(--snow-primary))) 100%);
+    var(--section-bg-paint, linear-gradient(180deg, var(--section-bg, #f8fbff) 0%, color-mix(in srgb, var(--section-bg, #f8fbff) 84%, var(--section-accent, var(--snow-primary))) 100%));
 }
 
 .snow-wall::before {
@@ -2144,7 +2282,7 @@ watch(
   border: 0;
   border-radius: 999px;
   padding: 0.65rem 1rem;
-  background: var(--snow-button-bg);
+  background: var(--snow-button-bg-paint, var(--snow-button-bg));
   color: var(--snow-button-text);
   font-weight: 700;
   cursor: pointer;
@@ -2241,6 +2379,25 @@ watch(
   font-size: 1.2rem;
   font-weight: 700;
   padding-bottom: 0.26rem;
+}
+
+.snow-section.snow-card > h2,
+.snow-section.snow-card > h3 {
+  color: var(--section-primary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-section.snow-card > p {
+  color: var(--section-secondary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-section--countdown .snow-countdown__unit strong,
+.snow-section--countdown .snow-countdown__unit span,
+.snow-section--countdown .snow-countdown__divider {
+  color: var(--section-counter-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-section--countdown .snow-countdown__unit span {
+  opacity: 0.72;
 }
 
 .snow-gallery-carousel {
@@ -2696,7 +2853,7 @@ watch(
   border: 0;
   border-radius: 999px;
   padding: 0.75rem 1.1rem;
-  background: var(--snow-button-bg);
+  background: var(--snow-button-bg-paint, var(--snow-button-bg));
   color: var(--snow-button-text);
   font-weight: 700;
   cursor: pointer;
@@ -2826,6 +2983,65 @@ watch(
 .snow-faq__lead {
   margin: 0.55rem 0 0;
   color: color-mix(in srgb, var(--snow-text) 78%, #ffffff);
+}
+
+.snow-hero .snow-tag,
+.snow-hero .snow-title,
+.snow-hero .snow-names {
+  color: var(--section-primary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-hero .snow-subtitle {
+  color: var(--section-secondary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-hero .snow-meta p {
+  color: var(--section-text, var(--snow-text));
+}
+
+.snow-section .section-kicker {
+  color: var(--section-primary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-section.snow-card > h2,
+.snow-section.snow-card > h3,
+.snow-section--dress-code > h2,
+.snow-section--faq > h3,
+.snow-faq--side > h3 {
+  color: var(--section-primary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-section.snow-card > p,
+.snow-wall__description,
+.snow-rsvp__intro,
+.snow-faq__lead,
+.snow-rsvp__faq-gate p {
+  color: var(--section-secondary-text, var(--section-text, var(--snow-text)));
+}
+
+.snow-gallery-carousel__meta span,
+.snow-location-card strong,
+.snow-location-card p,
+.snow-wall__chip,
+.snow-wall__empty,
+.snow-wall__form span,
+.snow-wall__counter,
+.snow-wall__form input,
+.snow-wall__form textarea,
+.snow-wall-note strong,
+.snow-wall-note time,
+.snow-wall-note p,
+.snow-rsvp-form span,
+.snow-rsvp-form input,
+.snow-rsvp__hint,
+.snow-rsvp__faq-gate strong {
+  color: var(--section-text, var(--snow-text));
+}
+
+.snow-section--countdown .snow-countdown__unit strong,
+.snow-section--countdown .snow-countdown__unit span,
+.snow-section--countdown .snow-countdown__divider {
+  color: var(--section-counter-text, var(--section-text, var(--snow-text)));
 }
 
 .snow-action--cta {

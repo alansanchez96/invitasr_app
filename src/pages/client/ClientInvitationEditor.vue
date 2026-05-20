@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import CanvaColorStudio from '@/components/invitation-editor/CanvaColorStudio.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import {
   useInvitationEditorViewport,
@@ -75,6 +76,26 @@ type DressCodeOption = {
 type CurrencyOption = {
   code: string
   label: string
+}
+
+type ThemeColorField = {
+  key: string
+  label: string
+  description?: string
+  path: string
+  gradientPath: string
+  fallback: string
+  sectionKey?: string
+  supportsGradient?: boolean
+}
+
+type ThemeGradientType = 'linear' | 'radial' | 'conic'
+
+type ThemeGradientConfig = {
+  enabled: boolean
+  type: ThemeGradientType
+  angle: number
+  colors: string[]
 }
 
 type EditorSnapshot = {
@@ -154,8 +175,9 @@ const isSidebarOpen = ref(false)
 const isConfigBarCollapsed = ref(false)
 const activeConfigTarget = ref('config-content')
 const hoveredConfigTooltip = ref<{ label: string; left: number } | null>(null)
-const collapsedOptionalSections = ref<Record<string, boolean>>({})
 const configBarScrollRef = ref<HTMLElement | null>(null)
+const activeThemeColorFieldKey = ref<string | null>(null)
+const expandedSectionColorPanels = ref<Record<string, boolean>>({})
 
 const isLoading = ref(false)
 const isLoadingTemplates = ref(false)
@@ -363,6 +385,115 @@ const checkinCurrencyOptions: CurrencyOption[] = [
 
 const MAX_LOCATIONS_PER_INVITATION = 2
 const DEFAULT_LOCATION_MAPS_URL = 'https://maps.google.com/?q=Estancia+Nevada+Bariloche'
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/
+const MAX_THEME_GRADIENT_COLORS = 5
+
+const themePresetColors = [
+  '#7A4FD9',
+  '#F06AA6',
+  '#1D0F2F',
+  '#FFFFFF',
+  '#F6F7FB',
+  '#EEF2FF',
+  '#E0F2FE',
+  '#DCFCE7',
+  '#FEF3C7',
+  '#FFE4E6',
+  '#C4B5FD',
+  '#111827',
+]
+
+const themeGradientTypeOptions: Array<{ value: ThemeGradientType; label: string }> = [
+  { value: 'linear', label: 'Lineal' },
+  { value: 'radial', label: 'Radial' },
+  { value: 'conic', label: 'Circular' },
+]
+
+const globalThemeColorFields: ThemeColorField[] = [
+  {
+    key: 'background',
+    label: 'Fondo de la invitación',
+    path: 'theme.background',
+    gradientPath: 'theme.gradients.background',
+    fallback: '#f6f7fb',
+    supportsGradient: true,
+  },
+  {
+    key: 'text',
+    label: 'Texto general',
+    description: 'Color base de la invitación. Cada sección puede ajustar textos especiales desde su propio icono.',
+    path: 'theme.text',
+    gradientPath: 'theme.gradients.text',
+    fallback: '#1d0f2f',
+    supportsGradient: false,
+  },
+  {
+    key: 'buttonBackground',
+    label: 'Color de botones',
+    description: 'Color base de los botones de la invitación.',
+    path: 'theme.buttonBackground',
+    gradientPath: 'theme.gradients.buttonBackground',
+    fallback: '#7a4fd9',
+    supportsGradient: true,
+  },
+  {
+    key: 'buttonText',
+    label: 'Texto de botones',
+    description: 'Color base del texto dentro de los botones.',
+    path: 'theme.buttonText',
+    gradientPath: 'theme.gradients.buttonText',
+    fallback: '#ffffff',
+    supportsGradient: false,
+  },
+]
+
+const createSectionThemeColorField = (
+  sectionKey: string,
+  colorKey: string,
+  label: string,
+  description: string,
+  fallback: string,
+  supportsGradient = false,
+): ThemeColorField => ({
+  key: `${sectionKey}.${colorKey}`,
+  label,
+  description,
+  path: `theme.sections.${sectionKey}.${colorKey}`,
+  gradientPath: `theme.sections.${sectionKey}.gradients.${colorKey}`,
+  fallback,
+  sectionKey,
+  supportsGradient,
+})
+
+const sectionThemeColorGroups: Record<string, ThemeColorField[]> = {
+  hero: [],
+  countdown: [
+    createSectionThemeColorField('countdown', 'surface', 'Fondo del contador', 'Color de los bloques de días, horas, minutos y segundos.', '#ffffff'),
+    createSectionThemeColorField('countdown', 'counterText', 'Texto del contador', 'Color de números, etiquetas y separadores.', '#1d0f2f'),
+    createSectionThemeColorField('countdown', 'accent', 'Bordes del contador', 'Color de bordes y detalles internos.', '#7a4fd9'),
+  ],
+  story: [],
+  gallery: [],
+  wall: [
+    createSectionThemeColorField('wall', 'surface', 'Fondo de mensajes', 'Color de las tarjetas donde aparecen los mensajes.', '#ffffff'),
+    createSectionThemeColorField('wall', 'accent', 'Detalles de mensajes', 'Color de pines, bordes y detalles visuales.', '#7a4fd9'),
+  ],
+  location: [
+    createSectionThemeColorField('location', 'surface', 'Fondo de ubicaciones', 'Color de las tarjetas de cada lugar.', '#ffffff'),
+    createSectionThemeColorField('location', 'accent', 'Detalles de ubicación', 'Color de bordes y detalles internos.', '#7a4fd9'),
+  ],
+  saveDate: [],
+  dressCode: [],
+  rsvp: [
+    createSectionThemeColorField('rsvp', 'surface', 'Fondo de preguntas', 'Color del bloque de preguntas importantes.', '#ffffff'),
+    createSectionThemeColorField('rsvp', 'accent', 'Detalles de confirmación', 'Color de bordes y detalles internos.', '#7a4fd9'),
+  ],
+  faq: [],
+}
+
+const sectionThemeColorFields = Object.values(sectionThemeColorGroups).flat()
+
+const allThemeColorFields = [...globalThemeColorFields, ...sectionThemeColorFields]
 
 const editableFieldBindings: Record<string, EditableFieldBinding> = {
   hero_title: { paths: ['hero.title', 'couple.headline'], fallback: 'Nos casamos' },
@@ -383,6 +514,9 @@ const editableFieldBindings: Record<string, EditableFieldBinding> = {
 
 const toRecord = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : {}
+
+const isEmptyRecord = (value: unknown): boolean =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)
 
 const cloneRecord = (value: unknown): JsonRecord => {
   const source = toRecord(value)
@@ -618,7 +752,6 @@ const setByPath = (source: JsonRecord, path: string, value: unknown): void => {
 const ensureDefaultFeatureData = () => {
   let nextContent = cloneRecord(contentDraft.value)
   const nextSettings = cloneRecord(settingsDraft.value)
-  delete nextContent.theme
 
   if (!asText(getByPath(nextContent, 'music.title'))) {
     const defaultSong = musicOptions[0]!
@@ -787,9 +920,9 @@ const templateSections = computed<EditorSection[]>(() => {
     { key: 'countdown', label: 'Cuenta regresiva', optional: true },
     { key: 'story', label: 'Historia', optional: false },
     { key: 'gallery', label: 'Galería', optional: true },
-    { key: 'location', label: 'Google Maps y Uber', optional: true },
-    { key: 'saveDate', label: 'Save the date', optional: true },
-    { key: 'dressCode', label: 'Dress code', optional: true },
+    { key: 'location', label: 'Ubicación y cómo llegar', optional: true },
+    { key: 'saveDate', label: 'Guardar fecha', optional: true },
+    { key: 'dressCode', label: 'Vestimenta sugerida', optional: true },
     { key: 'music', label: 'Música', optional: true },
     { key: 'faq', label: 'Preguntas frecuentes', optional: true },
     { key: 'rsvp', label: 'Confirmación de asistencia', optional: true },
@@ -850,17 +983,33 @@ const activeConfigItem = computed(() =>
   configBarItems.value.find((item) => item.target === activeConfigTarget.value) ?? configBarItems.value[0] ?? null,
 )
 
+const activeThemeColorField = computed(() =>
+  allThemeColorFields.find((field) => field.key === activeThemeColorFieldKey.value) ?? null,
+)
+
+const isThemeColorModalOpen = computed(() => Boolean(activeThemeColorField.value))
+const activeThemeColorStudioTitle = computed(() => activeThemeColorField.value?.label ?? 'Color')
+const activeThemeColorStudioColor = computed(() =>
+  activeThemeColorField.value ? readThemeColor(activeThemeColorField.value) : '#FFFFFF',
+)
+const activeThemeColorStudioGradient = computed<ThemeGradientConfig>(() =>
+  activeThemeColorField.value
+    ? readThemeGradient(activeThemeColorField.value)
+    : { enabled: false, type: 'linear', angle: 135, colors: ['#FFFFFF', '#F06AA6'] },
+)
+const activeThemeCustomColors = computed(() => readThemeCustomPalette())
+
 const configDrawerTitle = computed(() => activeConfigItem.value?.label ?? 'Personaliza tu invitación')
 const configDrawerSubtitle = computed(() => {
   if (activeConfigTarget.value === 'config-content') {
-    return 'Ajusta el nombre visible y el enlace de tu invitación.'
+    return 'Ajusta el nombre y el enlace que compartirás.'
   }
 
   if (activeConfigTarget.value === 'config-style') {
-    return 'Revisa el estilo base de tu invitación.'
+    return 'Define la base visual de tu invitación.'
   }
 
-  return 'Activa, desactiva y configura esta sección.'
+  return 'Elige qué mostrar y personaliza esta parte.'
 })
 
 const configBarIconPaths: Record<string, string[]> = {
@@ -882,14 +1031,231 @@ const configBarIconPaths: Record<string, string[]> = {
 const getConfigBarIconPaths = (icon: string): string[] =>
   configBarIconPaths[icon] ?? ['M12 5v14', 'M5 12h14']
 
-const isOptionalSectionExpanded = (sectionKey: string): boolean =>
-  !Boolean(collapsedOptionalSections.value[sectionKey])
+const normalizeHexColor = (value: unknown, fallback: string): string => {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (HEX_COLOR_PATTERN.test(text)) return text.toUpperCase()
+  return fallback
+}
 
-const toggleOptionalSectionPanel = (sectionKey: string) => {
-  collapsedOptionalSections.value = {
-    ...collapsedOptionalSections.value,
-    [sectionKey]: isOptionalSectionExpanded(sectionKey),
+const isThemeGradientType = (value: unknown): value is ThemeGradientType =>
+  value === 'linear' || value === 'radial' || value === 'conic'
+
+const clampThemeGradientAngle = (value: unknown): number => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 135
+  return Math.min(360, Math.max(0, Math.round(numericValue)))
+}
+
+const readThemeColor = (field: ThemeColorField): string =>
+  normalizeHexColor(getByPath(contentDraft.value, field.path), field.fallback)
+
+const normalizeThemeGradientColors = (colors: unknown, fallbackColor: string): string[] => {
+  const rawColors = Array.isArray(colors) ? colors : []
+  const normalizedColors = rawColors
+    .map((item) => normalizeHexColor(item, ''))
+    .filter(Boolean)
+    .slice(0, MAX_THEME_GRADIENT_COLORS)
+
+  if (normalizedColors.length >= 2) return normalizedColors
+
+  const firstColor = normalizeHexColor(fallbackColor, '#FFFFFF')
+  const secondColor = firstColor === '#F06AA6' ? '#7A4FD9' : '#F06AA6'
+  return [firstColor, secondColor]
+}
+
+const readThemeGradient = (field: ThemeColorField): ThemeGradientConfig => {
+  const source = toRecord(getByPath(contentDraft.value, field.gradientPath))
+  const baseColor = readThemeColor(field)
+
+  return {
+    enabled: Boolean(source.enabled),
+    type: isThemeGradientType(source.type) ? source.type : 'linear',
+    angle: clampThemeGradientAngle(source.angle),
+    colors: normalizeThemeGradientColors(source.colors, baseColor),
   }
+}
+
+const themeGradientCss = (gradient: ThemeGradientConfig): string => {
+  const colors = gradient.colors.join(', ')
+  if (gradient.type === 'radial') return `radial-gradient(circle, ${colors})`
+  if (gradient.type === 'conic') return `conic-gradient(from ${gradient.angle}deg, ${colors})`
+  return `linear-gradient(${gradient.angle}deg, ${colors})`
+}
+
+const themeColorPreview = (field: ThemeColorField): string => {
+  const gradient = readThemeGradient(field)
+  return gradient.enabled ? themeGradientCss(gradient) : readThemeColor(field)
+}
+
+const readThemeCustomPalette = (): string[] => {
+  const rawPalette = getByPath(contentDraft.value, 'theme.customPalette')
+  if (!Array.isArray(rawPalette)) return []
+
+  const colors: string[] = []
+  const seen = new Set<string>()
+
+  for (const item of rawPalette) {
+    const color = normalizeHexColor(item, '')
+    if (!color || seen.has(color)) continue
+    seen.add(color)
+    colors.push(color)
+  }
+
+  return colors.slice(0, 36)
+}
+
+const updateThemeCustomPalette = (colors: string[]) => {
+  const nextContent = cloneRecord(contentDraft.value)
+  const normalizedColors = colors
+    .map((color) => normalizeHexColor(color, ''))
+    .filter(Boolean)
+    .slice(0, 36)
+
+  if (normalizedColors.length) {
+    setByPath(nextContent, 'theme.customPalette', normalizedColors)
+  } else {
+    const theme = cloneRecord(getByPath(nextContent, 'theme'))
+    delete theme.customPalette
+    if (isEmptyRecord(theme)) {
+      delete nextContent.theme
+    } else {
+      nextContent.theme = theme
+    }
+  }
+
+  contentDraft.value = nextContent
+}
+
+const writeThemeGradient = (field: ThemeColorField, patch: Partial<ThemeGradientConfig>) => {
+  const current = readThemeGradient(field)
+  const nextGradient: ThemeGradientConfig = {
+    ...current,
+    ...patch,
+    colors: normalizeThemeGradientColors(patch.colors ?? current.colors, readThemeColor(field)),
+  }
+
+  const nextContent = cloneRecord(contentDraft.value)
+  setByPath(nextContent, field.gradientPath, nextGradient)
+  contentDraft.value = nextContent
+}
+
+const updateThemeColor = (field: ThemeColorField, value: string) => {
+  const nextColor = value.trim()
+  if (!HEX_COLOR_PATTERN.test(nextColor)) return
+
+  const normalizedColor = nextColor.toUpperCase()
+  const currentGradient = readThemeGradient(field)
+  const nextContent = cloneRecord(contentDraft.value)
+  setByPath(nextContent, field.path, normalizedColor)
+
+  if (currentGradient.enabled) {
+    const nextColors = [...currentGradient.colors]
+    nextColors[0] = normalizedColor
+    setByPath(nextContent, field.gradientPath, {
+      ...currentGradient,
+      colors: normalizeThemeGradientColors(nextColors, normalizedColor),
+    })
+  }
+
+  contentDraft.value = nextContent
+}
+
+const getSectionThemeColorFields = (sectionKey: string): ThemeColorField[] =>
+  sectionThemeColorGroups[sectionKey] ?? []
+
+const getVisibleSectionThemeColorFields = (sectionKey: string): ThemeColorField[] =>
+  getSectionThemeColorFields(sectionKey)
+
+const hasSectionThemeColorFields = (sectionKey: string): boolean =>
+  getSectionThemeColorFields(sectionKey).length > 0
+
+const isSectionColorPanelOpen = (sectionKey: string): boolean =>
+  Boolean(expandedSectionColorPanels.value[sectionKey])
+
+const toggleSectionColorPanel = (sectionKey: string) => {
+  expandedSectionColorPanels.value = {
+    ...expandedSectionColorPanels.value,
+    [sectionKey]: !isSectionColorPanelOpen(sectionKey),
+  }
+}
+
+const openThemeColorModal = (field: ThemeColorField) => {
+  activeThemeColorFieldKey.value = activeThemeColorFieldKey.value === field.key ? null : field.key
+}
+
+const closeThemeColorModal = () => {
+  activeThemeColorFieldKey.value = null
+}
+
+const updateActiveThemeColor = (color: string) => {
+  if (!activeThemeColorField.value) return
+  updateThemeColor(activeThemeColorField.value, color)
+}
+
+const updateActiveThemeGradient = (gradient: ThemeGradientConfig) => {
+  if (!activeThemeColorField.value) return
+  if (activeThemeColorField.value.supportsGradient === false) return
+  writeThemeGradient(activeThemeColorField.value, gradient)
+}
+
+const resetThemeColorsToTemplateDefaults = () => {
+  const nextContent = cloneRecord(contentDraft.value)
+  const theme = cloneRecord(getByPath(nextContent, 'theme'))
+  const themeColorKeys = [
+    'primary',
+    'secondary',
+    'text',
+    'background',
+    'backgroundAccent',
+    'sectionBackground',
+    'buttonBackground',
+    'buttonBackgroundAlt',
+    'buttonText',
+    'backgroundGradient',
+    'buttonGradient',
+    'gradients',
+    'customPalette',
+  ]
+
+  for (const key of themeColorKeys) {
+    delete theme[key]
+  }
+
+  const sections = cloneRecord(theme.sections)
+  for (const sectionKey of Object.keys(sections)) {
+    const section = cloneRecord(sections[sectionKey])
+    delete section.background
+    delete section.surface
+    delete section.text
+    delete section.primaryText
+    delete section.secondaryText
+    delete section.counterText
+    delete section.accent
+    delete section.buttonBackground
+    delete section.buttonText
+    delete section.gradients
+
+    if (isEmptyRecord(section)) {
+      delete sections[sectionKey]
+    } else {
+      sections[sectionKey] = section
+    }
+  }
+
+  if (isEmptyRecord(sections)) {
+    delete theme.sections
+  } else {
+    theme.sections = sections
+  }
+
+  if (isEmptyRecord(theme)) {
+    delete nextContent.theme
+  } else {
+    nextContent.theme = theme
+  }
+
+  activeThemeColorFieldKey.value = null
+  contentDraft.value = nextContent
 }
 
 const resolvedSectionVisibility = computed(() => {
@@ -1111,6 +1477,7 @@ const snapshotFromSerializedState = (state: string): EditorSnapshot | null => {
 
 const closeSidebar = () => {
   isSidebarOpen.value = false
+  closeThemeColorModal()
 }
 
 const toggleConfigBarCollapsed = () => {
@@ -1128,14 +1495,6 @@ const openConfigTarget = (target: string) => {
 
   activeConfigTarget.value = target
   isConfigBarCollapsed.value = false
-
-  if (target.startsWith('config-section-')) {
-    const sectionKey = target.replace('config-section-', '')
-    collapsedOptionalSections.value = {
-      ...collapsedOptionalSections.value,
-      [sectionKey]: false,
-    }
-  }
 
   isSidebarOpen.value = true
 }
@@ -1509,6 +1868,7 @@ const previewData = computed<WeddingTemplateData>(() => {
   const primaryLocation = previewLocations[0] ?? createDefaultDraftLocation(0)
 
   return {
+    theme: cloneRecord(getByPath(contentDraft.value, 'theme')),
     hero: {
       title: readFieldValue('hero_title'),
       subtitle: readFieldValue('hero_subtitle'),
@@ -1811,13 +2171,6 @@ const onSectionToggle = (sectionKey: string, event: Event) => {
   const target = event.target as HTMLInputElement | null
   const enabled = Boolean(target?.checked)
   setSectionVisibility(sectionKey, enabled)
-
-  if (enabled) {
-    collapsedOptionalSections.value = {
-      ...collapsedOptionalSections.value,
-      [sectionKey]: false,
-    }
-  }
 
   if (sectionKey === 'checkin' && !enabled) {
     showCheckinPreview.value = false
@@ -2226,6 +2579,12 @@ const isTargetEditable = (target: EventTarget | null) => {
 }
 
 const handleEditorHotkeys = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && isThemeColorModalOpen.value) {
+    event.preventDefault()
+    closeThemeColorModal()
+    return
+  }
+
   if (event.key === 'Escape' && isImmersivePreviewOpen.value) {
     event.preventDefault()
     closeImmersivePreview()
@@ -2564,6 +2923,50 @@ onBeforeRouteLeave((to) => {
                       :disabled="!hasPendingTemplateChange || isChangingTemplate" @click="applyTemplateChange">
                       {{ isChangingTemplate ? 'Aplicando estilo...' : 'Aplicar estilo' }}
                     </BaseButton>
+
+                    <div class="theme-color-panel">
+                      <div class="theme-color-panel__head theme-color-panel__head--action">
+                        <div>
+                          <h4>Colores</h4>
+                          <p>Define la base visual de toda la invitación.</p>
+                        </div>
+                        <button type="button" class="theme-reset-colors-button" aria-label="Restablecer colores"
+                          title="Restablecer colores" @click="resetThemeColorsToTemplateDefaults">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 4v6h6" />
+                            <path d="M20 12a8 8 0 0 1-13.66 5.66L4 15.32" />
+                            <path d="M4 10a8 8 0 0 1 13.66-5.66L20 6.68" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <article v-for="field in globalThemeColorFields" :key="field.key"
+                        class="theme-color-card theme-color-card--row">
+                        <button type="button" class="theme-color-card__button"
+                          :aria-label="`Personalizar ${field.label}`" @click="openThemeColorModal(field)">
+                          <span class="theme-color-card__content">
+                            <strong>{{ field.label }}</strong>
+                            <small v-if="field.description">{{ field.description }}</small>
+                          </span>
+                          <span class="theme-color-card__visual">
+                            <span class="theme-color-card__preview"
+                              :style="{ background: themeColorPreview(field) }"></span>
+                            <span class="theme-color-card__chevron" aria-hidden="true">›</span>
+                          </span>
+                        </button>
+
+                        <CanvaColorStudio v-if="activeThemeColorField?.key === field.key" inline
+                          :title="activeThemeColorStudioTitle" :color="activeThemeColorStudioColor"
+                          :gradient="activeThemeColorStudioGradient" :preset-colors="themePresetColors"
+                          :custom-colors="activeThemeCustomColors"
+                          :gradient-types="themeGradientTypeOptions"
+                          :max-gradient-colors="MAX_THEME_GRADIENT_COLORS"
+                          :allow-gradient="field.supportsGradient !== false"
+                          @close="closeThemeColorModal" @update-color="updateActiveThemeColor"
+                          @update-custom-colors="updateThemeCustomPalette"
+                          @update-gradient="updateActiveThemeGradient" />
+                      </article>
+                    </div>
                   </section>
 
                   <section v-else-if="selectedOptionalSections.length" id="config-sections"
@@ -2571,26 +2974,61 @@ onBeforeRouteLeave((to) => {
                     <div class="option-group">
                       <article v-for="section in selectedOptionalSections" :id="`config-section-${section.key}`"
                         :key="section.key" class="feature-item">
-                    <div class="feature-header">
-                      <button type="button" class="feature-accordion-toggle"
-                        :aria-expanded="isOptionalSectionExpanded(section.key) ? 'true' : 'false'"
-                        @click="toggleOptionalSectionPanel(section.key)">
-                        <span>{{ section.label }}</span>
-                        <svg class="feature-accordion-icon"
-                          :class="{ 'is-open': isOptionalSectionExpanded(section.key) }" viewBox="0 0 24 24"
-                          aria-hidden="true">
-                          <path d="m7 10 5 5 5-5" />
-                        </svg>
-                      </button>
-                      <label class="switch" @click.stop>
-                        <input type="checkbox" :checked="resolvedSectionVisibility[section.key]" @click.stop
-                          @change="onSectionToggle(section.key, $event)" />
-                        <span class="switch-track"></span>
-                      </label>
-                    </div>
+                        <div class="feature-switch-panel"
+                          :class="{ 'is-active': resolvedSectionVisibility[section.key] }">
+                          <div>
+                            <strong>{{ resolvedSectionVisibility[section.key] ? 'Visible en la invitación' : 'Oculto por ahora' }}</strong>
+                            <p>{{ resolvedSectionVisibility[section.key] ? 'Tus invitados podrán ver esta parte.' : 'Actívalo cuando quieras mostrarlo.' }}</p>
+                          </div>
+                          <label class="switch" @click.stop>
+                            <input type="checkbox" :checked="resolvedSectionVisibility[section.key]" @click.stop
+                              @change="onSectionToggle(section.key, $event)" />
+                            <span class="switch-track"></span>
+                          </label>
+                        </div>
 
-                    <div v-if="resolvedSectionVisibility[section.key] && isOptionalSectionExpanded(section.key)"
-                      class="feature-body">
+                    <div class="feature-body"
+                      :class="{ 'feature-body--disabled': !resolvedSectionVisibility[section.key] }">
+                      <div v-if="hasSectionThemeColorFields(section.key)"
+                        class="option-panel option-panel--section-color">
+                        <button type="button" class="section-color-toggle"
+                          :aria-expanded="isSectionColorPanelOpen(section.key) ? 'true' : 'false'"
+                          @click="toggleSectionColorPanel(section.key)">
+                          <span>Colores</span>
+                          <svg :class="{ 'is-open': isSectionColorPanelOpen(section.key) }" viewBox="0 0 24 24"
+                            aria-hidden="true">
+                            <path d="m7 10 5 5 5-5" />
+                          </svg>
+                        </button>
+
+                        <div v-if="isSectionColorPanelOpen(section.key)" class="section-color-list">
+                          <article v-for="field in getVisibleSectionThemeColorFields(section.key)" :key="field.key"
+                            class="theme-color-card theme-color-card--row">
+                            <button type="button" class="theme-color-card__button"
+                              :aria-label="`Personalizar ${field.label}`" @click="openThemeColorModal(field)">
+                              <span class="theme-color-card__content">
+                                <strong>{{ field.label }}</strong>
+                                <small v-if="field.description">{{ field.description }}</small>
+                              </span>
+                              <span class="theme-color-card__visual">
+                                <span class="theme-color-card__preview"
+                                  :style="{ background: themeColorPreview(field) }"></span>
+                                <span class="theme-color-card__chevron" aria-hidden="true">›</span>
+                              </span>
+                            </button>
+                            <CanvaColorStudio v-if="activeThemeColorField?.key === field.key" inline
+                              :title="activeThemeColorStudioTitle" :color="activeThemeColorStudioColor"
+                              :gradient="activeThemeColorStudioGradient" :preset-colors="themePresetColors"
+                              :custom-colors="activeThemeCustomColors"
+                              :gradient-types="themeGradientTypeOptions"
+                              :max-gradient-colors="MAX_THEME_GRADIENT_COLORS"
+                              :allow-gradient="field.supportsGradient !== false"
+                              @close="closeThemeColorModal" @update-color="updateActiveThemeColor"
+                              @update-custom-colors="updateThemeCustomPalette"
+                              @update-gradient="updateActiveThemeGradient" />
+                          </article>
+                        </div>
+                      </div>
                       <div v-if="section.key === 'checkin'" class="option-panel">
                         <BaseButton type="button" variant="ghost" :disabled="isCheckinConfigEditing"
                           @click="onCheckinAction">
@@ -3894,90 +4332,71 @@ onBeforeRouteLeave((to) => {
 
 .option-group {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
 .feature-item {
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(219, 203, 255, 0.74);
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at top left, rgba(122, 79, 217, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 246, 255, 0.86));
-  padding: 12px;
   display: grid;
   gap: 12px;
-  box-shadow:
-    0 12px 24px rgba(45, 24, 84, 0.07),
-    0 1px 0 rgba(255, 255, 255, 0.86) inset;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-}
-
-.feature-item:hover {
-  border-color: rgba(122, 79, 217, 0.34);
-  box-shadow:
-    0 16px 30px rgba(45, 24, 84, 0.11),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  transform: translateY(-1px);
-}
-
-.feature-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  justify-content: initial;
-  align-items: center;
-  gap: 10px;
-  color: #24133b;
-  font-size: 0.9rem;
-  font-weight: 950;
-}
-
-.feature-accordion-toggle {
-  width: 100%;
-  border: 0;
   background: transparent;
   padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
 }
 
-.feature-accordion-toggle span {
-  min-width: 0;
+.feature-switch-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(219, 203, 255, 0.76);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(148, 163, 184, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 8px 18px rgba(45, 24, 84, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.84) inset;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feature-switch-panel.is-active {
+  border-color: rgba(155, 107, 255, 0.34);
+  background:
+    radial-gradient(circle at top right, rgba(240, 106, 166, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 247, 255, 0.86));
+  box-shadow:
+    0 12px 24px rgba(45, 24, 84, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.feature-switch-panel strong {
+  display: block;
+  color: #2b1a44;
+  font-size: 0.83rem;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.feature-switch-panel p {
+  margin: 2px 0 0;
+  color: #806c98;
+  font-size: 0.74rem;
+  font-weight: 750;
   line-height: 1.3;
 }
 
-.feature-accordion-icon {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.58;
-  transition: transform 0.22s ease, opacity 0.22s ease;
+.feature-switch-panel:not(.is-active) strong {
+  color: #62516f;
 }
 
-.feature-accordion-icon.is-open {
-  transform: rotate(180deg);
-  opacity: 0.95;
+.feature-switch-panel:not(.is-active) p {
+  color: #91849e;
 }
 
-.feature-accordion-toggle:focus-visible {
-  outline: 2px solid rgba(122, 79, 217, 0.28);
-  outline-offset: 5px;
-  border-radius: 13px;
-}
-
-.feature-header .switch {
+.feature-switch-panel .switch {
   justify-self: end;
   flex: 0 0 auto;
 }
@@ -3986,6 +4405,22 @@ onBeforeRouteLeave((to) => {
   display: grid;
   gap: 11px;
   min-width: 0;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.feature-body--disabled {
+  opacity: 0.48;
+  filter: grayscale(0.24);
+  pointer-events: none;
+}
+
+.feature-body--disabled .option-panel,
+.feature-body--disabled .gallery-panel-copy {
+  border-color: rgba(148, 163, 184, 0.24);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(148, 163, 184, 0.08), transparent 34%),
+    rgba(248, 250, 252, 0.72);
+  box-shadow: none;
 }
 
 .switch {
@@ -4055,6 +4490,251 @@ onBeforeRouteLeave((to) => {
 .option-panel h4 {
   margin: 0;
   font-size: 0.89rem;
+}
+
+.theme-color-panel {
+  display: grid;
+  gap: 16px;
+  padding: 13px;
+  border: 1px solid rgba(155, 107, 255, 0.16);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(240, 106, 166, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 247, 255, 0.86));
+  box-shadow: 0 10px 22px rgba(45, 24, 84, 0.05);
+}
+
+.theme-color-panel__head {
+  display: grid;
+  gap: 3px;
+}
+
+.theme-color-panel__head--action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.theme-color-panel__head--compact {
+  padding-top: 2px;
+}
+
+.theme-color-panel__head h4 {
+  margin: 0;
+  color: #24133b;
+  font-size: 0.92rem;
+  font-weight: 950;
+}
+
+.theme-color-panel__head p {
+  margin: 0;
+  color: #76658f;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.theme-reset-colors-button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(155, 107, 255, 0.22);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(240, 106, 166, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.86);
+  color: #6d3fd0;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  box-shadow:
+    0 10px 20px rgba(45, 24, 84, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.theme-reset-colors-button:hover,
+.theme-reset-colors-button:focus-visible {
+  color: #f06aa6;
+  transform: translateY(-1px) rotate(-18deg);
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.15),
+    0 16px 26px rgba(45, 24, 84, 0.14);
+  outline: none;
+}
+
+.theme-reset-colors-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.theme-color-card {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  border: 1px solid rgba(219, 203, 255, 0.78);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(240, 106, 166, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 10px 20px rgba(45, 24, 84, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset;
+}
+
+.theme-color-card--embedded {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.theme-color-card--row {
+  background:
+    radial-gradient(circle at top right, rgba(122, 79, 217, 0.06), transparent 34%),
+    rgba(255, 255, 255, 0.78);
+}
+
+.theme-color-card__button {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-color-card__button:hover .theme-color-card__preview,
+.theme-color-card__button:focus-visible .theme-color-card__preview {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.18),
+    0 14px 24px rgba(45, 24, 84, 0.16);
+}
+
+.theme-color-card__button:focus-visible {
+  outline: 2px solid rgba(122, 79, 217, 0.28);
+  outline-offset: 5px;
+  border-radius: 14px;
+}
+
+.theme-color-card__content {
+  min-width: 0;
+  display: grid;
+}
+
+.theme-color-card__content strong {
+  color: #2b1a44;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.theme-color-card__content small {
+  color: #806c98;
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1.28;
+}
+
+.theme-color-card__visual {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-color-card__preview {
+  width: 38px;
+  height: 38px;
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgba(155, 107, 255, 0.18),
+    0 10px 18px rgba(45, 24, 84, 0.12);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.theme-color-card__chevron {
+  color: #8b5cf6;
+  font-size: 1.3rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.option-panel--section-color {
+  gap: 10px;
+  background:
+    radial-gradient(circle at top right, rgba(122, 79, 217, 0.07), transparent 34%),
+    rgba(255, 255, 255, 0.86);
+}
+
+.section-color-toggle {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: #24133b;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 950;
+}
+
+.section-color-toggle:focus-visible {
+  outline: 2px solid rgba(122, 79, 217, 0.28);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.section-color-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.62;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.section-color-toggle svg.is-open {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+.section-color-list {
+  display: grid;
+  gap: 9px;
+}
+
+.theme-color-modal-enter-active,
+.theme-color-modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.theme-color-modal-enter-from,
+.theme-color-modal-leave-to {
+  opacity: 0;
 }
 
 .option-panel--location {
@@ -5247,6 +5927,14 @@ onBeforeRouteLeave((to) => {
 
   .config-block {
     padding: 10px;
+  }
+
+  .theme-color-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-color-card__button {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .editor-topbar-back span,

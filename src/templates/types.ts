@@ -166,7 +166,45 @@ export type InvitationDressCodeConfig = {
   description: string
 }
 
+export type InvitationThemeSectionConfig = {
+  background?: string
+  surface?: string
+  text?: string
+  primaryText?: string
+  secondaryText?: string
+  counterText?: string
+  accent?: string
+  buttonBackground?: string
+  buttonText?: string
+  gradients?: Record<string, InvitationThemeGradientConfig>
+}
+
+export type InvitationThemeGradientConfig = {
+  enabled?: boolean
+  type?: 'linear' | 'radial' | 'conic'
+  angle?: number
+  colors?: string[]
+}
+
+export type InvitationThemeConfig = {
+  primary?: string
+  secondary?: string
+  text?: string
+  background?: string
+  backgroundAccent?: string
+  sectionBackground?: string
+  buttonBackground?: string
+  buttonBackgroundAlt?: string
+  buttonText?: string
+  backgroundGradient?: boolean
+  buttonGradient?: boolean
+  customPalette?: string[]
+  gradients?: Record<string, InvitationThemeGradientConfig>
+  sections?: Record<string, InvitationThemeSectionConfig>
+}
+
 export type WeddingTemplateData = {
+  theme?: InvitationThemeConfig
   hero?: {
     title?: string
     subtitle?: string
