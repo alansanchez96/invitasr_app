@@ -1507,7 +1507,7 @@ watch(
             placeholder="Escribe aquí tu mensaje"></textarea>
           <small class="snow-wall__counter">{{ wallGuestMessageLength }}/{{ WALL_MESSAGE_MAX_LENGTH }}</small>
         </label>
-        <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
+        <button type="submit" class="snow-action snow-wall__submit" :disabled="!wallCanSubmit">
           {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
         </button>
       </form>
@@ -1724,7 +1724,7 @@ watch(
                 placeholder="Escribe aquí tu mensaje"></textarea>
               <small class="snow-wall__counter">{{ wallGuestMessageLength }}/{{ WALL_MESSAGE_MAX_LENGTH }}</small>
             </label>
-            <button type="submit" class="snow-action" :disabled="!wallCanSubmit">
+            <button type="submit" class="snow-action snow-wall__submit" :disabled="!wallCanSubmit">
               {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
             </button>
           </form>
@@ -2087,6 +2087,17 @@ watch(
 .snow-wall__form textarea {
   resize: vertical;
   min-height: 96px;
+}
+
+.snow-wall__submit {
+  width: fit-content;
+  min-width: 168px;
+  min-height: 42px;
+  max-width: 100%;
+  justify-self: start;
+  padding-inline: 1.25rem;
+  text-align: center;
+  box-shadow: 0 12px 22px color-mix(in srgb, var(--snow-button-bg) 20%, transparent);
 }
 
 .snow-wall__grid {
@@ -3948,6 +3959,12 @@ watch(
     grid-template-columns: 1fr;
   }
 
+  .snow-wall__submit {
+    justify-self: stretch;
+    width: 100%;
+    min-width: 0;
+  }
+
   .snow-wall-note {
     transform: none;
   }
@@ -4057,6 +4074,12 @@ watch(
   .snow-wall__form textarea {
     font-size: 0.88rem;
   }
+
+  .snow-wall__submit {
+    justify-self: stretch;
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 /* Preview tabs (Mis invitaciones / editor) must match published grid semantics exactly,
@@ -4120,5 +4143,12 @@ watch(
 .snow-template.snow-template--preview-mobile .snow-gallery-strip--tablet,
 .snow-template.snow-template--preview-mobile .snow-gallery-strip--mobile {
   grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-tablet .snow-wall__submit,
+.snow-template.snow-template--preview-mobile .snow-wall__submit {
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
 }
 </style>
