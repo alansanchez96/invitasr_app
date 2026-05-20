@@ -750,7 +750,7 @@ const normalizedGalleryLightboxIndex = computed(() =>
 )
 
 const galleryHasMultipleItems = computed(() => galleryItems.value.length > 1)
-const galleryIsCompactSet = computed(() => galleryItems.value.length <= 2)
+const galleryIsCompactSet = computed(() => galleryItems.value.length === 2)
 const galleryIsSingleItem = computed(() => galleryItems.value.length === 1)
 const galleryIsMobileMode = computed(() => galleryViewportMode.value === 'mobile')
 const galleryIsTabletMode = computed(() => galleryViewportMode.value === 'tablet')
@@ -1436,7 +1436,7 @@ watch(
     <section v-if="isSectionVisible('gallery') && galleryItems.length > 0"
       class="snow-card snow-section snow-section--gallery" :style="sectionThemeStyle('gallery')">
       <p class="section-kicker">Galería</p>
-      <div class="snow-gallery-carousel">
+      <div class="snow-gallery-carousel" :class="{ 'snow-gallery-carousel--single': galleryIsSingleItem }">
         <div class="snow-gallery-carousel__stage">
           <button v-if="galleryHasMultipleItems" type="button" class="snow-gallery-nav snow-gallery-nav--prev"
             aria-label="Imagen anterior" @click="goToPreviousGallerySlide">
@@ -1745,7 +1745,8 @@ watch(
           </button>
         </header>
 
-        <div class="snow-gallery-lightbox__stage">
+        <div class="snow-gallery-lightbox__stage"
+          :class="{ 'snow-gallery-lightbox__stage--single': galleryIsSingleItem }">
           <button v-if="galleryHasMultipleItems" type="button"
             class="snow-gallery-lightbox__nav snow-gallery-lightbox__nav--prev" aria-label="Imagen anterior"
             @click="goToPreviousLightboxSlide">
@@ -2423,6 +2424,10 @@ watch(
   overflow: visible;
 }
 
+.snow-gallery-carousel--single .snow-gallery-carousel__stage {
+  justify-items: center;
+}
+
 .snow-gallery-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2437,6 +2442,9 @@ watch(
 .snow-gallery-strip--single {
   grid-template-columns: minmax(0, 1fr);
   max-width: 620px;
+  width: min(100%, 620px);
+  justify-self: center;
+  justify-items: center;
 }
 
 .snow-gallery-strip--compact {
@@ -2534,6 +2542,11 @@ watch(
   transform: none;
   aspect-ratio: 3 / 4;
   filter: saturate(1);
+}
+
+.snow-gallery-strip--single .snow-gallery-card {
+  width: min(100%, 520px);
+  justify-self: center;
 }
 
 .snow-gallery-nav {
@@ -2696,6 +2709,11 @@ watch(
   min-height: 0;
 }
 
+.snow-gallery-lightbox__stage--single {
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+}
+
 .snow-gallery-lightbox__stage figure {
   position: relative;
   margin: 0;
@@ -2706,6 +2724,12 @@ watch(
   min-height: 0;
   display: block;
   box-shadow: 0 24px 44px rgba(2, 6, 23, 0.44);
+}
+
+.snow-gallery-lightbox__stage--single figure {
+  width: fit-content;
+  max-width: 100%;
+  justify-self: center;
 }
 
 .snow-gallery-lightbox__stage figure::after {
@@ -2730,6 +2754,11 @@ watch(
   display: block;
 }
 
+.snow-gallery-lightbox__stage--single img {
+  width: auto;
+  max-width: 100%;
+}
+
 .snow-gallery-lightbox__nav {
   width: 40px;
   height: 40px;
@@ -2752,6 +2781,10 @@ watch(
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
+}
+
+.snow-gallery-lightbox__stage--single + .snow-gallery-lightbox__thumbs {
+  justify-content: center;
 }
 
 .snow-gallery-lightbox__thumb {
@@ -3489,6 +3522,8 @@ watch(
 .snow-template--preview-tablet .snow-gallery-strip--single,
 .snow-template--preview-mobile .snow-gallery-strip--single {
   grid-template-columns: 1fr;
+  max-width: 620px;
+  justify-items: center;
   padding: 0 12px;
 }
 
@@ -3771,6 +3806,7 @@ watch(
 .snow-template--preview-desktop .snow-gallery-strip--single {
   grid-template-columns: 1fr;
   max-width: 620px;
+  justify-items: center;
 }
 
 .snow-template--preview-desktop .snow-gallery-strip--compact,
@@ -3854,6 +3890,8 @@ watch(
 
   .snow-gallery-strip--single {
     grid-template-columns: 1fr;
+    max-width: 620px;
+    justify-items: center;
     padding: 0 12px;
   }
 
@@ -4112,6 +4150,12 @@ watch(
   grid-template-columns: 1fr !important;
 }
 
+.snow-template.snow-template--preview-desktop .snow-gallery-strip--single {
+  width: min(100%, 620px) !important;
+  justify-self: center !important;
+  justify-items: center !important;
+}
+
 .snow-template.snow-template--preview-tablet .snow-location-grid,
 .snow-template.snow-template--preview-tablet .snow-dual-grid,
 .snow-template.snow-template--preview-tablet .snow-rsvp-layout,
@@ -4128,6 +4172,12 @@ watch(
 .snow-template.snow-template--preview-tablet .snow-gallery-strip--single,
 .snow-template.snow-template--preview-tablet .snow-gallery-strip--mobile {
   grid-template-columns: 1fr !important;
+}
+
+.snow-template.snow-template--preview-tablet .snow-gallery-strip--single {
+  width: min(100%, 620px) !important;
+  justify-self: center !important;
+  justify-items: center !important;
 }
 
 .snow-template.snow-template--preview-mobile .snow-location-grid,
