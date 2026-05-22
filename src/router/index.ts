@@ -36,6 +36,7 @@ const ClientInvitationEditor = () => import('@/pages/client/ClientInvitationEdit
 const ClientSettings = () => import('@/pages/client/ClientSettings.vue')
 const ClientSecurity = () => import('@/pages/client/ClientSecurity.vue')
 const ClientBilling = () => import('@/pages/client/ClientBilling.vue')
+const ClientPaymentHistory = () => import('@/pages/client/ClientPaymentHistory.vue')
 const ClientBuyCredits = () => import('@/pages/client/ClientBuyCredits.vue')
 const ClientSubscriptions = () => import('@/pages/client/ClientSubscriptions.vue')
 const ClientRenewSubscription = () => import('@/pages/client/ClientRenewSubscription.vue')
@@ -455,6 +456,17 @@ const router = createRouter({
           component: ClientBilling,
           meta: {
             title: 'Mi panel · Mis pagos',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'pagos/historial',
+          name: 'client-payment-history',
+          component: ClientPaymentHistory,
+          meta: {
+            title: 'Mi panel · Historial',
             requiresAuth: true,
             requiresClient: true,
             requiresActiveClientPlan: true,

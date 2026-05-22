@@ -47,6 +47,51 @@ export type TenantPaymentListDetail = {
   }
 }
 
+export type TenantPaymentHistoryItem = {
+  id: string
+  source: 'payment' | 'credit_movement' | string
+  source_id: number
+  occurred_at: string | null
+  category: 'payment' | 'plan' | 'credit' | string
+  movement_type: string | null
+  label: string | null
+  description: string | null
+  status: string | null
+  amount: string | null
+  currency: string | null
+  provider: string | null
+  plan_id: number | null
+  plan_name: string | null
+  credit_delta: number | null
+  reference_label: string | null
+}
+
+export type TenantPaymentHistoryParams = {
+  page?: number
+  perPage?: number
+  search?: string
+  category?: 'all' | 'payment' | 'plan' | 'credit' | string
+  sortDir?: 'asc' | 'desc' | string
+}
+
+export type TenantPaymentHistoryDetail = {
+  sort: {
+    by: string
+    dir: string
+  }
+  filters: {
+    category: string
+    search: string
+  }
+  items: TenantPaymentHistoryItem[]
+  pagination: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
 type TenantApiResponse<T = Record<string, unknown>> = {
   data?: T
   message?: string
@@ -100,6 +145,28 @@ const normalizeItem = (value: unknown): TenantPaymentItem => {
   }
 }
 
+const normalizeHistoryItem = (value: unknown): TenantPaymentHistoryItem => {
+  const source = toRecord(value)
+  return {
+    id: source.id ? String(source.id) : '',
+    source: source.source ? String(source.source) : '',
+    source_id: toNumber(source.source_id, 0),
+    occurred_at: source.occurred_at ? String(source.occurred_at) : null,
+    category: source.category ? String(source.category) : '',
+    movement_type: source.movement_type ? String(source.movement_type) : null,
+    label: source.label ? String(source.label) : null,
+    description: source.description ? String(source.description) : null,
+    status: source.status ? String(source.status) : null,
+    amount: source.amount == null ? null : String(source.amount),
+    currency: source.currency ? String(source.currency) : null,
+    provider: source.provider ? String(source.provider) : null,
+    plan_id: source.plan_id == null ? null : toNumber(source.plan_id, 0),
+    plan_name: source.plan_name ? String(source.plan_name) : null,
+    credit_delta: source.credit_delta == null ? null : toNumber(source.credit_delta, 0),
+    reference_label: source.reference_label ? String(source.reference_label) : null,
+  }
+}
+
 export const listTenantPayments = async (
   params: TenantPaymentListParams = {},
 ): Promise<TenantPaymentListDetail> => {
@@ -125,6 +192,44 @@ export const listTenantPayments = async (
       dir: String(sort.dir ?? 'desc'),
     },
     items: extractList(data.items).map(normalizeItem),
+    pagination: {
+      current_page: toNumber(pagination.current_page, 1),
+      last_page: toNumber(pagination.last_page, 1),
+      per_page: toNumber(pagination.per_page, 10),
+      total: toNumber(pagination.total, 0),
+    },
+  }
+}
+
+export const listTenantPaymentHistory = async (
+  params: TenantPaymentHistoryParams = {},
+): Promise<TenantPaymentHistoryDetail> => {
+  const search = new URLSearchParams()
+  search.set('page', String(params.page ?? 1))
+  search.set('perPage', String(params.perPage ?? 10))
+
+  if (params.search && params.search.trim()) search.set('search', params.search.trim())
+  if (params.category && params.category.trim()) search.set('category', params.category.trim())
+  if (params.sortDir && String(params.sortDir).trim()) search.set('sortDir', String(params.sortDir).trim())
+
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_PAYMENTS_ENDPOINT}/history?${search.toString()}`,
+  )
+  const data = toRecord(payload.data)
+  const pagination = toRecord(data.pagination)
+  const sort = toRecord(data.sort)
+  const filters = toRecord(data.filters)
+
+  return {
+    sort: {
+      by: String(sort.by ?? 'occurred_at'),
+      dir: String(sort.dir ?? 'desc'),
+    },
+    filters: {
+      category: String(filters.category ?? 'all'),
+      search: String(filters.search ?? ''),
+    },
+    items: extractList(data.items).map(normalizeHistoryItem),
     pagination: {
       current_page: toNumber(pagination.current_page, 1),
       last_page: toNumber(pagination.last_page, 1),

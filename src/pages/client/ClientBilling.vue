@@ -368,10 +368,10 @@ onBeforeUnmount(() => {
   <section class="client-page container" aria-labelledby="client-payments-title">
     <header class="client-page-head bo-card">
       <div>
-        <p class="client-kicker">Historial de pagos</p>
+        <p class="client-kicker">Pagos</p>
         <h1 id="client-payments-title">Mis pagos</h1>
         <p class="client-lead">
-          Revisa tu historial completo de cobros, estado y fechas de cada movimiento.
+          Revisa tus cobros, estado y fechas de pago.
         </p>
       </div>
     </header>
