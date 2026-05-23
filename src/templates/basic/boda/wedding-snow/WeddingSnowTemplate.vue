@@ -189,7 +189,7 @@ const templateThemeStyle = computed<Record<string, string>>(() => {
     '--snow-bg': background,
     '--snow-bg-accent': backgroundAccent,
     '--snow-bg-paint': backgroundPaint,
-    '--snow-section-bg': '#ffffff',
+    '--snow-section-bg': resolveColor(theme.sectionBackground, '#ffffff'),
     '--snow-button-bg': buttonBackground,
     '--snow-button-bg-paint': buttonBackgroundPaint,
     '--snow-button-bg-alt': buttonBackgroundAlt,

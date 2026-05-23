@@ -421,7 +421,7 @@ const globalThemeColorFields: ThemeColorField[] = [
   {
     key: 'text',
     label: 'Texto general',
-    description: 'Color base de la invitación. Cada sección puede ajustar textos especiales desde su propio icono.',
+    description: 'Base de textos.',
     path: 'theme.text',
     gradientPath: 'theme.gradients.text',
     fallback: '#1d0f2f',
@@ -430,7 +430,7 @@ const globalThemeColorFields: ThemeColorField[] = [
   {
     key: 'buttonBackground',
     label: 'Color de botones',
-    description: 'Color base de los botones de la invitación.',
+    description: 'Botones principales.',
     path: 'theme.buttonBackground',
     gradientPath: 'theme.gradients.buttonBackground',
     fallback: '#7a4fd9',
@@ -439,10 +439,76 @@ const globalThemeColorFields: ThemeColorField[] = [
   {
     key: 'buttonText',
     label: 'Texto de botones',
-    description: 'Color base del texto dentro de los botones.',
+    description: 'Texto interno.',
     path: 'theme.buttonText',
     gradientPath: 'theme.gradients.buttonText',
     fallback: '#ffffff',
+    supportsGradient: false,
+  },
+  {
+    key: 'sectionBackground',
+    label: 'Fondo de cajas',
+    description: 'Tarjetas y bloques.',
+    path: 'theme.sectionBackground',
+    gradientPath: 'theme.gradients.sectionBackground',
+    fallback: '#ffffff',
+    supportsGradient: false,
+  },
+]
+
+const lunaGlobalThemeColorFields: ThemeColorField[] = [
+  {
+    key: 'background',
+    label: 'Fondo editorial',
+    description: 'Fondo exterior.',
+    path: 'theme.background',
+    gradientPath: 'theme.gradients.background',
+    fallback: '#fbf4ea',
+    supportsGradient: true,
+  },
+  {
+    key: 'text',
+    label: 'Texto de cajas',
+    description: 'Textos internos.',
+    path: 'theme.text',
+    gradientPath: 'theme.gradients.text',
+    fallback: '#241b17',
+    supportsGradient: false,
+  },
+  {
+    key: 'primary',
+    label: 'Detalles y bordes',
+    description: 'Bordes y etiquetas.',
+    path: 'theme.primary',
+    gradientPath: 'theme.gradients.primary',
+    fallback: '#3f5f55',
+    supportsGradient: false,
+  },
+  {
+    key: 'buttonBackground',
+    label: 'Botones de cajas',
+    description: 'Acciones internas.',
+    path: 'theme.buttonBackground',
+    gradientPath: 'theme.gradients.buttonBackground',
+    fallback: '#3f5f55',
+    supportsGradient: true,
+  },
+  {
+    key: 'buttonText',
+    label: 'Texto de botones',
+    description: 'Texto interno.',
+    path: 'theme.buttonText',
+    gradientPath: 'theme.gradients.buttonText',
+    fallback: '#fffaf2',
+    supportsGradient: false,
+  },
+  {
+    key: 'sectionBackground',
+    label: 'Papel y tarjetas',
+    description: 'Papeles y tarjetas.',
+    path: 'theme.sectionBackground',
+    gradientPath: 'theme.gradients.sectionBackground',
+    fallback: '#fffaf2',
     supportsGradient: false,
   },
 ]
@@ -465,35 +531,92 @@ const createSectionThemeColorField = (
   supportsGradient,
 })
 
-const sectionThemeColorGroups: Record<string, ThemeColorField[]> = {
+const weddingSnowSectionThemeColorGroups: Record<string, ThemeColorField[]> = {
   hero: [],
   countdown: [
-    createSectionThemeColorField('countdown', 'surface', 'Fondo del contador', 'Color de los bloques de días, horas, minutos y segundos.', '#ffffff'),
-    createSectionThemeColorField('countdown', 'counterText', 'Texto del contador', 'Color de números, etiquetas y separadores.', '#1d0f2f'),
-    createSectionThemeColorField('countdown', 'accent', 'Bordes del contador', 'Color de bordes y detalles internos.', '#7a4fd9'),
+    createSectionThemeColorField('countdown', 'surface', 'Fondo del contador', 'Bloques internos.', '#ffffff'),
+    createSectionThemeColorField('countdown', 'counterText', 'Texto del contador', 'Números y etiquetas.', '#1d0f2f'),
+    createSectionThemeColorField('countdown', 'accent', 'Bordes del contador', 'Bordes y detalles.', '#7a4fd9'),
   ],
   story: [],
   gallery: [],
   wall: [
-    createSectionThemeColorField('wall', 'surface', 'Fondo de mensajes', 'Color de las tarjetas donde aparecen los mensajes.', '#ffffff'),
-    createSectionThemeColorField('wall', 'accent', 'Detalles de mensajes', 'Color de pines, bordes y detalles visuales.', '#7a4fd9'),
+    createSectionThemeColorField('wall', 'surface', 'Fondo de mensajes', 'Tarjetas internas.', '#ffffff'),
+    createSectionThemeColorField('wall', 'accent', 'Detalles de mensajes', 'Pines y bordes.', '#7a4fd9'),
   ],
   location: [
-    createSectionThemeColorField('location', 'surface', 'Fondo de ubicaciones', 'Color de las tarjetas de cada lugar.', '#ffffff'),
-    createSectionThemeColorField('location', 'accent', 'Detalles de ubicación', 'Color de bordes y detalles internos.', '#7a4fd9'),
+    createSectionThemeColorField('location', 'surface', 'Fondo de ubicaciones', 'Tarjetas de lugar.', '#ffffff'),
+    createSectionThemeColorField('location', 'accent', 'Detalles de ubicación', 'Bordes y detalles.', '#7a4fd9'),
   ],
   saveDate: [],
   dressCode: [],
   rsvp: [
-    createSectionThemeColorField('rsvp', 'surface', 'Fondo de preguntas', 'Color del bloque de preguntas importantes.', '#ffffff'),
-    createSectionThemeColorField('rsvp', 'accent', 'Detalles de confirmación', 'Color de bordes y detalles internos.', '#7a4fd9'),
+    createSectionThemeColorField('rsvp', 'surface', 'Fondo de preguntas', 'Bloque interno.', '#ffffff'),
+    createSectionThemeColorField('rsvp', 'accent', 'Detalles de confirmación', 'Bordes y detalles.', '#7a4fd9'),
   ],
   faq: [],
 }
 
-const sectionThemeColorFields = Object.values(sectionThemeColorGroups).flat()
+const lunaSectionThemeColorGroups: Record<string, ThemeColorField[]> = {
+  hero: [
+    createSectionThemeColorField('hero', 'text', 'Texto de portada', 'Nombres y título.', '#241b17'),
+    createSectionThemeColorField('hero', 'secondaryText', 'Texto secundario', 'Fecha y ciudad.', '#5f514b'),
+    createSectionThemeColorField('hero', 'accent', 'Detalles de portada', 'Líneas y acentos.', '#b97865'),
+  ],
+  countdown: [
+    createSectionThemeColorField('countdown', 'surface', 'Bloques del contador', 'Bloques internos.', '#fffaf2'),
+    createSectionThemeColorField('countdown', 'counterText', 'Texto del contador', 'Números y etiquetas.', '#241b17'),
+    createSectionThemeColorField('countdown', 'accent', 'Detalles del contador', 'Bordes y detalles.', '#3f5f55'),
+  ],
+  story: [],
+  gallery: [],
+  location: [],
+  saveDate: [],
+  dressCode: [],
+  faq: [],
+  rsvp: [],
+  checkin: [],
+}
 
-const allThemeColorFields = [...globalThemeColorFields, ...sectionThemeColorFields]
+const currentRendererKey = computed(() => {
+  const currentTemplate = availableTemplates.value.find((item) => String(item.id) === selectedTemplateId.value)
+  return asText(currentTemplate?.renderer_key ?? template.value?.renderer_key).trim()
+})
+
+const currentGlobalThemeColorFields = computed(() =>
+  currentRendererKey.value === 'luna_de_papel' ? lunaGlobalThemeColorFields : globalThemeColorFields,
+)
+
+const lunaTemplateBoxThemeColorKeys = new Set(['sectionBackground', 'text', 'primary', 'buttonBackground', 'buttonText'])
+
+const styleBaseThemeColorFields = computed(() =>
+  currentRendererKey.value === 'luna_de_papel'
+    ? currentGlobalThemeColorFields.value.filter((field) => !lunaTemplateBoxThemeColorKeys.has(field.key))
+    : currentGlobalThemeColorFields.value.filter((field) => field.key !== 'sectionBackground'),
+)
+
+const templateBoxThemeColorFields = computed(() =>
+  currentRendererKey.value === 'luna_de_papel'
+    ? currentGlobalThemeColorFields.value.filter((field) => lunaTemplateBoxThemeColorKeys.has(field.key))
+    : currentGlobalThemeColorFields.value.filter((field) => field.key === 'sectionBackground'),
+)
+
+const currentSectionThemeColorGroups = computed<Record<string, ThemeColorField[]>>(() =>
+  currentRendererKey.value === 'luna_de_papel' ? lunaSectionThemeColorGroups : weddingSnowSectionThemeColorGroups,
+)
+
+const styleHeroTextThemeColorFields = computed(() =>
+  currentRendererKey.value === 'luna_de_papel'
+    ? (currentSectionThemeColorGroups.value.hero ?? []).filter((field) => field.key !== 'hero.surface')
+    : [],
+)
+
+const currentSectionThemeColorFields = computed(() => Object.values(currentSectionThemeColorGroups.value).flat())
+
+const allThemeColorFields = computed(() => [
+  ...currentGlobalThemeColorFields.value,
+  ...currentSectionThemeColorFields.value,
+])
 
 const editableFieldBindings: Record<string, EditableFieldBinding> = {
   hero_title: { paths: ['hero.title', 'couple.headline'], fallback: 'Nos casamos' },
@@ -875,6 +998,13 @@ const ensureDefaultFeatureData = () => {
 }
 
 const templateSections = computed<EditorSection[]>(() => {
+  const currentTemplate = availableTemplates.value.find((item) => String(item.id) === selectedTemplateId.value)
+  const rendererKey = asText(currentTemplate?.renderer_key ?? template.value?.renderer_key).trim()
+  const supportsSection = (sectionKey: string): boolean => {
+    if (sectionKey !== 'wall') return true
+    return ['wedding_snow', 'wedding_base_basic'].includes(rendererKey)
+  }
+
   const normalizeSectionKey = (rawKey: string, rawFeatureKey = ''): string => {
     const normalized = (rawFeatureKey || rawKey).toLowerCase().replace(/[\s_]+/g, '-')
 
@@ -905,6 +1035,7 @@ const templateSections = computed<EditorSection[]>(() => {
     const normalizedKey = normalizeSectionKey(key, featureKey)
     const label = asText(section.label, key)
     if (!normalizedKey || !label) return
+    if (!supportsSection(normalizedKey)) return
 
     byKey.set(normalizedKey, {
       key: normalizedKey,
@@ -929,7 +1060,7 @@ const templateSections = computed<EditorSection[]>(() => {
     { key: 'wall', label: 'Muro de mensajes', optional: true },
   ]
 
-  for (const section of defaults) {
+  for (const section of defaults.filter((item) => supportsSection(item.key))) {
     if (!byKey.has(section.key)) {
       byKey.set(section.key, section)
     }
@@ -938,7 +1069,7 @@ const templateSections = computed<EditorSection[]>(() => {
   return Array.from(byKey.values())
 })
 
-const optionalSections = computed(() => {
+const configurableSections = computed(() => {
   const unique = new Set<string>()
   const list: EditorSection[] = []
 
@@ -959,7 +1090,7 @@ const baseConfigBarItems: ConfigBarItem[] = [
 
 const configBarItems = computed<ConfigBarItem[]>(() => [
   ...baseConfigBarItems,
-  ...optionalSections.value.map((section) => ({
+  ...configurableSections.value.map((section) => ({
     key: section.key,
     label: section.label,
     target: `config-section-${section.key}`,
@@ -967,15 +1098,15 @@ const configBarItems = computed<ConfigBarItem[]>(() => [
   })),
 ])
 
-const selectedOptionalSectionKey = computed(() =>
+const selectedConfigSectionKey = computed(() =>
   activeConfigTarget.value.startsWith('config-section-')
     ? activeConfigTarget.value.replace('config-section-', '')
     : '',
 )
 
-const selectedOptionalSections = computed(() =>
-  selectedOptionalSectionKey.value
-    ? optionalSections.value.filter((section) => section.key === selectedOptionalSectionKey.value)
+const selectedConfigSections = computed(() =>
+  selectedConfigSectionKey.value
+    ? configurableSections.value.filter((section) => section.key === selectedConfigSectionKey.value)
     : [],
 )
 
@@ -984,7 +1115,7 @@ const activeConfigItem = computed(() =>
 )
 
 const activeThemeColorField = computed(() =>
-  allThemeColorFields.find((field) => field.key === activeThemeColorFieldKey.value) ?? null,
+  allThemeColorFields.value.find((field) => field.key === activeThemeColorFieldKey.value) ?? null,
 )
 
 const isThemeColorModalOpen = computed(() => Boolean(activeThemeColorField.value))
@@ -1161,7 +1292,7 @@ const updateThemeColor = (field: ThemeColorField, value: string) => {
 }
 
 const getSectionThemeColorFields = (sectionKey: string): ThemeColorField[] =>
-  sectionThemeColorGroups[sectionKey] ?? []
+  currentSectionThemeColorGroups.value[sectionKey] ?? []
 
 const getVisibleSectionThemeColorFields = (sectionKey: string): ThemeColorField[] =>
   getSectionThemeColorFields(sectionKey)
@@ -2860,7 +2991,7 @@ onBeforeRouteLeave((to) => {
 
       <Transition name="config-drawer">
         <aside v-if="isSidebarOpen" class="config-drawer" role="dialog" aria-modal="true"
-          aria-label="Configuración del editor">
+          aria-label="Configuración del editor" @wheel.stop @touchmove.stop>
           <div class="config-drawer__shell">
             <header class="config-drawer__header">
               <div class="config-drawer__title-wrap">
@@ -2940,7 +3071,7 @@ onBeforeRouteLeave((to) => {
                         </button>
                       </div>
 
-                      <article v-for="field in globalThemeColorFields" :key="field.key"
+                      <article v-for="field in styleBaseThemeColorFields" :key="field.key"
                         class="theme-color-card theme-color-card--row">
                         <button type="button" class="theme-color-card__button"
                           :aria-label="`Personalizar ${field.label}`" @click="openThemeColorModal(field)">
@@ -2967,12 +3098,81 @@ onBeforeRouteLeave((to) => {
                           @update-gradient="updateActiveThemeGradient" />
                       </article>
                     </div>
+
+                    <div v-if="styleHeroTextThemeColorFields.length" class="theme-color-panel">
+                      <div class="theme-color-panel__head">
+                        <h4>Textos de portada</h4>
+                        <p>Personaliza los textos y detalles de la portada principal.</p>
+                      </div>
+
+                      <article v-for="field in styleHeroTextThemeColorFields" :key="field.key"
+                        class="theme-color-card theme-color-card--row">
+                        <button type="button" class="theme-color-card__button"
+                          :aria-label="`Personalizar ${field.label}`" @click="openThemeColorModal(field)">
+                          <span class="theme-color-card__content">
+                            <strong>{{ field.label }}</strong>
+                            <small v-if="field.description">{{ field.description }}</small>
+                          </span>
+                          <span class="theme-color-card__visual">
+                            <span class="theme-color-card__preview"
+                              :style="{ background: themeColorPreview(field) }"></span>
+                            <span class="theme-color-card__chevron" aria-hidden="true">›</span>
+                          </span>
+                        </button>
+
+                        <CanvaColorStudio v-if="activeThemeColorField?.key === field.key" inline
+                          :title="activeThemeColorStudioTitle" :color="activeThemeColorStudioColor"
+                          :gradient="activeThemeColorStudioGradient" :preset-colors="themePresetColors"
+                          :custom-colors="activeThemeCustomColors"
+                          :gradient-types="themeGradientTypeOptions"
+                          :max-gradient-colors="MAX_THEME_GRADIENT_COLORS"
+                          :allow-gradient="field.supportsGradient !== false"
+                          @close="closeThemeColorModal" @update-color="updateActiveThemeColor"
+                          @update-custom-colors="updateThemeCustomPalette"
+                          @update-gradient="updateActiveThemeGradient" />
+                      </article>
+                    </div>
+
+                    <div v-if="templateBoxThemeColorFields.length" class="theme-color-panel">
+                      <div class="theme-color-panel__head">
+                        <h4>Cajas de plantilla</h4>
+                        <p>Controla colores globales y repetidos de tarjetas, papeles y bloques internos.</p>
+                      </div>
+
+                      <article v-for="field in templateBoxThemeColorFields" :key="field.key"
+                        class="theme-color-card theme-color-card--row">
+                        <button type="button" class="theme-color-card__button"
+                          :aria-label="`Personalizar ${field.label}`"
+                          @click="openThemeColorModal(field)">
+                          <span class="theme-color-card__content">
+                            <strong>{{ field.label }}</strong>
+                            <small v-if="field.description">{{ field.description }}</small>
+                          </span>
+                          <span class="theme-color-card__visual">
+                            <span class="theme-color-card__preview"
+                              :style="{ background: themeColorPreview(field) }"></span>
+                            <span class="theme-color-card__chevron" aria-hidden="true">›</span>
+                          </span>
+                        </button>
+
+                        <CanvaColorStudio v-if="activeThemeColorField?.key === field.key" inline
+                          :title="activeThemeColorStudioTitle" :color="activeThemeColorStudioColor"
+                          :gradient="activeThemeColorStudioGradient" :preset-colors="themePresetColors"
+                          :custom-colors="activeThemeCustomColors"
+                          :gradient-types="themeGradientTypeOptions"
+                          :max-gradient-colors="MAX_THEME_GRADIENT_COLORS"
+                          :allow-gradient="field.supportsGradient !== false"
+                          @close="closeThemeColorModal" @update-color="updateActiveThemeColor"
+                          @update-custom-colors="updateThemeCustomPalette"
+                          @update-gradient="updateActiveThemeGradient" />
+                      </article>
+                    </div>
                   </section>
 
-                  <section v-else-if="selectedOptionalSections.length" id="config-sections"
+                  <section v-else-if="selectedConfigSections.length" id="config-sections"
                     class="config-block config-block--sections">
                     <div class="option-group">
-                      <article v-for="section in selectedOptionalSections" :id="`config-section-${section.key}`"
+                      <article v-for="section in selectedConfigSections" :id="`config-section-${section.key}`"
                         :key="section.key" class="feature-item">
                         <div class="feature-switch-panel"
                           :class="{ 'is-active': resolvedSectionVisibility[section.key] }">
@@ -3391,7 +3591,7 @@ onBeforeRouteLeave((to) => {
         </aside>
       </Transition>
 
-      <nav class="editor-config-bar" :class="{ 'is-collapsed': isConfigBarCollapsed }"
+      <nav class="editor-config-bar" :class="{ 'is-collapsed': isConfigBarCollapsed, 'is-config-open': isSidebarOpen }"
         aria-label="Configuración rápida de la invitación">
         <div class="editor-config-bar__inner">
           <span v-if="hoveredConfigTooltip" class="editor-config-bar__tooltip"
@@ -3787,6 +3987,13 @@ onBeforeRouteLeave((to) => {
   justify-items: center;
   padding: 0 14px;
   pointer-events: none;
+  transition: right 0.28s ease, padding 0.28s ease;
+}
+
+.editor-config-bar.is-config-open {
+  right: min(440px, 100vw);
+  z-index: 220;
+  padding-right: 10px;
 }
 
 .editor-config-bar__inner {
@@ -3809,6 +4016,15 @@ onBeforeRouteLeave((to) => {
   backdrop-filter: blur(18px);
   pointer-events: auto;
   transition: transform 0.28s ease, opacity 0.28s ease, max-width 0.28s ease;
+}
+
+.editor-config-bar.is-config-open .editor-config-bar__inner {
+  width: min(820px, 100%);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 245, 255, 0.96));
+  box-shadow:
+    0 12px 30px rgba(45, 24, 84, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
 }
 
 .editor-config-bar.is-collapsed .editor-config-bar__inner {
@@ -4059,27 +4275,24 @@ onBeforeRouteLeave((to) => {
 .config-overlay {
   position: fixed;
   inset: 0;
-  z-index: 79;
+  z-index: 190;
   border: 0;
-  background:
-    radial-gradient(circle at 82% 12%, rgba(219, 91, 182, 0.2), transparent 28%),
-    radial-gradient(circle at 10% 88%, rgba(122, 79, 217, 0.18), transparent 34%),
-    rgba(24, 15, 42, 0.48);
-  backdrop-filter: blur(6px);
+  background: transparent;
 }
 
 .config-drawer {
   position: fixed;
-  left: 94px;
+  top: 0;
   right: 0;
-  bottom: 118px;
-  max-height: min(64dvh, 680px);
-  padding: 0 16px;
-  z-index: 80;
+  bottom: auto;
+  width: min(440px, 100vw);
+  z-index: 200;
   min-width: 0;
   display: grid;
-  justify-items: center;
+  justify-items: stretch;
   pointer-events: none;
+  overscroll-behavior: contain;
+  height: 100%;
 }
 
 .config-drawer,
@@ -4090,21 +4303,23 @@ onBeforeRouteLeave((to) => {
 }
 
 .config-drawer__shell {
-  width: min(920px, 100%);
-  max-height: min(64dvh, 680px);
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  border-radius: 28px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid rgba(219, 203, 255, 0.82);
+  border: 0;
+  border-left: 1px solid rgba(219, 203, 255, 0.82);
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(251, 247, 255, 0.97) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(251, 247, 255, 0.98) 100%);
   box-shadow:
-    0 34px 70px rgba(24, 15, 42, 0.32),
+    -10px 0 30px rgba(24, 15, 42, 0.14),
     0 1px 0 rgba(255, 255, 255, 0.95) inset;
   backdrop-filter: blur(16px);
   pointer-events: auto;
+  overscroll-behavior: contain;
 }
 
 .config-panel-slot {
@@ -4133,11 +4348,10 @@ onBeforeRouteLeave((to) => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  padding: 18px 18px 15px;
+  padding: 16px 16px 14px;
   border-bottom: 1px solid rgba(219, 203, 255, 0.66);
   background:
-    radial-gradient(circle at 14% 0%, rgba(219, 91, 182, 0.14), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 255, 0.92));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 255, 0.96));
 }
 
 .config-drawer__title-wrap {
@@ -4176,13 +4390,14 @@ onBeforeRouteLeave((to) => {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 14px 14px 26px;
+  padding: 12px 12px 22px;
   display: grid;
   gap: 14px;
   align-content: start;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(122, 79, 217, 0.44) transparent;
+  overscroll-behavior: contain;
 }
 
 .config-drawer__body::-webkit-scrollbar {
@@ -4206,14 +4421,13 @@ onBeforeRouteLeave((to) => {
   width: 100%;
   min-width: 0;
   position: relative;
-  border: 1px solid rgba(219, 203, 255, 0.72);
-  border-radius: 22px;
-  padding: 14px;
+  border: 1px solid rgba(219, 203, 255, 0.6);
+  border-radius: 16px;
+  padding: 12px;
   background:
-    radial-gradient(circle at top right, rgba(240, 106, 166, 0.09), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(250, 247, 255, 0.88));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 247, 255, 0.88));
   box-shadow:
-    0 14px 30px rgba(45, 24, 84, 0.08),
+    0 8px 18px rgba(45, 24, 84, 0.06),
     0 1px 0 rgba(255, 255, 255, 0.88) inset;
   display: grid;
   gap: 12px;
@@ -4223,11 +4437,11 @@ onBeforeRouteLeave((to) => {
 
 .config-block::before {
   content: '';
-  width: 36px;
-  height: 5px;
+  width: 28px;
+  height: 4px;
   border-radius: 999px;
   background: linear-gradient(90deg, #7a4fd9, #db5bb6);
-  box-shadow: 0 6px 14px rgba(122, 79, 217, 0.22);
+  box-shadow: 0 5px 12px rgba(122, 79, 217, 0.18);
 }
 
 .config-block h3 {
@@ -5439,7 +5653,7 @@ onBeforeRouteLeave((to) => {
 
 .config-drawer-enter-from,
 .config-drawer-leave-to {
-  transform: translateY(34px) scale(0.985);
+  transform: translateX(32px);
   opacity: 0;
 }
 
@@ -5869,8 +6083,14 @@ onBeforeRouteLeave((to) => {
 
   .editor-config-bar {
     left: 0;
+    right: 0;
     padding: 0 8px;
     bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .editor-config-bar.is-config-open {
+    right: 0;
+    z-index: 220;
   }
 
   .editor-config-bar__inner {
@@ -5904,17 +6124,15 @@ onBeforeRouteLeave((to) => {
   }
 
   .config-drawer {
-    left: 0;
+    top: 0;
     right: 0;
-    bottom: 88px;
-    width: auto;
-    height: auto;
-    max-height: min(70dvh, calc(100dvh - 146px));
-    padding: 0 8px;
+    width: min(390px, 100vw);
   }
 
   .config-drawer__shell {
-    max-height: min(70dvh, calc(100dvh - 146px));
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
   }
 
   .config-drawer__header {

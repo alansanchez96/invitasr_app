@@ -71,6 +71,7 @@ export type TenantPaymentHistoryParams = {
   perPage?: number
   search?: string
   category?: 'all' | 'payment' | 'plan' | 'credit' | string
+  source?: 'all' | 'payment' | 'credit_movement' | string
   sortDir?: 'asc' | 'desc' | string
 }
 
@@ -210,6 +211,7 @@ export const listTenantPaymentHistory = async (
 
   if (params.search && params.search.trim()) search.set('search', params.search.trim())
   if (params.category && params.category.trim()) search.set('category', params.category.trim())
+  if (params.source && params.source.trim()) search.set('source', params.source.trim())
   if (params.sortDir && String(params.sortDir).trim()) search.set('sortDir', String(params.sortDir).trim())
 
   const payload = await request<TenantApiResponse<Record<string, unknown>>>(

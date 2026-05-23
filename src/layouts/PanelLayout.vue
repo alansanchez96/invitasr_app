@@ -206,7 +206,9 @@ onUnmounted(() => {
       :class="{ open: isMobileSidebarOpen }"
       aria-label="Menu lateral"
       @mouseenter="handleSidebarMouseEnter"
-      @mouseleave="handleSidebarMouseLeave">
+      @mouseleave="handleSidebarMouseLeave"
+      @wheel.stop
+      @touchmove.stop>
       <div class="sidebar-head">
         <RouterLink class="sidebar-brand" to="/">
           <img class="brand-icon" src="/brand/logo_icon.png" alt="InvitaSR" />
@@ -439,11 +441,13 @@ onUnmounted(() => {
 .panel-sidebar {
   position: sticky;
   top: 0;
+  z-index: 260;
   height: 100vh;
   background: linear-gradient(180deg, #2a1452 0%, #31195e 50%, #3a216f 100%);
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   padding: 14px 12px 18px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   transition: padding 0.4s ease;
 }
 
@@ -903,6 +907,7 @@ onUnmounted(() => {
   display: grid;
   gap: 6px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -994,7 +999,7 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   background: rgba(12, 16, 25, 0.5);
-  z-index: 16;
+  z-index: 250;
 }
 
 @media (max-width: 1010px) {
@@ -1011,7 +1016,7 @@ onUnmounted(() => {
     width: min(300px, 84vw);
     transform: translateX(-100%);
     transition: transform 0.4s ease;
-    z-index: 17;
+    z-index: 260;
   }
 
   .panel-sidebar.open {

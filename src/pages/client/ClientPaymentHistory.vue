@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { listTenantPaymentHistory, type TenantPaymentHistoryItem } from '@/services/tenantPayments'
-import { formatStatusLabel } from '@/utils/clientPanel'
 
 const rows = ref<TenantPaymentHistoryItem[]>([])
 const isLoading = ref(false)
@@ -10,7 +9,6 @@ const loadError = ref<string | null>(null)
 
 const searchInput = ref('')
 const searchQuery = ref('')
-const selectedCategory = ref('all')
 const currentPage = ref(1)
 const perPage = ref(10)
 const pagination = ref({
@@ -28,13 +26,6 @@ const cellPreview = ref({
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let cellPreviewTimer: ReturnType<typeof setTimeout> | null = null
 
-const categoryOptions = [
-  { value: 'all', label: 'Todo el historial' },
-  { value: 'payment', label: 'Pagos' },
-  { value: 'plan', label: 'Planes' },
-  { value: 'credit', label: 'Créditos' },
-]
-
 const totalPages = computed(() => Math.max(1, pagination.value.last_page || 1))
 const canGoPrev = computed(() => currentPage.value > 1)
 const canGoNext = computed(() => currentPage.value < totalPages.value)
@@ -47,14 +38,6 @@ const pageItems = computed(() => {
   }
   return pages
 })
-
-const creditMovementsVisible = computed(() =>
-  rows.value.filter((item) => String(item.category ?? '').toLowerCase() === 'credit').length,
-)
-
-const planMovementsVisible = computed(() =>
-  rows.value.filter((item) => String(item.category ?? '').toLowerCase() === 'plan').length,
-)
 
 const positiveCreditsVisible = computed(() =>
   rows.value.reduce((total, item) => {
@@ -70,6 +53,13 @@ const usedCreditsVisible = computed(() =>
   }, 0)),
 )
 
+const adjustmentMovementsVisible = computed(() =>
+  rows.value.filter((item) => {
+    const type = String(item.movement_type ?? '').toLowerCase()
+    return type === 'credit_expired' || type === 'credit_canceled' || type === 'credit_refunded'
+  }).length,
+)
+
 const formatPlanName = (name: string | null) => {
   const normalized = String(name ?? '').trim().toLowerCase()
   if (normalized === 'basic') return 'Basic'
@@ -77,17 +67,6 @@ const formatPlanName = (name: string | null) => {
   if (normalized === 'planner') return 'Planner'
   if (!normalized) return 'Sin plan'
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
-}
-
-const formatMoney = (amount: string | null, currency: string | null) => {
-  const value = Number(amount ?? '')
-  const code = String(currency ?? 'ARS').toUpperCase()
-  if (!Number.isFinite(value)) return '-'
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: code,
-    maximumFractionDigits: 2,
-  }).format(value)
 }
 
 const formatDateTime = (value: string | null) => {
@@ -104,53 +83,10 @@ const formatDateTime = (value: string | null) => {
   }).format(parsed)
 }
 
-const formatCategory = (category: string | null) => {
-  const normalized = String(category ?? '').trim().toLowerCase()
-  if (normalized === 'credit') return 'Créditos'
-  if (normalized === 'plan') return 'Plan'
-  if (normalized === 'payment') return 'Pago'
-  return 'Movimiento'
-}
-
-const resolveCategoryClass = (category: string | null) => {
-  const normalized = String(category ?? '').trim().toLowerCase()
-  if (normalized === 'credit') return 'category-pill--credit'
-  if (normalized === 'plan') return 'category-pill--plan'
-  if (normalized === 'payment') return 'category-pill--payment'
-  return 'category-pill--neutral'
-}
-
-const resolveStatusClass = (status: string | null) => {
-  const normalized = String(status ?? '').trim().toLowerCase()
-  if (normalized === 'paid' || normalized === 'completed') return 'status-pill--ok'
-  if (normalized === 'pending') return 'status-pill--pending'
-  if (normalized === 'failed' || normalized === 'canceled' || normalized === 'unpaid') return 'status-pill--danger'
-  if (normalized === 'refunded') return 'status-pill--neutral'
-  return 'status-pill--neutral'
-}
-
-const formatStatus = (status: string | null) => {
-  const normalized = String(status ?? '').trim().toLowerCase()
-  if (normalized === 'completed') return 'Registrado'
-  return formatStatusLabel(status, 'Sin estado')
-}
-
 const formatCredits = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) return '-'
   if (value === 0) return '0'
   return value > 0 ? `+${value}` : String(value)
-}
-
-const formatProviderLabel = (value: string | null) => {
-  const normalized = String(value ?? '').trim().toLowerCase()
-  if (!normalized) return '-'
-  if (normalized === 'stripe') return 'Stripe'
-  if (normalized === 'mercado_pago' || normalized === 'mercadopago') return 'Mercado Pago'
-  return normalized
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
-    .join(' ')
 }
 
 const movementPreview = (item: TenantPaymentHistoryItem) => {
@@ -186,7 +122,8 @@ const loadHistory = async () => {
       page: currentPage.value,
       perPage: perPage.value,
       search: searchQuery.value,
-      category: selectedCategory.value,
+      category: 'credit',
+      source: 'credit_movement',
       sortDir: 'desc',
     })
 
@@ -199,7 +136,7 @@ const loadHistory = async () => {
     }
   } catch (error) {
     const payload = error as { message?: string }
-    loadError.value = payload?.message ?? 'No pudimos cargar el historial.'
+    loadError.value = payload?.message ?? 'No pudimos cargar los movimientos.'
   } finally {
     isLoading.value = false
   }
@@ -227,7 +164,7 @@ watch(currentPage, () => {
   void loadHistory()
 }, { immediate: true })
 
-watch([selectedCategory, perPage], () => {
+watch(perPage, () => {
   resetToFirstPageOrLoad()
 })
 
@@ -259,18 +196,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="client-page container" aria-labelledby="client-payment-history-title">
+  <section class="client-page container" aria-labelledby="client-payment-movements-title">
     <header class="client-page-head bo-card">
       <div>
-        <p class="client-kicker">Pagos</p>
-        <h1 id="client-payment-history-title">Historial</h1>
+        <p class="client-kicker">Créditos</p>
+        <h1 id="client-payment-movements-title">Movimientos</h1>
         <p class="client-lead">
-          Movimientos de créditos, recargas, mejoras de plan, pagos y ajustes de tu cuenta.
+          Acreditaciones, usos, vencimientos y ajustes de créditos de tu cuenta.
         </p>
       </div>
     </header>
 
-    <section class="stats-grid" aria-label="Resumen del historial">
+    <section class="stats-grid" aria-label="Resumen de movimientos">
       <article class="bo-card stat-card">
         <span>Total de movimientos</span>
         <strong>{{ pagination.total }}</strong>
@@ -284,12 +221,8 @@ onBeforeUnmount(() => {
         <strong>{{ usedCreditsVisible }}</strong>
       </article>
       <article class="bo-card stat-card">
-        <span>Movimientos de plan (vista)</span>
-        <strong>{{ planMovementsVisible }}</strong>
-      </article>
-      <article class="bo-card stat-card">
-        <span>Movimientos de créditos (vista)</span>
-        <strong>{{ creditMovementsVisible }}</strong>
+        <span>Ajustes (vista)</span>
+        <strong>{{ adjustmentMovementsVisible }}</strong>
       </article>
     </section>
 
@@ -305,17 +238,8 @@ onBeforeUnmount(() => {
             <input
               v-model="searchInput"
               type="search"
-              placeholder="Buscar por movimiento, referencia, plan, estado o medio" />
+              placeholder="Buscar por movimiento, referencia o plan" />
           </div>
-        </label>
-
-        <label class="field">
-          <span>Ver</span>
-          <select v-model="selectedCategory" :disabled="isLoading">
-            <option v-for="item in categoryOptions" :key="item.value" :value="item.value">
-              {{ item.label }}
-            </option>
-          </select>
         </label>
 
         <div class="filters-actions">
@@ -345,28 +269,24 @@ onBeforeUnmount(() => {
     </article>
 
     <p v-if="loadError" class="client-inline-note">{{ loadError }}</p>
-    <p v-else-if="isLoading" class="client-inline-note">Cargando historial...</p>
+    <p v-else-if="isLoading" class="client-inline-note">Cargando movimientos...</p>
 
     <article class="bo-card table-card">
       <div class="table-wrap">
         <table>
-          <caption class="sr-only">Historial de movimientos de pagos, planes y créditos</caption>
+          <caption class="sr-only">Movimientos de créditos</caption>
           <thead>
             <tr>
               <th>Fecha</th>
               <th>Movimiento</th>
-              <th>Categoría</th>
               <th>Referencia</th>
               <th>Plan</th>
               <th>Créditos</th>
-              <th>Importe</th>
-              <th>Estado</th>
-              <th>Medio</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!isLoading && !loadError && !rows.length">
-              <td colspan="9" class="empty-row">Todavía no encontramos movimientos para mostrar.</td>
+              <td colspan="5" class="empty-row">Todavía no encontramos movimientos de créditos para mostrar.</td>
             </tr>
             <tr v-for="item in rows" :key="item.id">
               <td>
@@ -389,11 +309,6 @@ onBeforeUnmount(() => {
                     <small>{{ item.description || '-' }}</small>
                   </span>
                 </button>
-              </td>
-              <td>
-                <span class="category-pill" :class="resolveCategoryClass(item.category)">
-                  {{ formatCategory(item.category) }}
-                </span>
               </td>
               <td>
                 <button
@@ -422,29 +337,6 @@ onBeforeUnmount(() => {
                   }">
                   {{ formatCredits(item.credit_delta) }}
                 </span>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
-                  :title="formatMoney(item.amount, item.currency)"
-                  @click="showCellPreview(formatMoney(item.amount, item.currency))">
-                  {{ formatMoney(item.amount, item.currency) }}
-                </button>
-              </td>
-              <td>
-                <span class="status-pill" :class="resolveStatusClass(item.status)">
-                  {{ formatStatus(item.status) }}
-                </span>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="cell-ellipsis-btn"
-                  :title="formatProviderLabel(item.provider)"
-                  @click="showCellPreview(formatProviderLabel(item.provider))">
-                  {{ formatProviderLabel(item.provider) }}
-                </button>
               </td>
             </tr>
           </tbody>
@@ -548,7 +440,7 @@ onBeforeUnmount(() => {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -573,7 +465,7 @@ onBeforeUnmount(() => {
 
 .filters-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(190px, 230px) auto;
+  grid-template-columns: minmax(240px, 1fr) auto;
   align-items: end;
   gap: 12px;
 }
@@ -727,7 +619,7 @@ onBeforeUnmount(() => {
 }
 
 table {
-  width: max(100%, 1220px);
+  width: max(100%, 920px);
   border-collapse: collapse;
 }
 
@@ -758,20 +650,6 @@ td:nth-child(4),
 th:nth-child(5),
 td:nth-child(5) {
   min-width: 150px;
-}
-
-th:nth-child(6),
-td:nth-child(6) {
-  min-width: 110px;
-}
-
-th:nth-child(7),
-td:nth-child(7),
-th:nth-child(8),
-td:nth-child(8),
-th:nth-child(9),
-td:nth-child(9) {
-  min-width: 140px;
 }
 
 tbody tr {
@@ -829,8 +707,6 @@ th {
   font-size: 0.76rem;
 }
 
-.status-pill,
-.category-pill,
 .credits-delta-pill {
   display: inline-flex;
   align-items: center;
@@ -841,51 +717,21 @@ th {
   font-weight: 800;
   border: 1px solid transparent;
   white-space: nowrap;
+  color: #4f2d81;
+  background: rgba(248, 243, 255, 0.9);
+  border-color: rgba(111, 57, 187, 0.25);
 }
 
-.status-pill {
-  font-weight: 700;
-}
-
-.status-pill--ok,
-.category-pill--credit,
 .credits-delta-pill--positive {
   color: #166534;
   background: rgba(240, 253, 244, 0.96);
   border-color: rgba(22, 163, 74, 0.24);
 }
 
-.status-pill--pending,
 .credits-delta-pill--negative {
   color: #92400e;
   background: rgba(255, 251, 235, 0.96);
   border-color: rgba(217, 119, 6, 0.24);
-}
-
-.status-pill--danger {
-  color: #9f1239;
-  background: rgba(255, 241, 242, 0.96);
-  border-color: rgba(225, 29, 72, 0.24);
-}
-
-.status-pill--neutral,
-.category-pill--plan,
-.credits-delta-pill {
-  color: #4f2d81;
-  background: rgba(248, 243, 255, 0.9);
-  border-color: rgba(111, 57, 187, 0.25);
-}
-
-.category-pill--payment {
-  color: #1d4ed8;
-  background: rgba(239, 246, 255, 0.96);
-  border-color: rgba(37, 99, 235, 0.22);
-}
-
-.category-pill--neutral {
-  color: #4b5563;
-  background: rgba(249, 250, 251, 0.96);
-  border-color: rgba(107, 114, 128, 0.2);
 }
 
 .empty-row {
@@ -1032,7 +878,7 @@ th {
 @media (max-width: 980px) {
   table {
     width: max-content;
-    min-width: 1160px;
+    min-width: 900px;
     table-layout: auto;
   }
 
@@ -1120,7 +966,7 @@ th {
   }
 
   table {
-    min-width: 1120px;
+    min-width: 860px;
   }
 
   th,

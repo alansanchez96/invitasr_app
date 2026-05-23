@@ -1,5 +1,6 @@
 import type { InvitationTemplateManifest, InvitationTemplateModule } from '@/templates/types'
 import { createWeddingSnowPreviewData } from '@/templates/basic/boda/wedding-snow/previewData'
+import { createLunaDePapelPreviewData } from '@/templates/basic/boda/luna-de-papel/previewData'
 
 type InvitationTemplateLoader = () => Promise<InvitationTemplateModule>
 
@@ -19,13 +20,30 @@ export const templateRegistry: Record<number, InvitationTemplateLoader> = {
       createPreviewData: createWeddingSnowPreviewData,
     }
   },
+  1002: async () => {
+    const [{ default: component }, { lunaDePapelManifest: manifest }] = await Promise.all([
+      import('@/templates/basic/boda/luna-de-papel/LunaDePapelTemplate.vue'),
+      import('@/templates/basic/boda/luna-de-papel/manifest'),
+    ])
+
+    return {
+      component,
+      manifest,
+      capabilities: {
+        inlineEditor: true,
+      },
+      createPreviewData: createLunaDePapelPreviewData,
+    }
+  },
 }
 
 const loadWeddingSnowTemplate: InvitationTemplateLoader = async () => templateRegistry[1001]!()
+const loadLunaDePapelTemplate: InvitationTemplateLoader = async () => templateRegistry[1002]!()
 
 export const templateRendererRegistry: Record<string, InvitationTemplateLoader> = {
   wedding_snow: loadWeddingSnowTemplate,
   wedding_base_basic: loadWeddingSnowTemplate,
+  luna_de_papel: loadLunaDePapelTemplate,
 }
 
 export const listRegisteredTemplateIds = () => Object.keys(templateRegistry).map((value) => Number(value))
