@@ -427,6 +427,7 @@ onUnmounted(() => {
 
 <style scoped>
 .panel-layout {
+  --panel-sidebar-width: 274px;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 274px 1fr;
@@ -435,6 +436,7 @@ onUnmounted(() => {
 }
 
 .panel-layout.is-collapsed {
+  --panel-sidebar-width: 94px;
   grid-template-columns: 94px 1fr;
 }
 
@@ -1005,6 +1007,7 @@ onUnmounted(() => {
 @media (max-width: 1010px) {
   .panel-layout,
   .panel-layout.is-collapsed {
+    --panel-sidebar-width: 0px;
     grid-template-columns: 1fr;
   }
 

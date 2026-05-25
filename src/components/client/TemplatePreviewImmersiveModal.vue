@@ -294,8 +294,8 @@ watch(effectivePreviewDevice, (nextDevice) => {
 
 .template-preview-modal-backdrop {
   position: fixed;
-  inset: 0;
-  z-index: 130;
+  inset: 0 0 0 var(--panel-sidebar-width, 0px);
+  z-index: 320;
   background: rgba(15, 23, 42, 0.62);
   backdrop-filter: blur(6px);
   padding: 12px;

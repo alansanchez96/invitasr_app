@@ -413,6 +413,7 @@ const globalThemeColorFields: ThemeColorField[] = [
   {
     key: 'background',
     label: 'Fondo de la invitación',
+    description: 'Color que se ve detrás de toda la invitación.',
     path: 'theme.background',
     gradientPath: 'theme.gradients.background',
     fallback: '#f6f7fb',
@@ -421,7 +422,7 @@ const globalThemeColorFields: ThemeColorField[] = [
   {
     key: 'text',
     label: 'Texto general',
-    description: 'Base de textos.',
+    description: 'Color base para títulos y textos principales.',
     path: 'theme.text',
     gradientPath: 'theme.gradients.text',
     fallback: '#1d0f2f',
@@ -429,8 +430,8 @@ const globalThemeColorFields: ThemeColorField[] = [
   },
   {
     key: 'buttonBackground',
-    label: 'Color de botones',
-    description: 'Botones principales.',
+    label: 'Botones principales',
+    description: 'Color de los botones más importantes.',
     path: 'theme.buttonBackground',
     gradientPath: 'theme.gradients.buttonBackground',
     fallback: '#7a4fd9',
@@ -439,7 +440,7 @@ const globalThemeColorFields: ThemeColorField[] = [
   {
     key: 'buttonText',
     label: 'Texto de botones',
-    description: 'Texto interno.',
+    description: 'Color del texto dentro de los botones.',
     path: 'theme.buttonText',
     gradientPath: 'theme.gradients.buttonText',
     fallback: '#ffffff',
@@ -447,8 +448,8 @@ const globalThemeColorFields: ThemeColorField[] = [
   },
   {
     key: 'sectionBackground',
-    label: 'Fondo de cajas',
-    description: 'Tarjetas y bloques.',
+    label: 'Tarjetas y bloques',
+    description: 'Color de las cajas donde aparece el contenido.',
     path: 'theme.sectionBackground',
     gradientPath: 'theme.gradients.sectionBackground',
     fallback: '#ffffff',
@@ -459,8 +460,8 @@ const globalThemeColorFields: ThemeColorField[] = [
 const lunaGlobalThemeColorFields: ThemeColorField[] = [
   {
     key: 'background',
-    label: 'Fondo editorial',
-    description: 'Fondo exterior.',
+    label: 'Fondo de la invitación',
+    description: 'Color que se ve detrás de toda la invitación.',
     path: 'theme.background',
     gradientPath: 'theme.gradients.background',
     fallback: '#fbf4ea',
@@ -468,8 +469,8 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
   },
   {
     key: 'text',
-    label: 'Texto de cajas',
-    description: 'Textos internos.',
+    label: 'Texto principal',
+    description: 'Color de los textos dentro de tarjetas.',
     path: 'theme.text',
     gradientPath: 'theme.gradients.text',
     fallback: '#241b17',
@@ -477,8 +478,8 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
   },
   {
     key: 'primary',
-    label: 'Detalles y bordes',
-    description: 'Bordes y etiquetas.',
+    label: 'Detalles decorativos',
+    description: 'Color de líneas, bordes y pequeños acentos.',
     path: 'theme.primary',
     gradientPath: 'theme.gradients.primary',
     fallback: '#3f5f55',
@@ -486,8 +487,8 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
   },
   {
     key: 'buttonBackground',
-    label: 'Botones de cajas',
-    description: 'Acciones internas.',
+    label: 'Botones',
+    description: 'Color de los botones dentro de las secciones.',
     path: 'theme.buttonBackground',
     gradientPath: 'theme.gradients.buttonBackground',
     fallback: '#3f5f55',
@@ -496,7 +497,7 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
   {
     key: 'buttonText',
     label: 'Texto de botones',
-    description: 'Texto interno.',
+    description: 'Color del texto dentro de los botones.',
     path: 'theme.buttonText',
     gradientPath: 'theme.gradients.buttonText',
     fallback: '#fffaf2',
@@ -504,8 +505,8 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
   },
   {
     key: 'sectionBackground',
-    label: 'Papel y tarjetas',
-    description: 'Papeles y tarjetas.',
+    label: 'Tarjetas',
+    description: 'Color de las tarjetas y bloques de contenido.',
     path: 'theme.sectionBackground',
     gradientPath: 'theme.gradients.sectionBackground',
     fallback: '#fffaf2',
@@ -534,39 +535,39 @@ const createSectionThemeColorField = (
 const weddingSnowSectionThemeColorGroups: Record<string, ThemeColorField[]> = {
   hero: [],
   countdown: [
-    createSectionThemeColorField('countdown', 'surface', 'Fondo del contador', 'Bloques internos.', '#ffffff'),
-    createSectionThemeColorField('countdown', 'counterText', 'Texto del contador', 'Números y etiquetas.', '#1d0f2f'),
-    createSectionThemeColorField('countdown', 'accent', 'Bordes del contador', 'Bordes y detalles.', '#7a4fd9'),
+    createSectionThemeColorField('countdown', 'surface', 'Cajas del contador', 'Color de cada bloque de tiempo.', '#ffffff'),
+    createSectionThemeColorField('countdown', 'counterText', 'Números del contador', 'Color de números y etiquetas de tiempo.', '#1d0f2f'),
+    createSectionThemeColorField('countdown', 'accent', 'Detalles del contador', 'Color de bordes y acentos del contador.', '#7a4fd9'),
   ],
   story: [],
   gallery: [],
   wall: [
-    createSectionThemeColorField('wall', 'surface', 'Fondo de mensajes', 'Tarjetas internas.', '#ffffff'),
-    createSectionThemeColorField('wall', 'accent', 'Detalles de mensajes', 'Pines y bordes.', '#7a4fd9'),
+    createSectionThemeColorField('wall', 'surface', 'Tarjetas de mensajes', 'Color de fondo de cada mensaje recibido.', '#ffffff'),
+    createSectionThemeColorField('wall', 'accent', 'Detalles de mensajes', 'Color de pines, bordes y acentos.', '#7a4fd9'),
   ],
   location: [
-    createSectionThemeColorField('location', 'surface', 'Fondo de ubicaciones', 'Tarjetas de lugar.', '#ffffff'),
-    createSectionThemeColorField('location', 'accent', 'Detalles de ubicación', 'Bordes y detalles.', '#7a4fd9'),
+    createSectionThemeColorField('location', 'surface', 'Tarjetas de ubicación', 'Color de las cajas de dirección y lugar.', '#ffffff'),
+    createSectionThemeColorField('location', 'accent', 'Detalles de ubicación', 'Color de bordes, iconos y acentos.', '#7a4fd9'),
   ],
   saveDate: [],
   dressCode: [],
   rsvp: [
-    createSectionThemeColorField('rsvp', 'surface', 'Fondo de preguntas', 'Bloque interno.', '#ffffff'),
-    createSectionThemeColorField('rsvp', 'accent', 'Detalles de confirmación', 'Bordes y detalles.', '#7a4fd9'),
+    createSectionThemeColorField('rsvp', 'surface', 'Caja del formulario', 'Color del bloque donde tus invitados confirman.', '#ffffff'),
+    createSectionThemeColorField('rsvp', 'accent', 'Detalles del formulario', 'Color de bordes y acentos de confirmación.', '#7a4fd9'),
   ],
   faq: [],
 }
 
 const lunaSectionThemeColorGroups: Record<string, ThemeColorField[]> = {
   hero: [
-    createSectionThemeColorField('hero', 'text', 'Texto de portada', 'Nombres y título.', '#241b17'),
-    createSectionThemeColorField('hero', 'secondaryText', 'Texto secundario', 'Fecha y ciudad.', '#5f514b'),
-    createSectionThemeColorField('hero', 'accent', 'Detalles de portada', 'Líneas y acentos.', '#b97865'),
+    createSectionThemeColorField('hero', 'text', 'Nombres y título', 'Color del texto principal de la portada.', '#241b17'),
+    createSectionThemeColorField('hero', 'secondaryText', 'Fecha y lugar', 'Color de la fecha, ciudad y textos de apoyo.', '#5f514b'),
+    createSectionThemeColorField('hero', 'accent', 'Detalles de portada', 'Color de líneas y acentos decorativos.', '#b97865'),
   ],
   countdown: [
-    createSectionThemeColorField('countdown', 'surface', 'Bloques del contador', 'Bloques internos.', '#fffaf2'),
-    createSectionThemeColorField('countdown', 'counterText', 'Texto del contador', 'Números y etiquetas.', '#241b17'),
-    createSectionThemeColorField('countdown', 'accent', 'Detalles del contador', 'Bordes y detalles.', '#3f5f55'),
+    createSectionThemeColorField('countdown', 'surface', 'Cajas del contador', 'Color de cada bloque de tiempo.', '#fffaf2'),
+    createSectionThemeColorField('countdown', 'counterText', 'Números del contador', 'Color de números y etiquetas de tiempo.', '#241b17'),
+    createSectionThemeColorField('countdown', 'accent', 'Detalles del contador', 'Color de bordes y acentos del contador.', '#3f5f55'),
   ],
   story: [],
   gallery: [],
@@ -3059,7 +3060,7 @@ onBeforeRouteLeave((to) => {
                       <div class="theme-color-panel__head theme-color-panel__head--action">
                         <div>
                           <h4>Colores</h4>
-                          <p>Define la base visual de toda la invitación.</p>
+                          <p>Cambia los colores principales que se repiten en toda la invitación.</p>
                         </div>
                         <button type="button" class="theme-reset-colors-button" aria-label="Restablecer colores"
                           title="Restablecer colores" @click="resetThemeColorsToTemplateDefaults">
@@ -3101,8 +3102,8 @@ onBeforeRouteLeave((to) => {
 
                     <div v-if="styleHeroTextThemeColorFields.length" class="theme-color-panel">
                       <div class="theme-color-panel__head">
-                        <h4>Textos de portada</h4>
-                        <p>Personaliza los textos y detalles de la portada principal.</p>
+                        <h4>Portada</h4>
+                        <p>Ajusta los colores de los nombres, la fecha y los detalles de bienvenida.</p>
                       </div>
 
                       <article v-for="field in styleHeroTextThemeColorFields" :key="field.key"
@@ -3135,8 +3136,8 @@ onBeforeRouteLeave((to) => {
 
                     <div v-if="templateBoxThemeColorFields.length" class="theme-color-panel">
                       <div class="theme-color-panel__head">
-                        <h4>Cajas de plantilla</h4>
-                        <p>Controla colores globales y repetidos de tarjetas, papeles y bloques internos.</p>
+                        <h4>Estilo global</h4>
+                        <p>Estos colores se aplican a tarjetas, papeles, botones y detalles repetidos.</p>
                       </div>
 
                       <article v-for="field in templateBoxThemeColorFields" :key="field.key"
@@ -5879,8 +5880,8 @@ onBeforeRouteLeave((to) => {
 
 .immersive-preview-overlay {
   position: fixed;
-  inset: 0;
-  z-index: 130;
+  inset: 0 0 0 var(--panel-sidebar-width, 0px);
+  z-index: 320;
   background:
     radial-gradient(circle at 15% 20%, rgba(148, 163, 184, 0.28), transparent 50%),
     rgba(2, 6, 23, 0.78);

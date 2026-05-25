@@ -911,7 +911,7 @@ h2 {
 
 .luna-story__number {
   width: min(100%, 340px);
-  color: color-mix(in srgb, var(--section-accent, var(--luna-clay)) 24%, transparent);
+  color: color-mix(in srgb, var(--section-text, var(--luna-ink)) 24%, transparent);
   font-family: var(--font-display, Georgia, serif);
   font-size: clamp(8rem, 18vw, 15rem);
   line-height: 0.8;

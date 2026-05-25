@@ -338,12 +338,22 @@ const updateActiveColor = (color: string) => {
 }
 
 const openPalettePicker = (index: number | null) => {
+  if (pickerContext.value?.type === 'palette' && pickerContext.value.index === index) {
+    pickerContext.value = null
+    return
+  }
+
   const color = typeof index === 'number' ? suggestedColors.value[index] : activeColor.value
   draftColor.value = normalizeHexColor(color, activeColor.value)
   pickerContext.value = { type: 'palette', index }
 }
 
 const openGradientPicker = (index: number | null) => {
+  if (pickerContext.value?.type === 'gradient' && pickerContext.value.index === index) {
+    pickerContext.value = null
+    return
+  }
+
   let nextIndex = index
 
   if (nextIndex === null) {
@@ -437,6 +447,12 @@ const closePickerFromOutside = (event: PointerEvent) => {
   if (!pickerContext.value) return
   const target = event.target
   if (!(target instanceof Node)) return
+  if (
+    target instanceof Element
+    && target.closest('.color-studio__edit-swatch, .color-studio__preset--add, .color-studio__stop')
+  ) {
+    return
+  }
   if (pickerPopoverRef.value?.contains(target)) return
   pickerContext.value = null
 }
