@@ -58,7 +58,7 @@ const rsvpLastName = ref('')
 const rsvpDietaryRestrictions = ref('')
 const rsvpWhatsappCountry = ref(DEFAULT_PHONE_COUNTRY)
 const rsvpWhatsapp = ref('')
-const rsvpCompanionsCount = ref(0)
+const rsvpCompanionsCount = ref<number | null>(null)
 const rsvpSuccessMessage = ref<string | null>(null)
 const faqReviewedForRsvp = ref(false)
 const checkinOverlayVisible = ref(false)
@@ -439,7 +439,7 @@ const handleRsvp = async () => {
     rsvpLastName.value = ''
     rsvpDietaryRestrictions.value = ''
     rsvpWhatsapp.value = ''
-    rsvpCompanionsCount.value = 0
+    rsvpCompanionsCount.value = null
     notifySuccess('Confirmación recibida.')
   } catch (error) {
     const payload = error as { message?: string }

@@ -240,11 +240,13 @@ const rsvpWhatsappConfirmationsDraft = computed({
 const rsvpFeaturePreview = computed(() => ({
   enabled: true,
   limit: 999,
-  fields: isProLikePlan.value
+  fields: isProLikePlan.value && rsvpWhatsappConfirmationsDraft.value
     ? ['name', 'last_name', 'dietary_restrictions', 'whatsapp', 'companions']
-    : ['name', 'last_name', 'dietary_restrictions'],
-  whatsappEnabled: isProLikePlan.value,
-  whatsapp_enabled: isProLikePlan.value,
+    : isProLikePlan.value
+      ? ['name', 'last_name', 'dietary_restrictions', 'companions']
+      : ['name', 'last_name', 'dietary_restrictions'],
+  whatsappEnabled: isProLikePlan.value && rsvpWhatsappConfirmationsDraft.value,
+  whatsapp_enabled: isProLikePlan.value && rsvpWhatsappConfirmationsDraft.value,
   companionsEnabled: isProLikePlan.value,
   companions_enabled: isProLikePlan.value,
   whatsappConfirmationsEnabled: rsvpWhatsappConfirmationsDraft.value,
@@ -3543,7 +3545,7 @@ onBeforeRouteLeave((to) => {
 
                         <template v-if="isProLikePlan">
                           <div class="feature-inline-switch">
-                            <span>Enviar confirmación por WhatsApp</span>
+                            <span>Pedir WhatsApp y enviar confirmación</span>
                             <label class="switch">
                               <input v-model="rsvpWhatsappConfirmationsDraft" type="checkbox" />
                               <span class="switch-track"></span>

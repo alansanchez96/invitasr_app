@@ -69,7 +69,7 @@ const rsvpLastName = ref('')
 const rsvpDietaryRestrictions = ref('')
 const rsvpWhatsappCountry = ref(DEFAULT_PHONE_COUNTRY)
 const rsvpWhatsapp = ref('')
-const rsvpCompanionsCount = ref(0)
+const rsvpCompanionsCount = ref<number | null>(null)
 const rsvpSuccessMessage = ref<string | null>(null)
 const faqReviewedForRsvp = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
@@ -1117,7 +1117,7 @@ const submitRsvp = async () => {
     rsvpLastName.value = ''
     rsvpDietaryRestrictions.value = ''
     rsvpWhatsapp.value = ''
-    rsvpCompanionsCount.value = 0
+    rsvpCompanionsCount.value = null
     notifySuccess('Tu asistencia quedó confirmada.')
   } catch (error) {
     const payload = error as { message?: string }
@@ -1670,7 +1670,7 @@ watch(
             </label>
             <label v-if="rsvpCompanionsEnabled">
               <span>{{ rsvpLabels.companions }}</span>
-              <input v-model.number="rsvpCompanionsCount" type="number" min="0" max="20" :disabled="props.editable || props.demoMode || rsvpSubmitting" />
+              <input v-model.number="rsvpCompanionsCount" type="number" min="0" max="20" :placeholder="rsvpLabels.companions" :disabled="props.editable || props.demoMode || rsvpSubmitting" />
             </label>
 
             <p class="snow-rsvp__hint">{{ rsvpGateHint }}</p>
