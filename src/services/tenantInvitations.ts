@@ -142,6 +142,8 @@ export type TenantInvitationRsvpResponse = {
   last_name: string
   full_name: string
   dietary_restrictions: string | null
+  whatsapp: string | null
+  companions_count: number
   status: 'confirmed' | string
   confirmed_at: string | null
   created_at: string | null
@@ -479,6 +481,8 @@ const normalizeRsvpResponse = (value: unknown): TenantInvitationRsvpResponse => 
     last_name: String(source.last_name ?? ''),
     full_name: String(source.full_name ?? ''),
     dietary_restrictions: source.dietary_restrictions ? String(source.dietary_restrictions) : null,
+    whatsapp: source.whatsapp ? String(source.whatsapp) : null,
+    companions_count: toNumber(source.companions_count, 0),
     status: String(source.status ?? 'confirmed'),
     confirmed_at: source.confirmed_at ? String(source.confirmed_at) : null,
     created_at: source.created_at ? String(source.created_at) : null,

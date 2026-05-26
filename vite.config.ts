@@ -6,6 +6,19 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    // Vue Router 5.x can crash in devtools metadata collection when a route
+    // component ref is temporarily null. Keep dependency devtools code out of
+    // local/runtime builds; app-level Vue warnings still use Vue's own flags.
+    'process.env.NODE_ENV': JSON.stringify('production'),
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        'process.env.NODE_ENV': '"production"',
+      },
+    },
+  },
   server: {
     allowedHosts: [
       'app.invitasr.local',

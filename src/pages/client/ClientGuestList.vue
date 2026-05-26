@@ -15,6 +15,8 @@ type ConfirmedGuestRow = {
   lastName: string
   invitationTitle: string
   dietaryRestrictions: string
+  whatsapp: string
+  companionsCount: number
   confirmedAt: string | null
 }
 
@@ -79,6 +81,8 @@ const toRow = (item: TenantInvitationRsvpResponse): ConfirmedGuestRow => ({
   lastName: String(item.last_name ?? '').trim(),
   invitationTitle: String(item.invitation_title ?? 'Invitación').trim() || 'Invitación',
   dietaryRestrictions: String(item.dietary_restrictions ?? '').trim() || 'Sin restricciones',
+  whatsapp: String(item.whatsapp ?? '').trim() || 'Sin WhatsApp',
+  companionsCount: Number(item.companions_count ?? 0) || 0,
   confirmedAt: item.confirmed_at ?? null,
 })
 
@@ -369,7 +373,7 @@ onBeforeUnmount(() => {
         <p class="client-kicker">Confirmaciones RSVP</p>
         <h1 id="client-guests-title">Lista de invitados confirmados</h1>
         <p class="client-lead">
-          Revisa quién confirmó asistencia y sus restricciones alimenticias.
+          Revisa quién confirmó asistencia, sus acompañantes y sus datos de contacto.
         </p>
       </div>
 
@@ -474,6 +478,8 @@ onBeforeUnmount(() => {
                 </button>
               </th>
               <th title="Restricción alimenticia">Restricción alimenticia</th>
+              <th title="WhatsApp">WhatsApp</th>
+              <th title="Acompañantes">Acompañantes</th>
               <th>
                 <button
                   type="button"
@@ -489,7 +495,7 @@ onBeforeUnmount(() => {
           </thead>
           <tbody>
             <tr v-if="!isLoading && !loadError && !rows.length">
-              <td colspan="4" class="empty-row">
+              <td colspan="6" class="empty-row">
                 Todavía no se encontraron invitados confirmados.
               </td>
             </tr>
@@ -523,6 +529,20 @@ onBeforeUnmount(() => {
                   :title="guest.dietaryRestrictions"
                   @click="showCellPreview(guest.dietaryRestrictions)">
                   {{ guest.dietaryRestrictions }}
+                </span>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="cell-ellipsis-btn"
+                  :title="guest.whatsapp"
+                  @click="showCellPreview(guest.whatsapp)">
+                  {{ guest.whatsapp }}
+                </button>
+              </td>
+              <td>
+                <span class="companions-pill" :class="{ 'companions-pill--empty': guest.companionsCount === 0 }">
+                  {{ guest.companionsCount > 0 ? guest.companionsCount : 'Sin acompañantes' }}
                 </span>
               </td>
               <td>
@@ -896,7 +916,7 @@ onBeforeUnmount(() => {
 }
 
 table {
-  width: max(100%, 820px);
+  width: max(100%, 1040px);
   border-collapse: collapse;
 }
 
@@ -1177,6 +1197,26 @@ th {
   border-color: rgba(22, 163, 74, 0.24);
   background: rgba(240, 253, 244, 0.95);
   color: #166534;
+}
+
+.companions-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 57, 187, 0.22);
+  background: rgba(246, 241, 255, 0.92);
+  color: #4f2d81;
+  font-size: 0.81rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.companions-pill--empty {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(248, 250, 252, 0.94);
+  color: #64748b;
 }
 
 .cell-ellipsis-btn:focus-visible {
@@ -1523,7 +1563,8 @@ th {
     font-size: 0.72rem;
   }
 
-  .diet-pill {
+  .diet-pill,
+  .companions-pill {
     max-width: 100%;
     font-size: 0.76rem;
   }

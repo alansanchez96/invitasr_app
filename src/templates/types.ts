@@ -87,10 +87,23 @@ export type InvitationRsvpConfig = {
   endpoint: string
   enabled: boolean
   submitLabel: string
+  features?: {
+    enabled?: boolean
+    limit?: number | null
+    fields?: string[]
+    companionsEnabled?: boolean
+    companions_enabled?: boolean
+    whatsappEnabled?: boolean
+    whatsapp_enabled?: boolean
+    whatsappConfirmationsEnabled?: boolean
+    whatsapp_confirmations_enabled?: boolean
+  }
   formLabels?: {
     firstName?: string
     lastName?: string
     dietaryRestrictions?: string
+    whatsapp?: string
+    companions?: string
   }
 }
 

@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import PhoneCountrySelect from '@/components/ui/PhoneCountrySelect.vue'
 import { createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
 import type {
   InvitationTemplateRendererProps,
   InvitationThemeGradientConfig,
   InvitationThemeSectionConfig,
 } from '@/templates/types'
+import {
+  buildInternationalPhoneValue,
+  DEFAULT_PHONE_COUNTRY,
+  detectPreferredPhoneCountry,
+  formatNationalPhoneInput,
+  PHONE_COUNTRY_OPTIONS,
+  type PhoneCountryOption,
+} from '@/utils/phoneNumbers'
 import { notifyError, notifySuccess } from '@/utils/toast'
 
 type TemplateProps = InvitationTemplateRendererProps<'wedding'> & {
@@ -57,6 +66,9 @@ const rsvpSubmitting = ref(false)
 const rsvpFirstName = ref('')
 const rsvpLastName = ref('')
 const rsvpDietaryRestrictions = ref('')
+const rsvpWhatsappCountry = ref(DEFAULT_PHONE_COUNTRY)
+const rsvpWhatsapp = ref('')
+const rsvpCompanionsCount = ref(0)
 const rsvpSuccessMessage = ref<string | null>(null)
 const faqReviewedForRsvp = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
@@ -420,7 +432,19 @@ const rsvpLabels = computed(() => ({
   firstName: resolveText(props.data.rsvp?.formLabels?.firstName, 'Nombre'),
   lastName: resolveText(props.data.rsvp?.formLabels?.lastName, 'Apellido'),
   dietaryRestrictions: resolveText(props.data.rsvp?.formLabels?.dietaryRestrictions, 'Restricción alimentaria'),
+  whatsapp: resolveText(props.data.rsvp?.formLabels?.whatsapp, 'WhatsApp'),
+  companions: resolveText(props.data.rsvp?.formLabels?.companions, 'Acompañantes'),
 }))
+const rsvpFields = computed(() => Array.isArray(props.data.rsvp?.features?.fields) ? props.data.rsvp.features.fields : [])
+const phoneCountryOptions = PHONE_COUNTRY_OPTIONS
+const rsvpWhatsappEnabled = computed(() =>
+  Boolean(props.data.rsvp?.features?.whatsappEnabled ?? props.data.rsvp?.features?.whatsapp_enabled)
+  || rsvpFields.value.includes('whatsapp'),
+)
+const rsvpCompanionsEnabled = computed(() =>
+  Boolean(props.data.rsvp?.features?.companionsEnabled ?? props.data.rsvp?.features?.companions_enabled)
+  || rsvpFields.value.includes('companions'),
+)
 const rsvpEnabled = computed(() => props.data.rsvp?.enabled !== false)
 const faqReadRequiredForRsvp = computed(() => {
   const rawFaq = Array.isArray(props.data.faq) ? props.data.faq : []
@@ -1028,6 +1052,19 @@ const closeFaq = () => {
   faqModalOpen.value = false
 }
 
+const updateRsvpWhatsappCountry = (nextCountry: string) => {
+  const match = phoneCountryOptions.find((country): country is PhoneCountryOption => country.iso === nextCountry)
+  if (!match) return
+
+  rsvpWhatsappCountry.value = match.iso
+  rsvpWhatsapp.value = formatNationalPhoneInput(rsvpWhatsapp.value, match.iso)
+}
+
+const updateRsvpWhatsapp = (event: Event) => {
+  const value = (event.target as HTMLInputElement | null)?.value ?? ''
+  rsvpWhatsapp.value = formatNationalPhoneInput(value, rsvpWhatsappCountry.value)
+}
+
 const submitRsvp = async () => {
   if (props.editable) return
   if (props.demoMode) {
@@ -1058,17 +1095,27 @@ const submitRsvp = async () => {
 
   rsvpSubmitting.value = true
   try {
-    const response = await createPublicInvitationRsvpResponse({
+    const payload: Parameters<typeof createPublicInvitationRsvpResponse>[0] = {
       first_name: rsvpFirstName.value.trim(),
       last_name: rsvpLastName.value.trim(),
       dietary_restrictions: rsvpDietaryRestrictions.value.trim() || null,
-    })
+    }
+    if (rsvpWhatsappEnabled.value) {
+      payload.whatsapp = buildInternationalPhoneValue(rsvpWhatsappCountry.value, rsvpWhatsapp.value) || null
+    }
+    if (rsvpCompanionsEnabled.value) {
+      payload.companions_count = Math.max(0, Number(rsvpCompanionsCount.value) || 0)
+    }
+
+    const response = await createPublicInvitationRsvpResponse(payload)
 
     const fullName = response.response.fullName || `${response.response.firstName} ${response.response.lastName}`.trim()
     rsvpSuccessMessage.value = `¡Gracias ${fullName}! Tu asistencia quedó confirmada.`
     rsvpFirstName.value = ''
     rsvpLastName.value = ''
     rsvpDietaryRestrictions.value = ''
+    rsvpWhatsapp.value = ''
+    rsvpCompanionsCount.value = 0
     notifySuccess('Tu asistencia quedó confirmada.')
   } catch (error) {
     const payload = error as { message?: string }
@@ -1252,6 +1299,7 @@ const syncMusicState = async () => {
 }
 
 onMounted(() => {
+  rsvpWhatsappCountry.value = detectPreferredPhoneCountry()
   hydrateWallMessagesFromProps()
   syncGalleryViewportMode()
   timerId = setInterval(() => {
@@ -1599,6 +1647,28 @@ watch(
               <span>{{ rsvpLabels.dietaryRestrictions }}</span>
               <input v-model="rsvpDietaryRestrictions" type="text" maxlength="255"
                 :disabled="props.editable || props.demoMode || rsvpSubmitting" />
+            </label>
+            <label v-if="rsvpWhatsappEnabled">
+              <span>{{ rsvpLabels.whatsapp }}</span>
+              <div class="snow-rsvp-phone">
+                <PhoneCountrySelect
+                  :model-value="rsvpWhatsappCountry"
+                  :options="phoneCountryOptions"
+                  :disabled="props.editable || props.demoMode || rsvpSubmitting"
+                  @update:model-value="updateRsvpWhatsappCountry" />
+                <input
+                  :value="rsvpWhatsapp"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                  maxlength="24"
+                  :disabled="props.editable || props.demoMode || rsvpSubmitting"
+                  @input="updateRsvpWhatsapp" />
+              </div>
+            </label>
+            <label v-if="rsvpCompanionsEnabled">
+              <span>{{ rsvpLabels.companions }}</span>
+              <input v-model.number="rsvpCompanionsCount" type="number" min="0" max="20" :disabled="props.editable || props.demoMode || rsvpSubmitting" />
             </label>
 
             <p class="snow-rsvp__hint">{{ rsvpGateHint }}</p>
@@ -2996,7 +3066,8 @@ watch(
   font-weight: 600;
 }
 
-.snow-rsvp-form input {
+.snow-rsvp-form input,
+.snow-rsvp-form select {
   border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 18%, transparent);
   border-radius: 10px;
   min-height: 40px;
@@ -3007,8 +3078,32 @@ watch(
   background: color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 96%, #ffffff);
 }
 
-.snow-rsvp-form input:disabled {
+.snow-rsvp-form input:disabled,
+.snow-rsvp-form select:disabled {
   background: rgba(148, 163, 184, 0.12);
+}
+
+.snow-rsvp-phone {
+  display: grid;
+  grid-template-columns: minmax(92px, 104px) minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: stretch;
+  margin-top: 0.12rem;
+}
+
+.snow-rsvp-phone input {
+  min-height: 40px;
+  margin-top: 0;
+}
+
+.snow-rsvp-phone :deep(.phone-country-select__button) {
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 18%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 96%, #ffffff);
+  color: var(--section-text, var(--snow-text)) !important;
+  font-weight: 700 !important;
+  padding-inline: 0.45rem !important;
 }
 
 .snow-faq h3 {
@@ -4118,6 +4213,7 @@ watch(
     width: 100%;
     min-width: 0;
   }
+
 }
 
 /* Preview tabs (Mis invitaciones / editor) must match published grid semantics exactly,
@@ -4201,4 +4297,5 @@ watch(
   width: 100%;
   min-width: 0;
 }
+
 </style>

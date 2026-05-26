@@ -16,9 +16,10 @@
     "assets:optimize": "node scripts/optimize-assets.mjs"
   },
   "dependencies": {
+    "libphonenumber-js": "^1.13.3",
     "pinia": "^3.0.4",
     "vue": "^3.5.29",
-    "vue-router": "^5.0.3"
+    "vue-router": "^5.0.7"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",

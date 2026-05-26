@@ -70,6 +70,8 @@ export const createWeddingSnowPreviewData = (
         firstName: 'Nombre',
         lastName: 'Apellido',
         dietaryRestrictions: 'Restricción alimentaria',
+        whatsapp: 'WhatsApp',
+        companions: 'Acompañantes',
       },
     },
     checkin: {

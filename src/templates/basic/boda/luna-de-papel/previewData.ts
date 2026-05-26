@@ -80,6 +80,8 @@ export const createLunaDePapelPreviewData = (
         firstName: 'Nombre',
         lastName: 'Apellido',
         dietaryRestrictions: 'Restricción alimentaria',
+        whatsapp: 'WhatsApp',
+        companions: 'Acompañantes',
       },
     },
     checkin: {

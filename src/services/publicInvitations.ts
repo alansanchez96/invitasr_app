@@ -84,6 +84,8 @@ export type PublicRsvpResponse = {
   lastName: string
   fullName: string
   dietaryRestrictions: string | null
+  whatsapp: string | null
+  companionsCount: number
   status: string
   confirmedAt: string | null
   createdAt: string | null
@@ -270,6 +272,8 @@ export const createPublicInvitationRsvpResponse = async (payload: {
   first_name: string
   last_name: string
   dietary_restrictions?: string | null
+  whatsapp?: string | null
+  companions_count?: number | null
 }): Promise<{
   response: PublicRsvpResponse
   summary: {
@@ -296,6 +300,8 @@ export const createPublicInvitationRsvpResponse = async (payload: {
       lastName: toString(rawRsvp.last_name),
       fullName: toString(rawRsvp.full_name),
       dietaryRestrictions: toString(rawRsvp.dietary_restrictions) || null,
+      whatsapp: toString(rawRsvp.whatsapp) || null,
+      companionsCount: Number(rawRsvp.companions_count ?? 0) || 0,
       status: toString(rawRsvp.status, 'confirmed'),
       confirmedAt: toString(rawRsvp.confirmed_at) || null,
       createdAt: toString(rawRsvp.created_at) || null,

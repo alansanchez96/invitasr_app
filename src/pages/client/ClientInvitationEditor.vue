@@ -213,10 +213,25 @@ let slugAvailabilityCheckId = 0
 const invitationId = computed(() => Number(route.params.invitationId))
 const invitationRecordId = computed(() => invitation.value?.id ?? null)
 const isDraft = computed(() => String(invitation.value?.status ?? '').toLowerCase() === 'draft')
-const canUploadCustomMusic = computed(() => {
+const isProLikePlan = computed(() => {
   const planName = String(session.user?.client_plan?.plan?.name ?? '').trim().toLowerCase()
   return planName === 'pro' || planName === 'planner'
 })
+const canUploadCustomMusic = computed(() => isProLikePlan.value)
+const maxLocationsPerInvitation = computed(() => (isProLikePlan.value ? 5 : 2))
+const rsvpFeaturePreview = computed(() => ({
+  enabled: true,
+  limit: 999,
+  fields: isProLikePlan.value
+    ? ['name', 'last_name', 'dietary_restrictions', 'whatsapp', 'companions']
+    : ['name', 'last_name', 'dietary_restrictions'],
+  whatsappEnabled: isProLikePlan.value,
+  whatsapp_enabled: isProLikePlan.value,
+  companionsEnabled: isProLikePlan.value,
+  companions_enabled: isProLikePlan.value,
+  whatsappConfirmationsEnabled: isProLikePlan.value,
+  whatsapp_confirmations_enabled: isProLikePlan.value,
+}))
 const {
   isLoadingGallery,
   isUploadingGallery,
@@ -383,7 +398,6 @@ const checkinCurrencyOptions: CurrencyOption[] = [
   { code: 'MXN', label: 'MXN · Peso mexicano' },
 ]
 
-const MAX_LOCATIONS_PER_INVITATION = 2
 const DEFAULT_LOCATION_MAPS_URL = 'https://maps.google.com/?q=Estancia+Nevada+Bariloche'
 const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/
 const MAX_THEME_GRADIENT_COLORS = 5
@@ -754,14 +768,14 @@ const extractDraftLocations = (content: JsonRecord): DraftLocationItem[] => {
   }
 
   return sourceRows
-    .slice(0, MAX_LOCATIONS_PER_INVITATION)
+    .slice(0, maxLocationsPerInvitation.value)
     .map((row, index) => normalizeDraftLocationItem(row, index))
 }
 
 const writeDraftLocations = (content: JsonRecord, locations: DraftLocationItem[]): JsonRecord => {
   const nextContent = cloneRecord(content)
   const normalizedLocations = (locations.length ? locations : [createDefaultDraftLocation(0)])
-    .slice(0, MAX_LOCATIONS_PER_INVITATION)
+    .slice(0, maxLocationsPerInvitation.value)
     .map((row, index) => normalizeDraftLocationItem(row, index))
 
   setByPath(nextContent, 'locations', normalizedLocations)
@@ -921,6 +935,14 @@ const ensureDefaultFeatureData = () => {
     setByPath(nextContent, 'rsvp.formLabels.firstName', 'Nombre')
     setByPath(nextContent, 'rsvp.formLabels.lastName', 'Apellido')
     setByPath(nextContent, 'rsvp.formLabels.dietaryRestrictions', 'Restricción alimentaria')
+  }
+
+  if (!asText(getByPath(nextContent, 'rsvp.formLabels.whatsapp'))) {
+    setByPath(nextContent, 'rsvp.formLabels.whatsapp', 'WhatsApp')
+  }
+
+  if (!asText(getByPath(nextContent, 'rsvp.formLabels.companions'))) {
+    setByPath(nextContent, 'rsvp.formLabels.companions', 'Acompañantes')
   }
 
   if (!asText(getByPath(nextContent, 'wall.title'))) {
@@ -1795,7 +1817,7 @@ const selectedDressCode = computed({
 
 const locationItemsDraft = computed<DraftLocationItem[]>(() => extractDraftLocations(contentDraft.value))
 
-const canAddLocationDraft = computed(() => locationItemsDraft.value.length < MAX_LOCATIONS_PER_INVITATION)
+const canAddLocationDraft = computed(() => locationItemsDraft.value.length < maxLocationsPerInvitation.value)
 
 const updateLocationDraftField = (
   index: number,
@@ -1995,7 +2017,7 @@ const previewData = computed<WeddingTemplateData>(() => {
   const gallery = normalizeGallery()
   const schedule = normalizeSchedule(getByPath(contentDraft.value, 'schedule'))
   const previewLocations = locationItemsDraft.value
-    .slice(0, MAX_LOCATIONS_PER_INVITATION)
+    .slice(0, maxLocationsPerInvitation.value)
     .map((item, index) => normalizeDraftLocationItem(item, index))
   const primaryLocation = previewLocations[0] ?? createDefaultDraftLocation(0)
 
@@ -2058,10 +2080,13 @@ const previewData = computed<WeddingTemplateData>(() => {
       endpoint: asText(getByPath(contentDraft.value, 'rsvp.endpoint'), '/api/public/invitations/rsvp'),
       enabled: Boolean(getByPath(contentDraft.value, 'rsvp.enabled') ?? true),
       submitLabel: readFieldValue('rsvp_label'),
+      features: rsvpFeaturePreview.value,
       formLabels: {
         firstName: asText(getByPath(contentDraft.value, 'rsvp.formLabels.firstName'), 'Nombre'),
         lastName: asText(getByPath(contentDraft.value, 'rsvp.formLabels.lastName'), 'Apellido'),
         dietaryRestrictions: asText(getByPath(contentDraft.value, 'rsvp.formLabels.dietaryRestrictions'), 'Restricción alimentaria'),
+        whatsapp: asText(getByPath(contentDraft.value, 'rsvp.formLabels.whatsapp'), 'WhatsApp'),
+        companions: asText(getByPath(contentDraft.value, 'rsvp.formLabels.companions'), 'Acompañantes'),
       },
     },
     countdown: {
@@ -2127,12 +2152,16 @@ const rsvpLabelsDraft = computed({
     firstName: asText(getByPath(contentDraft.value, 'rsvp.formLabels.firstName'), 'Nombre'),
     lastName: asText(getByPath(contentDraft.value, 'rsvp.formLabels.lastName'), 'Apellido'),
     dietaryRestrictions: asText(getByPath(contentDraft.value, 'rsvp.formLabels.dietaryRestrictions'), 'Restricción alimentaria'),
+    whatsapp: asText(getByPath(contentDraft.value, 'rsvp.formLabels.whatsapp'), 'WhatsApp'),
+    companions: asText(getByPath(contentDraft.value, 'rsvp.formLabels.companions'), 'Acompañantes'),
   }),
-  set: (value: { firstName: string; lastName: string; dietaryRestrictions: string }) => {
+  set: (value: { firstName: string; lastName: string; dietaryRestrictions: string; whatsapp: string; companions: string }) => {
     const nextContent = cloneRecord(contentDraft.value)
     setByPath(nextContent, 'rsvp.formLabels.firstName', value.firstName)
     setByPath(nextContent, 'rsvp.formLabels.lastName', value.lastName)
     setByPath(nextContent, 'rsvp.formLabels.dietaryRestrictions', value.dietaryRestrictions)
+    setByPath(nextContent, 'rsvp.formLabels.whatsapp', value.whatsapp)
+    setByPath(nextContent, 'rsvp.formLabels.companions', value.companions)
     contentDraft.value = nextContent
   },
 })
@@ -2154,7 +2183,7 @@ const hydrateSectionVisibility = () => {
 }
 
 const loadAvailableTemplates = async () => {
-  const planId = template.value?.plan_id ?? session.user?.client_plan?.plan?.id
+  const planId = session.user?.client_plan?.plan?.id ?? template.value?.plan_id
   if (!planId) {
     availableTemplates.value = []
     return
@@ -2365,7 +2394,7 @@ const updateFaqItem = (index: number, key: 'question' | 'answer', value: string)
   contentDraft.value = nextContent
 }
 
-const updateRsvpLabel = (key: 'firstName' | 'lastName' | 'dietaryRestrictions', value: string) => {
+const updateRsvpLabel = (key: 'firstName' | 'lastName' | 'dietaryRestrictions' | 'whatsapp' | 'companions', value: string) => {
   rsvpLabelsDraft.value = { ...rsvpLabelsDraft.value, [key]: value }
 }
 
@@ -2517,7 +2546,7 @@ const { validateBeforeSave, buildProjectedContentForSave } = useInvitationEditor
   checkinShowEventDate,
   checkinShowEntryValue,
   checkinCurrencyCodes: checkinCurrencyOptions.map((option) => option.code),
-  maxLocationsPerInvitation: MAX_LOCATIONS_PER_INVITATION,
+  maxLocationsPerInvitation,
   defaultLocationMapsUrl: DEFAULT_LOCATION_MAPS_URL,
   getByPath,
   setByPath,
@@ -3464,7 +3493,10 @@ onBeforeRouteLeave((to) => {
                       </div>
 
                       <div v-else-if="section.key === 'rsvp'" class="option-panel">
-                        <p>Campos del plan Basic: Nombre, Apellido y Restricción alimentaria.</p>
+                        <p>
+                          Campos activos:
+                          {{ isProLikePlan ? 'Nombre, Apellido, Restricción alimentaria, WhatsApp y Acompañantes.' : 'Nombre, Apellido y Restricción alimentaria.' }}
+                        </p>
 
                         <label class="field">
                           <span>Etiqueta Nombre</span>
@@ -3483,12 +3515,26 @@ onBeforeRouteLeave((to) => {
                           <input :value="rsvpLabelsDraft.dietaryRestrictions" type="text"
                             @input="updateRsvpLabel('dietaryRestrictions', ($event.target as HTMLInputElement).value)" />
                         </label>
+
+                        <template v-if="isProLikePlan">
+                          <label class="field">
+                            <span>Etiqueta WhatsApp</span>
+                            <input :value="rsvpLabelsDraft.whatsapp" type="text"
+                              @input="updateRsvpLabel('whatsapp', ($event.target as HTMLInputElement).value)" />
+                          </label>
+
+                          <label class="field">
+                            <span>Etiqueta Acompañantes</span>
+                            <input :value="rsvpLabelsDraft.companions" type="text"
+                              @input="updateRsvpLabel('companions', ($event.target as HTMLInputElement).value)" />
+                          </label>
+                        </template>
                       </div>
 
                       <div v-else-if="section.key === 'location'" class="option-panel option-panel--location">
                         <div class="location-panel-head">
                           <p class="location-panel-title">
-                            Puedes agregar hasta {{ MAX_LOCATIONS_PER_INVITATION }} ubicaciones.
+                            Puedes agregar hasta {{ maxLocationsPerInvitation }} ubicaciones.
                           </p>
                           <button type="button" class="location-add-btn" :disabled="!canAddLocationDraft"
                             @click="addLocationDraft">
@@ -3497,7 +3543,7 @@ onBeforeRouteLeave((to) => {
                         </div>
 
                         <p class="gallery-panel-copy">
-                          Ubicaciones configuradas: {{ locationItemsDraft.length }} / {{ MAX_LOCATIONS_PER_INVITATION }}
+                          Ubicaciones configuradas: {{ locationItemsDraft.length }} / {{ maxLocationsPerInvitation }}
                         </p>
 
                         <article v-for="(locationItem, locationIndex) in locationItemsDraft"

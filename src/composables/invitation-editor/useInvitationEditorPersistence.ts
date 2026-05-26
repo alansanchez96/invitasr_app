@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, unref, type MaybeRef, type Ref } from 'vue'
 import type {
   ResolveTenantInvitationLocationPayload,
   TenantResolvedInvitationLocation,
@@ -35,7 +35,7 @@ type UseInvitationEditorSaveWorkflowOptions = {
   checkinShowEventDate: Ref<boolean>
   checkinShowEntryValue: Ref<boolean>
   checkinCurrencyCodes: string[]
-  maxLocationsPerInvitation: number
+  maxLocationsPerInvitation: MaybeRef<number>
   defaultLocationMapsUrl: string
   getByPath: (source: unknown, path: string) => unknown
   setByPath: (source: JsonRecord, path: string, value: unknown) => void
@@ -108,6 +108,8 @@ export type UseInvitationEditorPersistenceReturn = ReturnType<typeof useInvitati
 export const useInvitationEditorSaveWorkflow = (
   options: UseInvitationEditorSaveWorkflowOptions,
 ) => {
+  const getMaxLocationsPerInvitation = () => Math.max(1, Number(unref(options.maxLocationsPerInvitation)) || 1)
+
   const validateBeforeSave = (): string | null => {
     if (options.resolvedSectionVisibility.value.faq) {
       if (!options.faqItems.value.length) {
@@ -136,7 +138,7 @@ export const useInvitationEditorSaveWorkflow = (
     }
 
     if (options.resolvedSectionVisibility.value.location) {
-      const draftLocations = options.locationItemsDraft.value.slice(0, options.maxLocationsPerInvitation)
+      const draftLocations = options.locationItemsDraft.value.slice(0, getMaxLocationsPerInvitation())
       if (!draftLocations.length) {
         return 'Agrega al menos una ubicación para continuar.'
       }
@@ -215,7 +217,7 @@ export const useInvitationEditorSaveWorkflow = (
     }
 
     if (options.resolvedSectionVisibility.value.location) {
-      const draftLocations = options.locationItemsDraft.value.slice(0, options.maxLocationsPerInvitation)
+      const draftLocations = options.locationItemsDraft.value.slice(0, getMaxLocationsPerInvitation())
       const normalizedLocations: InvitationEditorDraftLocation[] = []
 
       for (let index = 0; index < draftLocations.length; index += 1) {
