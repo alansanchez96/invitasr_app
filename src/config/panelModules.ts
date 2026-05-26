@@ -11,7 +11,10 @@ export type PanelModuleGroup = {
 export const backofficeModuleGroups: PanelModuleGroup[] = [
   {
     title: 'Monitoreo',
-    items: [{ label: 'Observabilidad', href: '/backoffice/dashboard' }],
+    items: [
+      { label: 'Observabilidad', href: '/backoffice/dashboard' },
+      { label: 'WhatsApp', href: '/backoffice/whatsapp' },
+    ],
   },
   {
     title: 'Gestion',

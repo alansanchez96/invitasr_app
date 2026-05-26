@@ -219,6 +219,24 @@ const isProLikePlan = computed(() => {
 })
 const canUploadCustomMusic = computed(() => isProLikePlan.value)
 const maxLocationsPerInvitation = computed(() => (isProLikePlan.value ? 5 : 2))
+const rsvpWhatsappConfirmationsDraft = computed({
+  get: () => {
+    if (!isProLikePlan.value) return false
+
+    const raw = getByPath(contentDraft.value, 'rsvp.features.whatsappConfirmationsEnabled')
+      ?? getByPath(contentDraft.value, 'rsvp.features.whatsapp_confirmations_enabled')
+
+    return typeof raw === 'boolean' ? raw : true
+  },
+  set: (enabled: boolean) => {
+    if (!isProLikePlan.value) return
+
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'rsvp.features.whatsappConfirmationsEnabled', enabled)
+    setByPath(nextContent, 'rsvp.features.whatsapp_confirmations_enabled', enabled)
+    contentDraft.value = nextContent
+  },
+})
 const rsvpFeaturePreview = computed(() => ({
   enabled: true,
   limit: 999,
@@ -229,8 +247,8 @@ const rsvpFeaturePreview = computed(() => ({
   whatsapp_enabled: isProLikePlan.value,
   companionsEnabled: isProLikePlan.value,
   companions_enabled: isProLikePlan.value,
-  whatsappConfirmationsEnabled: isProLikePlan.value,
-  whatsapp_confirmations_enabled: isProLikePlan.value,
+  whatsappConfirmationsEnabled: rsvpWhatsappConfirmationsDraft.value,
+  whatsapp_confirmations_enabled: rsvpWhatsappConfirmationsDraft.value,
 }))
 const {
   isLoadingGallery,
@@ -943,6 +961,13 @@ const ensureDefaultFeatureData = () => {
 
   if (!asText(getByPath(nextContent, 'rsvp.formLabels.companions'))) {
     setByPath(nextContent, 'rsvp.formLabels.companions', 'Acompañantes')
+  }
+
+  const rawWhatsappConfirmations = getByPath(nextContent, 'rsvp.features.whatsappConfirmationsEnabled')
+    ?? getByPath(nextContent, 'rsvp.features.whatsapp_confirmations_enabled')
+  if (typeof rawWhatsappConfirmations !== 'boolean') {
+    setByPath(nextContent, 'rsvp.features.whatsappConfirmationsEnabled', isProLikePlan.value)
+    setByPath(nextContent, 'rsvp.features.whatsapp_confirmations_enabled', isProLikePlan.value)
   }
 
   if (!asText(getByPath(nextContent, 'wall.title'))) {
@@ -3517,6 +3542,14 @@ onBeforeRouteLeave((to) => {
                         </label>
 
                         <template v-if="isProLikePlan">
+                          <div class="feature-inline-switch">
+                            <span>Enviar confirmación por WhatsApp</span>
+                            <label class="switch">
+                              <input v-model="rsvpWhatsappConfirmationsDraft" type="checkbox" />
+                              <span class="switch-track"></span>
+                            </label>
+                          </div>
+
                           <label class="field">
                             <span>Etiqueta WhatsApp</span>
                             <input :value="rsvpLabelsDraft.whatsapp" type="text"

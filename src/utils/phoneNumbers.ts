@@ -3,6 +3,7 @@ import {
   getCountries,
   getCountryCallingCode,
   parsePhoneNumberFromString,
+  validatePhoneNumberLength,
   type CountryCode,
 } from 'libphonenumber-js'
 
@@ -18,6 +19,9 @@ export type PhoneCountryOption = {
 export const DEFAULT_PHONE_COUNTRY: CountryCode = 'AR'
 
 const FEATURED_COUNTRIES: CountryCode[] = ['AR', 'US', 'MX', 'CO', 'CL', 'UY', 'PY', 'BO', 'PE', 'ES']
+const NATIONAL_PHONE_DIGITS_LIMIT_OVERRIDES: Partial<Record<CountryCode, number>> = {
+  AR: 10,
+}
 
 const timezoneCountryMap: Record<string, CountryCode> = {
   'America/Argentina': 'AR',
@@ -130,8 +134,28 @@ export const detectPreferredPhoneCountry = (): CountryCode => {
 export const phoneDigits = (value: string): string =>
   String(value ?? '').replace(/\D+/g, '').slice(0, 20)
 
+export const nationalPhoneDigitsLimit = (country: CountryCode): number => {
+  const override = NATIONAL_PHONE_DIGITS_LIMIT_OVERRIDES[country]
+  if (override) return override
+
+  for (let length = 1; length <= 20; length += 1) {
+    const validation = validatePhoneNumberLength('2'.repeat(length), country)
+    if (validation === 'TOO_LONG') {
+      return Math.max(1, length - 1)
+    }
+  }
+
+  return 15
+}
+
+export const clampNationalPhoneDigits = (value: string, country: CountryCode): string =>
+  phoneDigits(value).slice(0, nationalPhoneDigitsLimit(country))
+
+export const nationalPhoneInputMaxLength = (country: CountryCode): number =>
+  nationalPhoneDigitsLimit(country) + 8
+
 export const formatNationalPhoneInput = (value: string, country: CountryCode): string => {
-  const digits = phoneDigits(value)
+  const digits = clampNationalPhoneDigits(value, country)
   if (!digits) return ''
 
   return new AsYouType(country).input(digits)
@@ -141,7 +165,7 @@ export const resolvePhoneCallingCode = (country: CountryCode): string =>
   getCountryCallingCode(country)
 
 export const buildInternationalPhoneValue = (country: CountryCode, nationalValue: string): string => {
-  const digits = phoneDigits(nationalValue)
+  const digits = clampNationalPhoneDigits(nationalValue, country)
   if (!digits) return ''
 
   const parsed = parsePhoneNumberFromString(digits, country)

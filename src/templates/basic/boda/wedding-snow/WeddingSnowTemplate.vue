@@ -12,6 +12,7 @@ import {
   DEFAULT_PHONE_COUNTRY,
   detectPreferredPhoneCountry,
   formatNationalPhoneInput,
+  nationalPhoneInputMaxLength,
   PHONE_COUNTRY_OPTIONS,
   type PhoneCountryOption,
 } from '@/utils/phoneNumbers'
@@ -445,6 +446,7 @@ const rsvpCompanionsEnabled = computed(() =>
   Boolean(props.data.rsvp?.features?.companionsEnabled ?? props.data.rsvp?.features?.companions_enabled)
   || rsvpFields.value.includes('companions'),
 )
+const rsvpWhatsappMaxLength = computed(() => nationalPhoneInputMaxLength(rsvpWhatsappCountry.value))
 const rsvpEnabled = computed(() => props.data.rsvp?.enabled !== false)
 const faqReadRequiredForRsvp = computed(() => {
   const rawFaq = Array.isArray(props.data.faq) ? props.data.faq : []
@@ -1661,7 +1663,7 @@ watch(
                   type="text"
                   inputmode="numeric"
                   autocomplete="tel-national"
-                  maxlength="24"
+                  :maxlength="rsvpWhatsappMaxLength"
                   :disabled="props.editable || props.demoMode || rsvpSubmitting"
                   @input="updateRsvpWhatsapp" />
               </div>

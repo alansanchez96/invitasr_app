@@ -13,6 +13,7 @@ import {
   DEFAULT_PHONE_COUNTRY,
   detectPreferredPhoneCountry,
   formatNationalPhoneInput,
+  nationalPhoneInputMaxLength,
   PHONE_COUNTRY_OPTIONS,
   type PhoneCountryOption,
 } from '@/utils/phoneNumbers'
@@ -154,6 +155,7 @@ const rsvpCompanionsEnabled = computed(() =>
   Boolean(props.data.rsvp?.features?.companionsEnabled ?? props.data.rsvp?.features?.companions_enabled)
   || rsvpFields.value.includes('companions'),
 )
+const rsvpWhatsappMaxLength = computed(() => nationalPhoneInputMaxLength(rsvpWhatsappCountry.value))
 const countdownNote = computed(() => resolveText(props.data.countdown?.note, 'Falta poco para encontrarnos.'))
 
 const galleryItems = computed(() => (Array.isArray(props.data.gallery) ? props.data.gallery.slice(0, 5) : []))
@@ -661,7 +663,7 @@ watch([musicAudioUrl, musicMuted], () => {
             type="text"
             inputmode="numeric"
             autocomplete="tel-national"
-            maxlength="24"
+            :maxlength="rsvpWhatsappMaxLength"
             :placeholder="rsvpLabels.whatsapp"
             :disabled="editable || demoMode || rsvpSubmitting"
             @input="updateRsvpWhatsapp" />

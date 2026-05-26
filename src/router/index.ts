@@ -29,6 +29,7 @@ const BackofficeFeatures = () => import('@/pages/backoffice/BackofficeFeatures.v
 const BackofficePlanFeatures = () => import('@/pages/backoffice/BackofficePlanFeatures.vue')
 const BackofficeEventTypes = () => import('@/pages/backoffice/BackofficeEventTypes.vue')
 const BackofficeProductUpdates = () => import('@/pages/backoffice/BackofficeProductUpdates.vue')
+const BackofficeWhatsapp = () => import('@/pages/backoffice/BackofficeWhatsapp.vue')
 const ClientHome = () => import('@/pages/client/ClientHome.vue')
 const ClientStats = () => import('@/pages/client/ClientStats.vue')
 const ClientInvitations = () => import('@/pages/client/ClientInvitations.vue')
@@ -335,6 +336,18 @@ const router = createRouter({
             title: 'Dashboard · Noticias',
             moduleLabel: 'Noticias',
             moduleDescription: 'Versiones, mejoras y avisos visibles para visitantes y clientes.',
+            requiresAuth: true,
+            requiresMaster: true,
+          },
+        },
+        {
+          path: 'whatsapp',
+          name: 'backoffice-whatsapp',
+          component: BackofficeWhatsapp,
+          meta: {
+            title: 'Dashboard · WhatsApp',
+            moduleLabel: 'WhatsApp',
+            moduleDescription: 'Conversaciones y monitoreo de mensajes enviados por WhatsApp.',
             requiresAuth: true,
             requiresMaster: true,
           },
