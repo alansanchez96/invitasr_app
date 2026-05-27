@@ -237,6 +237,21 @@ const rsvpWhatsappConfirmationsDraft = computed({
     contentDraft.value = nextContent
   },
 })
+const wallCloudMessagesDraft = computed({
+  get: () => {
+    const raw = getByPath(contentDraft.value, 'wall.cloudMessagesEnabled')
+      ?? getByPath(contentDraft.value, 'wall.cloud_messages_enabled')
+    return isProLikePlan.value && Boolean(raw)
+  },
+  set: (enabled: boolean) => {
+    if (!isProLikePlan.value) return
+
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'wall.cloudMessagesEnabled', enabled)
+    setByPath(nextContent, 'wall.cloud_messages_enabled', enabled)
+    contentDraft.value = nextContent
+  },
+})
 const rsvpFeaturePreview = computed(() => ({
   enabled: true,
   limit: 999,
@@ -502,6 +517,15 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
     supportsGradient: true,
   },
   {
+    key: 'sectionBackground',
+    label: 'Tarjetas',
+    description: 'Color de las tarjetas y bloques de contenido.',
+    path: 'theme.sectionBackground',
+    gradientPath: 'theme.gradients.sectionBackground',
+    fallback: '#fffaf2',
+    supportsGradient: false,
+  },
+  {
     key: 'text',
     label: 'Texto principal',
     description: 'Color de los textos dentro de tarjetas.',
@@ -534,15 +558,6 @@ const lunaGlobalThemeColorFields: ThemeColorField[] = [
     description: 'Color del texto dentro de los botones.',
     path: 'theme.buttonText',
     gradientPath: 'theme.gradients.buttonText',
-    fallback: '#fffaf2',
-    supportsGradient: false,
-  },
-  {
-    key: 'sectionBackground',
-    label: 'Tarjetas',
-    description: 'Color de las tarjetas y bloques de contenido.',
-    path: 'theme.sectionBackground',
-    gradientPath: 'theme.gradients.sectionBackground',
     fallback: '#fffaf2',
     supportsGradient: false,
   },
@@ -988,6 +1003,13 @@ const ensureDefaultFeatureData = () => {
     setByPath(nextContent, 'wall.emptyStateLabel', 'Sé la primera persona en dejar un mensaje.')
   }
 
+  const rawWallCloudMessages = getByPath(nextContent, 'wall.cloudMessagesEnabled')
+    ?? getByPath(nextContent, 'wall.cloud_messages_enabled')
+  if (typeof rawWallCloudMessages !== 'boolean') {
+    setByPath(nextContent, 'wall.cloudMessagesEnabled', false)
+    setByPath(nextContent, 'wall.cloud_messages_enabled', false)
+  }
+
   if (!Array.isArray(getByPath(nextContent, 'wall.messages'))) {
     setByPath(nextContent, 'wall.messages', [])
   }
@@ -1052,7 +1074,7 @@ const templateSections = computed<EditorSection[]>(() => {
   const rendererKey = asText(currentTemplate?.renderer_key ?? template.value?.renderer_key).trim()
   const supportsSection = (sectionKey: string): boolean => {
     if (sectionKey !== 'wall') return true
-    return ['wedding_snow', 'wedding_base_basic'].includes(rendererKey)
+    return ['wedding_snow', 'wedding_base_basic', 'luna_de_papel'].includes(rendererKey)
   }
 
   const normalizeSectionKey = (rawKey: string, rawFeatureKey = ''): string => {
@@ -2156,6 +2178,12 @@ const previewData = computed<WeddingTemplateData>(() => {
       description: asText(getByPath(contentDraft.value, 'wall.description'), 'Deja unas palabras lindas para este gran día.'),
       addLabel: asText(getByPath(contentDraft.value, 'wall.addLabel'), 'Añadir mensaje'),
       emptyStateLabel: asText(getByPath(contentDraft.value, 'wall.emptyStateLabel'), 'Sé la primera persona en dejar un mensaje.'),
+      cloudMessagesEnabled: wallCloudMessagesDraft.value,
+      cloud_messages_enabled: wallCloudMessagesDraft.value,
+      features: {
+        cloudMessagesEnabled: wallCloudMessagesDraft.value,
+        cloud_messages_enabled: wallCloudMessagesDraft.value,
+      },
       messages: wallMessages.value
         .filter((item) => item.is_visible)
         .map((item) => ({
@@ -3469,6 +3497,17 @@ onBeforeRouteLeave((to) => {
                         </p>
                         <p v-if="!wallSummary.enabled && !isLoadingWallMessages" class="gallery-panel-copy">
                           Tu plan actual no tiene activo el muro de mensajes.
+                        </p>
+
+                        <div v-if="isProLikePlan" class="feature-inline-switch">
+                          <span>Mensajes flotantes</span>
+                          <label class="switch">
+                            <input v-model="wallCloudMessagesDraft" type="checkbox" />
+                            <span class="switch-track"></span>
+                          </label>
+                        </div>
+                        <p v-if="isProLikePlan" class="gallery-panel-copy">
+                          Muestra mensajes recibidos como nubes suaves mientras los invitados recorren la invitación.
                         </p>
 
                         <div class="faq-editor">

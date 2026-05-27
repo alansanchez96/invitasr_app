@@ -157,6 +157,14 @@ export type InvitationWallConfig = {
   description?: string
   addLabel?: string
   emptyStateLabel?: string
+  cloudMessagesEnabled?: boolean
+  cloud_messages_enabled?: boolean
+  features?: {
+    enabled?: boolean
+    limit?: number | null
+    cloudMessagesEnabled?: boolean
+    cloud_messages_enabled?: boolean
+  }
   limit?: number | null
   receivedCount?: number | null
   messages: InvitationWallMessage[]

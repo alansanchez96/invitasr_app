@@ -33,17 +33,23 @@ const syncDocumentTitle = (title: string, typeEvent: string) => {
   document.title = appName
 }
 
-const withResolvedRsvpFeatures = (content: WeddingTemplateData, settings: Record<string, unknown>): WeddingTemplateData => {
+const withResolvedPublicFeatures = (content: WeddingTemplateData, settings: Record<string, unknown>): WeddingTemplateData => {
   const rsvpFeatures = settings.rsvp_features
-  if (!rsvpFeatures || typeof rsvpFeatures !== 'object') {
-    return content
-  }
+  const wallFeatures = settings.wall_features
 
   return {
     ...content,
     rsvp: {
       ...content.rsvp,
-      features: rsvpFeatures as WeddingTemplateData['rsvp']['features'],
+      features: rsvpFeatures && typeof rsvpFeatures === 'object'
+        ? rsvpFeatures as WeddingTemplateData['rsvp']['features']
+        : content.rsvp.features,
+    },
+    wall: {
+      ...(content.wall ?? { messages: [] }),
+      features: wallFeatures && typeof wallFeatures === 'object'
+        ? wallFeatures as NonNullable<WeddingTemplateData['wall']>['features']
+        : content.wall?.features,
     },
   }
 }
@@ -92,7 +98,7 @@ const loadInvitation = async () => {
 
     templateId.value = Number(payload.template?.id ?? loadedModule.manifest.id ?? 1)
     templateModule.value = loadedModule
-    templateData.value = withResolvedRsvpFeatures(payload.content, payload.settings)
+    templateData.value = withResolvedPublicFeatures(payload.content, payload.settings)
     sectionVisibility.value = nextSectionVisibility
     invitationTitle.value = String(payload.invitation?.title ?? '').trim()
     typeEventName.value = String(payload.typeEvent?.name ?? '').trim()

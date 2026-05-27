@@ -59,6 +59,8 @@ const galleryLightboxOpen = ref(false)
 const galleryLightboxIndex = ref(0)
 const galleryViewportMode = ref<'mobile' | 'tablet' | 'desktop'>('desktop')
 const wallComposerOpen = ref(false)
+const wallArchiveOpen = ref(false)
+const wallClouds = ref<WallCloudMessage[]>([])
 const wallSubmitting = ref(false)
 const wallGuestName = ref('')
 const wallGuestMessage = ref('')
@@ -77,6 +79,9 @@ const MOBILE_GALLERY_BREAKPOINT = 640
 const TABLET_GALLERY_BREAKPOINT = 900
 const WALL_MESSAGE_MAX_LENGTH = 250
 const WALL_MESSAGE_PREVIEW_LENGTH = 120
+const WALL_VISIBLE_PREVIEW_LIMIT = 4
+const WALL_CLOUD_SCROLL_COOLDOWN_MS = 1600
+const WALL_CLOUD_LIFETIME_MS = 4600
 
 type GalleryDisplaySlideRole = 'left' | 'center' | 'right'
 
@@ -94,6 +99,20 @@ type WallMessage = {
   isVisible?: boolean
   postedAt?: string | null
 }
+
+type WallCloudMessage = {
+  key: string
+  messageId: string
+  guestName: string
+  message: string
+  side: 'left' | 'right'
+  top: number
+}
+
+const wallCloudShownIds = new Set<string>()
+const wallCloudTimeouts: ReturnType<typeof window.setTimeout>[] = []
+let lastWallCloudAt = 0
+let nextWallCloudSide: WallCloudMessage['side'] = 'left'
 
 const demoWallMessages: WallMessage[] = [
   {
@@ -629,7 +648,24 @@ const hydrateWallMessagesFromProps = () => {
 
 const wallHasMessages = computed(() => wallMessages.value.length > 0)
 
-const wallPreviewMessages = computed(() => wallMessages.value.slice(0, 4))
+const wallPreviewMessages = computed(() => wallMessages.value.slice(0, WALL_VISIBLE_PREVIEW_LIMIT))
+const wallHasOverflow = computed(() => wallMessages.value.length > WALL_VISIBLE_PREVIEW_LIMIT)
+const wallArchiveCountLabel = computed(() => {
+  const count = wallMessages.value.length
+  return `${count} ${count === 1 ? 'mensaje recibido' : 'mensajes recibidos'}`
+})
+const wallCloudMessagesEnabled = computed(() =>
+  !props.editable
+  && !props.demoMode
+  && isSectionVisible('wall')
+  && wallMessages.value.length > 0
+  && Boolean(
+    props.data.wall?.features?.cloudMessagesEnabled
+    ?? props.data.wall?.features?.cloud_messages_enabled
+    ?? props.data.wall?.cloudMessagesEnabled
+    ?? props.data.wall?.cloud_messages_enabled,
+  ),
+)
 
 const wallMessageLimit = computed(() => {
   if (wallConfig.value.limit !== null) return wallConfig.value.limit
@@ -714,6 +750,48 @@ const wallMessageDisplayText = (message: string, expanded: boolean): string => {
 
   const truncated = wallMessageToCodePoints(message).slice(0, WALL_MESSAGE_PREVIEW_LENGTH).join('').trimEnd()
   return `${truncated}…`
+}
+
+const cleanupWallClouds = () => {
+  wallCloudTimeouts.splice(0).forEach((timeoutId) => window.clearTimeout(timeoutId))
+  wallClouds.value = []
+}
+
+const showNextWallCloud = () => {
+  if (!wallCloudMessagesEnabled.value) return
+
+  const now = Date.now()
+  if (now - lastWallCloudAt < WALL_CLOUD_SCROLL_COOLDOWN_MS) return
+
+  const candidates = wallMessages.value.filter((item) => !wallCloudShownIds.has(item.id))
+  if (!candidates.length) return
+
+  const next = candidates[Math.floor(Math.random() * candidates.length)]
+  if (!next) return
+
+  lastWallCloudAt = now
+  wallCloudShownIds.add(next.id)
+  const side = nextWallCloudSide
+  nextWallCloudSide = side === 'left' ? 'right' : 'left'
+
+  const cloud: WallCloudMessage = {
+    key: `${next.id}-${now}`,
+    messageId: next.id,
+    guestName: next.guestName,
+    message: next.message,
+    side,
+    top: Math.round(window.innerHeight * 0.75),
+  }
+
+  wallClouds.value = [...wallClouds.value, cloud]
+  const timeoutId = window.setTimeout(() => {
+    wallClouds.value = wallClouds.value.filter((item) => item.key !== cloud.key)
+  }, WALL_CLOUD_LIFETIME_MS)
+  wallCloudTimeouts.push(timeoutId)
+}
+
+const handleWallCloudScroll = () => {
+  showNextWallCloud()
 }
 
 const isPreviewViewportForced = computed(() =>
@@ -1165,6 +1243,14 @@ const closeWallComposer = () => {
   wallComposerOpen.value = false
 }
 
+const openWallArchive = () => {
+  wallArchiveOpen.value = true
+}
+
+const closeWallArchive = () => {
+  wallArchiveOpen.value = false
+}
+
 const clearWallComposer = () => {
   wallGuestName.value = ''
   wallGuestMessage.value = ''
@@ -1309,6 +1395,7 @@ onMounted(() => {
   }, 1000)
   window.addEventListener('keydown', handleWindowKeydown)
   window.addEventListener('resize', syncGalleryViewportMode, { passive: true })
+  window.addEventListener('scroll', handleWallCloudScroll, { passive: true })
 
   if (!props.editable && isSectionVisible('checkin')) {
     checkinOverlayVisible.value = true
@@ -1321,6 +1408,8 @@ onBeforeUnmount(() => {
   if (timerId) clearInterval(timerId)
   window.removeEventListener('keydown', handleWindowKeydown)
   window.removeEventListener('resize', syncGalleryViewportMode)
+  window.removeEventListener('scroll', handleWallCloudScroll)
+  cleanupWallClouds()
   pauseBackgroundMusic()
   if (!props.editable && !props.constrainedOverlay) {
     document.body.style.overflow = ''
@@ -1382,6 +1471,9 @@ watch(
   () => props.data.wall?.messages,
   () => {
     hydrateWallMessagesFromProps()
+    wallCloudShownIds.clear()
+    nextWallCloudSide = 'left'
+    cleanupWallClouds()
   },
   { deep: true },
 )
@@ -1586,6 +1678,10 @@ watch(
           </button>
         </article>
       </div>
+
+      <button v-if="wallHasOverflow" type="button" class="snow-action snow-wall__view-all" @click="openWallArchive">
+        Ver todos los mensajes
+      </button>
     </section>
 
     <section v-if="isSectionVisible('location')" class="snow-card snow-location snow-section snow-section--location"
@@ -1804,6 +1900,44 @@ watch(
       </div>
     </div>
 
+    <div
+      v-if="wallArchiveOpen"
+      class="snow-modal-backdrop"
+      :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
+      @click.self="closeWallArchive">
+      <div class="snow-modal snow-modal--wall-archive" :class="{ 'snow-modal--embedded': usesEmbeddedOverlay }">
+        <header class="snow-modal__head">
+          <div>
+            <p>{{ wallArchiveCountLabel }}</p>
+          </div>
+          <button type="button" aria-label="Salir del mural de mensajes" title="Salir" @click="closeWallArchive">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 6-12 12" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+        <div class="snow-modal__body snow-wall-archive">
+          <div class="snow-wall__grid snow-wall__grid--archive">
+            <article v-for="(item, index) in wallMessages" :key="`wall-archive-${item.id}-${index}`" class="snow-wall-note">
+              <header>
+                <div class="snow-wall-note__author">
+                  <span class="snow-wall-note__avatar">{{ wallGuestInitial(item.guestName) }}</span>
+                  <strong>{{ item.guestName }}</strong>
+                </div>
+                <time>{{ formatWallDate(item.postedAt) }}</time>
+              </header>
+              <p>{{ wallMessageDisplayText(item.message, wallIsExpanded(item, index)) }}</p>
+              <button v-if="wallMessageIsLong(item.message)" type="button" class="snow-wall-note__more"
+                @click="toggleWallMessageExpanded(item, index)">
+                {{ wallIsExpanded(item, index) ? 'Ver menos' : 'Ver más' }}
+              </button>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="galleryLightboxOpen" class="snow-gallery-lightbox" :style="galleryLightboxStyle"
       @click.self="closeGalleryLightbox">
       <div class="snow-gallery-lightbox__panel">
@@ -1848,6 +1982,19 @@ watch(
           </button>
         </div>
       </div>
+    </div>
+
+    <div v-if="wallCloudMessagesEnabled" class="snow-wall-cloud-layer" aria-hidden="true">
+      <article
+        v-for="cloud in wallClouds"
+        :key="cloud.key"
+        class="snow-wall-cloud"
+        :class="`snow-wall-cloud--${cloud.side}`"
+        :style="{ top: `${cloud.top}px` }"
+      >
+        <strong>{{ cloud.guestName }}</strong>
+        <p>{{ wallMessageDisplayText(cloud.message, false) }}</p>
+      </article>
     </div>
 
     <div v-if="checkinOverlayVisible" class="snow-checkin-overlay" :style="checkinOverlayStyle" :class="{
@@ -2180,6 +2327,16 @@ watch(
   margin-top: 0.25rem;
 }
 
+.snow-wall__grid--archive {
+  align-items: start;
+}
+
+.snow-wall__view-all {
+  justify-self: center;
+  margin-top: 0.35rem;
+  padding-inline: 1.25rem;
+}
+
 .snow-wall-note {
   --note-bg: var(--section-surface, #fff9b4);
   --note-edge: color-mix(in srgb, var(--section-surface, #f4eb8d) 78%, var(--section-accent, #f4eb8d));
@@ -2187,6 +2344,8 @@ watch(
   --note-paper-rotation: -1.4deg;
   position: relative;
   isolation: isolate;
+  box-sizing: border-box;
+  min-width: 0;
   border-radius: 16px;
   border: 0;
   padding: 16px 14px 14px;
@@ -2276,6 +2435,7 @@ watch(
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
   margin-bottom: 8px;
   padding-top: 8px;
 }
@@ -2284,6 +2444,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .snow-wall-note__avatar {
@@ -2300,14 +2461,27 @@ watch(
 }
 
 .snow-wall-note strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
   font-size: 0.83rem;
   color: var(--section-text, var(--snow-text));
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .snow-wall-note time {
+  flex: 0 1 auto;
+  max-width: 46%;
+  overflow: hidden;
   font-size: 0.71rem;
   color: color-mix(in srgb, var(--section-text, var(--snow-text)) 72%, #ffffff);
   padding-top: 2px;
+  text-align: right;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .snow-wall-note p {
@@ -2344,6 +2518,108 @@ watch(
 
 .snow-modal--wall {
   max-width: 460px;
+}
+
+.snow-modal--wall-archive {
+  width: min(920px, 94vw);
+  max-height: min(88vh, 820px);
+}
+
+.snow-modal--wall-archive .snow-modal__head {
+  align-items: flex-start;
+}
+
+.snow-modal--wall-archive .snow-modal__head p {
+  margin: 0.18rem 0 0;
+  color: color-mix(in srgb, var(--snow-text) 68%, #ffffff);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.snow-wall-archive {
+  padding: 1.15rem;
+}
+
+.snow-wall-cloud-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.snow-wall-cloud {
+  position: absolute;
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 40px));
+  padding: 0.82rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--snow-primary) 16%, transparent);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.96), transparent 42%),
+    color-mix(in srgb, var(--snow-section-bg) 92%, #ffffff);
+  color: var(--snow-text);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+  animation: snow-wall-cloud-rise 4.6s ease-out forwards;
+}
+
+.snow-wall-cloud--left {
+  left: clamp(12px, 4vw, 54px);
+}
+
+.snow-wall-cloud--right {
+  right: clamp(12px, 4vw, 54px);
+}
+
+.snow-wall-cloud strong {
+  display: block;
+  margin-bottom: 0.22rem;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--snow-primary);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+
+.snow-wall-cloud p {
+  display: -webkit-box;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--snow-text) 86%, #ffffff);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+@keyframes snow-wall-cloud-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0) scale(0.96);
+    filter: blur(4px);
+  }
+
+  16% {
+    opacity: 1;
+    filter: blur(0);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translate3d(0, calc(-50vh + 28px), 0) scale(1);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -62vh, 0) scale(1.02);
+    filter: blur(7px);
+  }
 }
 
 .snow-tag,
@@ -3246,6 +3522,7 @@ watch(
   inset: 0;
   z-index: 40;
   background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(5px);
   display: grid;
   place-items: center;
   padding: 1rem;
