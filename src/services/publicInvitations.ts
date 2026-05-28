@@ -91,6 +91,14 @@ export type PublicRsvpResponse = {
   createdAt: string | null
 }
 
+export type PublicDjSongRequest = {
+  id: number
+  songName: string
+  referenceUrl: string | null
+  suggestedAt: string | null
+  createdAt: string | null
+}
+
 const toRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 
@@ -310,6 +318,31 @@ export const createPublicInvitationRsvpResponse = async (payload: {
       limit: toNumber(rawSummary.limit),
       used: Number(rawSummary.used ?? 0) || 0,
       remaining: toNumber(rawSummary.remaining),
+    },
+  }
+}
+
+export const createPublicInvitationDjSongRequest = async (payload: {
+  song_name: string
+  reference_url?: string | null
+}): Promise<{ song: PublicDjSongRequest }> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>('/invitations/dj-song-requests', {
+    method: 'POST',
+    token: '',
+    credentials: 'omit',
+    body: payload,
+  })
+
+  const data = toRecord(response.data)
+  const rawSong = toRecord(data.song)
+
+  return {
+    song: {
+      id: Number(rawSong.id ?? 0) || 0,
+      songName: toString(rawSong.song_name),
+      referenceUrl: toString(rawSong.reference_url) || null,
+      suggestedAt: toString(rawSong.suggested_at) || null,
+      createdAt: toString(rawSong.created_at) || null,
     },
   }
 }

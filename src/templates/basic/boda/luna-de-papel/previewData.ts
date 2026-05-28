@@ -114,6 +114,20 @@ export const createLunaDePapelPreviewData = (
       title: 'Dress code',
       description: 'Elegante, con tonos naturales o acentos cálidos.',
     },
+    giftOptions: {
+      enabled: false,
+      title: 'Opciones de regalos',
+      description: 'Ideas simples para quienes quieran tener un detalle con nosotros.',
+      buttonLabel: 'Ver opciones de regalos',
+      modalTitle: 'Opciones de regalos',
+      emptyLabel: 'Aún no agregaste opciones de regalos.',
+      items: [],
+      features: {
+        enabled: false,
+        giftOptionsEnabled: false,
+        gift_options_enabled: false,
+      },
+    },
     branding: {
       visible: false,
       label: 'InvitaSR',

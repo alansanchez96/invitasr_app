@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PhoneCountrySelect from '@/components/ui/PhoneCountrySelect.vue'
-import { createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
+import { createPublicInvitationDjSongRequest, createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
 import type {
   InvitationGalleryItem,
   InvitationTemplateRendererProps,
@@ -60,6 +60,8 @@ const rsvpWhatsappCountry = ref(DEFAULT_PHONE_COUNTRY)
 const rsvpWhatsapp = ref('')
 const rsvpCompanionsCount = ref<number | null>(null)
 const rsvpSuccessMessage = ref<string | null>(null)
+const rsvpConfirmationModalOpen = ref(false)
+const rsvpConfirmationAccepted = ref(false)
 const faqReviewedForRsvp = ref(false)
 const checkinOverlayVisible = ref(false)
 const audioRef = ref<HTMLAudioElement | null>(null)
@@ -74,6 +76,12 @@ const wallSubmitting = ref(false)
 const wallGuestName = ref('')
 const wallGuestMessage = ref('')
 const wallReceivedCount = ref(0)
+const djSongModalOpen = ref(false)
+const djSongSubmitting = ref(false)
+const djSongName = ref('')
+const djSongReferenceUrl = ref('')
+const djSongSuccessMessage = ref<string | null>(null)
+const giftOptionsModalOpen = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
 const WALL_MESSAGE_MAX_LENGTH = 250
 const WALL_MESSAGE_PREVIEW_LENGTH = 120
@@ -247,6 +255,56 @@ const rsvpLabels = computed(() => ({
   whatsapp: resolveText(props.data.rsvp?.formLabels?.whatsapp, 'WhatsApp'),
   companions: resolveText(props.data.rsvp?.formLabels?.companions, 'Acompañantes'),
 }))
+const djSongConfig = computed(() => {
+  const source = props.data.djSongRequests ?? {}
+  return {
+    enabled: source.enabled !== false,
+    buttonLabel: resolveText(source.buttonLabel, 'Sugerir canción'),
+    modalTitle: resolveText(source.modalTitle, 'Sugerir canción para la fiesta'),
+    songLabel: resolveText(source.songLabel, 'Nombre de la canción'),
+    referenceLabel: resolveText(source.referenceLabel, 'Enlace de referencia'),
+    submitLabel: resolveText(source.submitLabel, 'Enviar sugerencia'),
+    features: source.features ?? {},
+  }
+})
+const djSongRequestsEnabled = computed(() => {
+  const features = djSongConfig.value.features
+  return djSongConfig.value.enabled
+    && Boolean(features.enabled ?? features.djSongRequestsEnabled ?? features.dj_song_requests_enabled)
+})
+const djSongCanSubmit = computed(() =>
+  !props.editable
+  && !props.demoMode
+  && djSongRequestsEnabled.value
+  && !djSongSubmitting.value
+  && djSongName.value.trim().length >= 2,
+)
+const giftOptionsConfig = computed(() => {
+  const source = props.data.giftOptions ?? {}
+  const rawItems = Array.isArray(source.items) ? source.items : []
+  return {
+    enabled: source.enabled === true,
+    title: resolveText(source.title, 'Opciones de regalos'),
+    description: resolveText(source.description, 'Ideas simples para quienes quieran tener un detalle con nosotros.'),
+    buttonLabel: resolveText(source.buttonLabel, 'Ver opciones de regalos'),
+    modalTitle: resolveText(source.modalTitle, 'Opciones de regalos'),
+    emptyLabel: resolveText(source.emptyLabel, 'Aún no agregaste opciones de regalos.'),
+    features: source.features ?? {},
+    items: rawItems
+      .map((item, index) => ({
+        id: resolveText(item.id, `gift-${index + 1}`),
+        category: resolveText(item.category, 'Regalo'),
+        name: resolveText(item.name, ''),
+      }))
+      .filter((item) => item.name.trim().length > 0),
+  }
+})
+const giftOptionsEnabled = computed(() => {
+  const features = giftOptionsConfig.value.features
+  return giftOptionsConfig.value.enabled
+    && isSectionVisible('giftOptions')
+    && Boolean(features.enabled ?? features.giftOptionsEnabled ?? features.gift_options_enabled)
+})
 const rsvpFields = computed(() => Array.isArray(props.data.rsvp?.features?.fields) ? props.data.rsvp.features.fields : [])
 const phoneCountryOptions = PHONE_COUNTRY_OPTIONS
 const rsvpWhatsappEnabled = computed(() =>
@@ -256,6 +314,9 @@ const rsvpWhatsappEnabled = computed(() =>
 const rsvpCompanionsEnabled = computed(() =>
   Boolean(props.data.rsvp?.features?.companionsEnabled ?? props.data.rsvp?.features?.companions_enabled)
   || rsvpFields.value.includes('companions'),
+)
+const rsvpPopupConfirmationEnabled = computed(() =>
+  Boolean(props.data.rsvp?.features?.popupConfirmationEnabled ?? props.data.rsvp?.features?.popup_confirmation_enabled),
 )
 const rsvpWhatsappMaxLength = computed(() => nationalPhoneInputMaxLength(rsvpWhatsappCountry.value))
 const countdownNote = computed(() => resolveText(props.data.countdown?.note, 'Falta poco para encontrarnos.'))
@@ -552,6 +613,20 @@ const previewButtonsFontClass = computed(() => {
   return zoom >= 50 && zoom <= 80 ? 'luna-template--compact-buttons' : ''
 })
 
+const publishedOverlayOpen = computed(() =>
+  !props.editable
+  && !props.constrainedOverlay
+  && (
+    checkinOverlayVisible.value
+    || galleryLightboxOpen.value
+    || wallComposerOpen.value
+    || wallArchiveOpen.value
+    || djSongModalOpen.value
+    || giftOptionsModalOpen.value
+    || rsvpConfirmationModalOpen.value
+  ),
+)
+
 const targetDate = computed(() => {
   const raw = props.data.countdown?.targetDateIso || props.data.event.date.iso
   const parsed = new Date(raw)
@@ -623,6 +698,35 @@ const checkinEntryText = computed(() => {
     return `Valor de la entrada: ${currencyCode} ${amount.toFixed(2)}.`
   }
 })
+
+const rsvpPopupConfirmationMessage = computed(() => {
+  const amount = checkinEntryText.value
+    .replace('Valor de la entrada:', '')
+    .replace(/\.$/, '')
+    .trim()
+  const time = checkinEventDateText.value.trim()
+
+  if (!amount && !time) {
+    return 'Antes de enviar tu confirmación, revisa que tus datos estén correctos. ¿Quieres continuar?'
+  }
+
+  const amountText = amount ? `el valor de la tarjeta es ${amount}` : ''
+  const timeText = time ? `la recepción comienza el ${time}` : ''
+  const joined = [amountText, timeText].filter(Boolean).join(' y ')
+
+  return `¡Genial! Recuerda que ${joined}. ¿Deseas continuar?`
+})
+
+const closeRsvpConfirmationModal = () => {
+  if (rsvpSubmitting.value) return
+  rsvpConfirmationModalOpen.value = false
+}
+
+const confirmRsvpSubmission = () => {
+  rsvpConfirmationAccepted.value = true
+  rsvpConfirmationModalOpen.value = false
+  void handleRsvp()
+}
 
 const musicAudioUrl = computed(() => resolveText(props.data.music?.audioUrl, ''))
 
@@ -710,6 +814,12 @@ const handleRsvp = async () => {
     return
   }
 
+  if (rsvpPopupConfirmationEnabled.value && !rsvpConfirmationAccepted.value) {
+    rsvpConfirmationModalOpen.value = true
+    return
+  }
+  rsvpConfirmationAccepted.value = false
+
   rsvpSubmitting.value = true
   try {
     const payload: Parameters<typeof createPublicInvitationRsvpResponse>[0] = {
@@ -737,6 +847,60 @@ const handleRsvp = async () => {
     notifyError(payload?.message ?? 'No pudimos registrar tu confirmación.')
   } finally {
     rsvpSubmitting.value = false
+  }
+}
+
+const openDjSongModal = () => {
+  if (props.demoMode) {
+    notifyError('En la demo este botón es solo visual. En una invitación Pro tus invitados podrán sugerir canciones.')
+    return
+  }
+
+  if (!djSongRequestsEnabled.value) return
+  djSongSuccessMessage.value = null
+  djSongModalOpen.value = true
+}
+
+const closeDjSongModal = () => {
+  if (djSongSubmitting.value) return
+  djSongModalOpen.value = false
+}
+
+const openGiftOptionsModal = () => {
+  if (!giftOptionsEnabled.value) return
+  giftOptionsModalOpen.value = true
+}
+
+const closeGiftOptionsModal = () => {
+  giftOptionsModalOpen.value = false
+}
+
+const clearDjSongForm = () => {
+  djSongName.value = ''
+  djSongReferenceUrl.value = ''
+}
+
+const submitDjSongRequest = async () => {
+  if (props.editable) return
+  if (!djSongCanSubmit.value) {
+    notifyError('Escribe el nombre de la canción para enviarla.')
+    return
+  }
+
+  djSongSubmitting.value = true
+  try {
+    await createPublicInvitationDjSongRequest({
+      song_name: djSongName.value.trim(),
+      reference_url: djSongReferenceUrl.value.trim() || null,
+    })
+    clearDjSongForm()
+    djSongSuccessMessage.value = 'Listo. La canción quedó sugerida.'
+    notifySuccess('Tu canción quedó sugerida.')
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos guardar tu canción ahora.')
+  } finally {
+    djSongSubmitting.value = false
   }
 }
 
@@ -899,6 +1063,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', syncGalleryViewportWidth)
   window.removeEventListener('scroll', handleWallCloudScroll)
   cleanupWallClouds()
+  if (!props.editable && !props.constrainedOverlay && typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+  }
   if (timerId) {
     clearInterval(timerId)
     timerId = null
@@ -918,6 +1085,11 @@ watch(galleryItems, (items) => {
 watch([musicAudioUrl, musicMuted], () => {
   void syncAudioPlayback()
 })
+
+watch(publishedOverlayOpen, (isOpen) => {
+  if (typeof document === 'undefined') return
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+}, { immediate: true })
 
 watch(
   () => props.data.wall?.messages,
@@ -1153,6 +1325,33 @@ watch(
       <span>{{ musicMuted ? 'Activar música' : 'Silenciar música' }}</span>
     </button>
 
+    <button
+      v-if="djSongRequestsEnabled"
+      type="button"
+      class="luna-dj-song-fab"
+      :class="{ 'luna-dj-song-fab--with-music': isSectionVisible('music'), 'luna-dj-song-fab--embedded': usesEmbeddedOverlay }"
+      @click="openDjSongModal"
+    >
+      {{ djSongConfig.buttonLabel }}
+    </button>
+
+    <button
+      v-if="giftOptionsEnabled"
+      type="button"
+      class="luna-gift-fab"
+      :class="{ 'luna-gift-fab--stacked': djSongRequestsEnabled || isSectionVisible('music'), 'luna-gift-fab--embedded': usesEmbeddedOverlay }"
+      @click="openGiftOptionsModal"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 12v8H4v-8" />
+        <path d="M2 7h20v5H2z" />
+        <path d="M12 7v13" />
+        <path d="M12 7H8.5a2 2 0 1 1 0-4C11 3 12 7 12 7Z" />
+        <path d="M12 7h3.5a2 2 0 1 0 0-4C13 3 12 7 12 7Z" />
+      </svg>
+      {{ giftOptionsConfig.buttonLabel }}
+    </button>
+
     <div
       v-if="(checkinOverlayVisible || (editable && checkinPreview)) && isSectionVisible('checkin')"
       class="luna-checkin"
@@ -1206,6 +1405,85 @@ watch(
           >
             <img :src="resolveGalleryDisplayUrl(item)" :alt="item.alt || 'Miniatura de galería'" />
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="djSongModalOpen"
+      class="luna-wall-modal"
+      :class="{ 'luna-wall-modal--embedded': usesEmbeddedOverlay }"
+      @click.self="closeDjSongModal"
+    >
+      <div class="luna-wall-modal__panel luna-wall-modal__panel--dj-song">
+        <header>
+          <div>
+            <p class="luna-eyebrow">Música</p>
+            <h3>{{ djSongConfig.modalTitle }}</h3>
+          </div>
+          <button type="button" aria-label="Salir de sugerir canción" title="Salir" @click="closeDjSongModal">×</button>
+        </header>
+        <form class="luna-wall__form luna-dj-song__form" @submit.prevent="submitDjSongRequest">
+          <input v-model="djSongName" type="text" maxlength="180" :placeholder="djSongConfig.songLabel" :disabled="props.editable || props.demoMode || djSongSubmitting" required />
+          <input v-model="djSongReferenceUrl" type="url" maxlength="2048" placeholder="YouTube, Spotify u otro enlace" :disabled="props.editable || props.demoMode || djSongSubmitting" />
+          <button type="submit" :disabled="!djSongCanSubmit">
+            {{ djSongSubmitting ? 'Enviando...' : djSongConfig.submitLabel }}
+          </button>
+          <p v-if="djSongSuccessMessage" class="luna-dj-song__success">{{ djSongSuccessMessage }}</p>
+        </form>
+      </div>
+    </div>
+
+    <div
+      v-if="giftOptionsModalOpen"
+      class="luna-wall-modal"
+      :class="{ 'luna-wall-modal--embedded': usesEmbeddedOverlay }"
+      @click.self="closeGiftOptionsModal"
+    >
+      <div class="luna-wall-modal__panel luna-wall-modal__panel--gifts">
+        <header>
+          <div>
+            <p class="luna-eyebrow">{{ giftOptionsConfig.title }}</p>
+            <h3>{{ giftOptionsConfig.modalTitle }}</h3>
+          </div>
+          <button type="button" aria-label="Salir de opciones de regalos" title="Salir" @click="closeGiftOptionsModal">×</button>
+        </header>
+        <div class="luna-gifts">
+          <p>{{ giftOptionsConfig.description }}</p>
+          <article v-for="item in giftOptionsConfig.items" :key="item.id" class="luna-gift-item">
+            <span>{{ item.category }}</span>
+            <strong>{{ item.name }}</strong>
+          </article>
+          <p v-if="!giftOptionsConfig.items.length">{{ giftOptionsConfig.emptyLabel }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="rsvpConfirmationModalOpen"
+      class="luna-wall-modal"
+      :class="{ 'luna-wall-modal--embedded': usesEmbeddedOverlay }"
+      @click.self="closeRsvpConfirmationModal"
+    >
+      <div class="luna-wall-modal__panel luna-wall-modal__panel--rsvp-confirm">
+        <header>
+          <div>
+            <p class="luna-eyebrow">Confirmación</p>
+            <h3>Antes de enviar</h3>
+          </div>
+          <button type="button" aria-label="Cerrar confirmación" @click="closeRsvpConfirmationModal">×</button>
+        </header>
+
+        <div class="luna-rsvp-confirm">
+          <p>{{ rsvpPopupConfirmationMessage }}</p>
+          <div class="luna-rsvp-confirm__actions">
+            <button type="button" class="luna-rsvp-confirm__secondary" @click="closeRsvpConfirmationModal">
+              Revisar
+            </button>
+            <button type="button" @click="confirmRsvpSubmission">
+              Continuar
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1671,6 +1949,13 @@ h2 {
   text-align: right;
 }
 
+.luna-dj-song__success {
+  margin: 0;
+  color: var(--luna-moss);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
 .luna-wall__empty {
   margin: 0;
   padding: 18px;
@@ -1968,6 +2253,71 @@ h2 {
   color: var(--luna-button-text);
 }
 
+.luna-dj-song-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 19;
+  min-height: 46px;
+  border: 1px solid rgba(36, 27, 23, 0.16);
+  border-radius: 999px;
+  background: var(--luna-button-bg-paint);
+  color: var(--luna-button-text);
+  padding: 0 17px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  box-shadow: 0 20px 44px rgba(45, 34, 27, 0.22);
+  cursor: pointer;
+}
+
+.luna-dj-song-fab--with-music {
+  bottom: 76px;
+}
+
+.luna-dj-song-fab--embedded {
+  position: absolute;
+}
+
+.luna-gift-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 19;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--luna-moss) 24%, transparent);
+  border-radius: 999px;
+  background: var(--luna-paper);
+  color: var(--luna-moss);
+  padding: 0 17px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  box-shadow: 0 20px 44px rgba(45, 34, 27, 0.18);
+  cursor: pointer;
+}
+
+.luna-gift-fab--stacked {
+  bottom: 132px;
+}
+
+.luna-gift-fab--embedded {
+  position: absolute;
+}
+
+.luna-gift-fab svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .luna-music-wave {
   width: 22px;
   height: 18px;
@@ -2148,9 +2498,11 @@ h2 {
 }
 
 .luna-wall-modal__panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   width: min(560px, 100%);
   max-height: min(88dvh, 820px);
-  overflow: auto;
+  overflow: hidden;
   padding: clamp(22px, 4vw, 34px);
   background: var(--luna-paper);
   border: 1px solid color-mix(in srgb, var(--luna-gold) 42%, transparent);
@@ -2162,12 +2514,62 @@ h2 {
   width: min(920px, 100%);
 }
 
+.luna-wall-modal__panel--dj-song {
+  width: min(460px, 100%);
+}
+
+.luna-wall-modal__panel--gifts {
+  width: min(560px, 100%);
+}
+
+.luna-wall-modal__panel--rsvp-confirm {
+  width: min(460px, 100%);
+}
+
+.luna-wall-modal__panel > :not(header) {
+  min-height: 0;
+  overflow: auto;
+}
+
+.luna-gifts {
+  display: grid;
+  gap: 12px;
+}
+
+.luna-gifts p {
+  margin: 0;
+}
+
+.luna-gift-item {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--luna-clay) 30%, transparent);
+  background: color-mix(in srgb, var(--luna-bg) 64%, var(--luna-paper));
+}
+
+.luna-gift-item span {
+  color: var(--luna-clay);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.luna-gift-item strong {
+  color: var(--luna-ink);
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
 .luna-wall-modal__panel header {
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+  min-height: 0;
 }
 
 .luna-wall-modal__panel h3 {
@@ -2197,6 +2599,40 @@ h2 {
   color: var(--luna-ink);
   font-size: 1.5rem;
   cursor: pointer;
+}
+
+.luna-rsvp-confirm {
+  display: grid;
+  gap: 18px;
+}
+
+.luna-rsvp-confirm p {
+  margin: 0;
+  color: var(--luna-ink);
+  font-size: 0.98rem;
+  line-height: 1.58;
+}
+
+.luna-rsvp-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.luna-rsvp-confirm__actions button {
+  border: 0;
+  background: var(--luna-ink);
+  color: var(--luna-paper);
+  font-weight: 900;
+  padding: 12px 18px;
+  cursor: pointer;
+}
+
+.luna-rsvp-confirm__actions .luna-rsvp-confirm__secondary {
+  border: 1px solid color-mix(in srgb, var(--luna-clay) 34%, transparent);
+  background: transparent;
+  color: var(--luna-ink);
 }
 
 .luna-wall-cloud-layer {
@@ -2509,6 +2945,16 @@ h2 {
 
   .luna-wall__grid--archive {
     grid-template-columns: 1fr;
+  }
+
+  .luna-dj-song-fab {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+  }
+
+  .luna-dj-song-fab--with-music {
+    bottom: 72px;
   }
 
   .luna-schedule article {

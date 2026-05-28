@@ -23,6 +23,10 @@ const isPlannerPlan = computed(() => {
   const planName = String(session.user?.client_plan?.plan?.name ?? '').trim().toLowerCase()
   return planName === 'planner'
 })
+const isProLikePlan = computed(() => {
+  const planName = String(session.user?.client_plan?.plan?.name ?? '').trim().toLowerCase()
+  return planName === 'pro' || planName === 'planner'
+})
 const isSubscriptionRenewalLocked = computed(() =>
   session.isClient && session.requiresSubscriptionRenewal && !session.hasActiveClientPlan,
 )
@@ -51,6 +55,7 @@ const panelModuleGroups = computed(() => {
   }
 
   const hiddenForPlanner = new Set(['/panel/mejorar-plan', '/panel/comprar-creditos'])
+  const hiddenForBasic = new Set(['/panel/canciones-sugeridas'])
 
   return groups
     .map((group) => ({
@@ -61,6 +66,10 @@ const panelModuleGroups = computed(() => {
         }
 
         if (!isMaster.value && isPlannerPlan.value && hiddenForPlanner.has(item.href)) {
+          return false
+        }
+
+        if (!isMaster.value && !isProLikePlan.value && hiddenForBasic.has(item.href)) {
           return false
         }
 

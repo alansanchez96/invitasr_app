@@ -8,5 +8,5 @@ export const weddingSnowManifest: InvitationTemplateManifest = {
   summary: 'Estilo limpio y emocional para bodas.',
   tone: 'Romantico minimalista',
   previewLabel: 'Boda · Wedding Snow',
-  featureFlags: ['hero', 'checkin', 'countdown', 'story', 'gallery', 'location', 'save-date', 'dress-code', 'music', 'faq', 'rsvp'],
+  featureFlags: ['hero', 'checkin', 'countdown', 'story', 'gallery', 'location', 'save-date', 'dress-code', 'music', 'faq', 'rsvp', 'dj-song-requests', 'gift-options'],
 }

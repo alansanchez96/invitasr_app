@@ -8,5 +8,5 @@ export const lunaDePapelManifest: InvitationTemplateManifest = {
   summary: 'Una invitación cálida, editorial y muy personal para bodas.',
   tone: 'Editorial romántico',
   previewLabel: 'Boda · Luna de Papel',
-  featureFlags: ['hero', 'checkin', 'countdown', 'story', 'gallery', 'location', 'save-date', 'dress-code', 'music', 'faq', 'rsvp'],
+  featureFlags: ['hero', 'checkin', 'countdown', 'story', 'gallery', 'location', 'save-date', 'dress-code', 'music', 'faq', 'rsvp', 'dj-song-requests', 'gift-options'],
 }

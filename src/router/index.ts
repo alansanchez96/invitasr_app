@@ -42,6 +42,7 @@ const ClientBuyCredits = () => import('@/pages/client/ClientBuyCredits.vue')
 const ClientSubscriptions = () => import('@/pages/client/ClientSubscriptions.vue')
 const ClientRenewSubscription = () => import('@/pages/client/ClientRenewSubscription.vue')
 const ClientGuestList = () => import('@/pages/client/ClientGuestList.vue')
+const ClientDjSongRequests = () => import('@/pages/client/ClientDjSongRequests.vue')
 const ClientNotifications = () => import('@/pages/client/ClientNotifications.vue')
 const ClientUpgradePlan = () => import('@/pages/client/ClientUpgradePlan.vue')
 
@@ -403,6 +404,17 @@ const router = createRouter({
           component: ClientGuestList,
           meta: {
             title: 'Mi panel · Lista de invitados',
+            requiresAuth: true,
+            requiresClient: true,
+            requiresActiveClientPlan: true,
+          },
+        },
+        {
+          path: 'canciones-sugeridas',
+          name: 'client-dj-song-requests',
+          component: ClientDjSongRequests,
+          meta: {
+            title: 'Mi panel · Canciones sugeridas',
             requiresAuth: true,
             requiresClient: true,
             requiresActiveClientPlan: true,

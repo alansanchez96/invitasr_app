@@ -36,20 +36,44 @@ const syncDocumentTitle = (title: string, typeEvent: string) => {
 const withResolvedPublicFeatures = (content: WeddingTemplateData, settings: Record<string, unknown>): WeddingTemplateData => {
   const rsvpFeatures = settings.rsvp_features
   const wallFeatures = settings.wall_features
+  const djSongRequestFeatures = settings.dj_song_request_features
+  const giftOptionsFeatures = settings.gift_options_features
+  const popupConfirmationFeatures = settings.popup_confirmation_features
+  const resolvedRsvpFeatures = rsvpFeatures && typeof rsvpFeatures === 'object'
+    ? rsvpFeatures as WeddingTemplateData['rsvp']['features']
+    : content.rsvp.features
+  const resolvedPopupFeatures = popupConfirmationFeatures && typeof popupConfirmationFeatures === 'object'
+    ? popupConfirmationFeatures as Record<string, unknown>
+    : null
 
   return {
     ...content,
     rsvp: {
       ...content.rsvp,
-      features: rsvpFeatures && typeof rsvpFeatures === 'object'
-        ? rsvpFeatures as WeddingTemplateData['rsvp']['features']
-        : content.rsvp.features,
+      features: {
+        ...(resolvedRsvpFeatures ?? {}),
+        ...(resolvedPopupFeatures ?? {}),
+        popupConfirmationEnabled: Boolean(resolvedPopupFeatures?.enabled),
+        popup_confirmation_enabled: Boolean(resolvedPopupFeatures?.enabled),
+      },
     },
     wall: {
       ...(content.wall ?? { messages: [] }),
       features: wallFeatures && typeof wallFeatures === 'object'
         ? wallFeatures as NonNullable<WeddingTemplateData['wall']>['features']
         : content.wall?.features,
+    },
+    djSongRequests: {
+      ...(content.djSongRequests ?? {}),
+      features: djSongRequestFeatures && typeof djSongRequestFeatures === 'object'
+        ? djSongRequestFeatures as NonNullable<WeddingTemplateData['djSongRequests']>['features']
+        : content.djSongRequests?.features,
+    },
+    giftOptions: {
+      ...(content.giftOptions ?? {}),
+      features: giftOptionsFeatures && typeof giftOptionsFeatures === 'object'
+        ? giftOptionsFeatures as NonNullable<WeddingTemplateData['giftOptions']>['features']
+        : content.giftOptions?.features,
     },
   }
 }

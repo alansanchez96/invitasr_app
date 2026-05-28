@@ -16,6 +16,8 @@ export type InvitationTemplateFeature =
   | 'music'
   | 'rsvp'
   | 'wall-preview'
+  | 'dj-song-requests'
+  | 'gift-options'
   | 'branding'
 
 export type InvitationTemplateManifest = {
@@ -97,6 +99,8 @@ export type InvitationRsvpConfig = {
     whatsapp_enabled?: boolean
     whatsappConfirmationsEnabled?: boolean
     whatsapp_confirmations_enabled?: boolean
+    popupConfirmationEnabled?: boolean
+    popup_confirmation_enabled?: boolean
   }
   formLabels?: {
     firstName?: string
@@ -168,6 +172,41 @@ export type InvitationWallConfig = {
   limit?: number | null
   receivedCount?: number | null
   messages: InvitationWallMessage[]
+}
+
+export type InvitationDjSongRequestsConfig = {
+  enabled?: boolean
+  buttonLabel?: string
+  modalTitle?: string
+  songLabel?: string
+  referenceLabel?: string
+  submitLabel?: string
+  features?: {
+    enabled?: boolean
+    djSongRequestsEnabled?: boolean
+    dj_song_requests_enabled?: boolean
+  }
+}
+
+export type InvitationGiftOption = {
+  id: string
+  category: string
+  name: string
+}
+
+export type InvitationGiftOptionsConfig = {
+  enabled?: boolean
+  title?: string
+  description?: string
+  buttonLabel?: string
+  modalTitle?: string
+  emptyLabel?: string
+  items?: InvitationGiftOption[]
+  features?: {
+    enabled?: boolean
+    giftOptionsEnabled?: boolean
+    gift_options_enabled?: boolean
+  }
 }
 
 export type InvitationBrandingConfig = {
@@ -255,6 +294,8 @@ export type WeddingTemplateData = {
   dressCode?: InvitationDressCodeConfig
   wall?: InvitationWallConfig
   wallPreview?: InvitationWallPreviewConfig
+  djSongRequests?: InvitationDjSongRequestsConfig
+  giftOptions?: InvitationGiftOptionsConfig
 }
 
 export type InvitationTemplateDataMap = {

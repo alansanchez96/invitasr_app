@@ -144,6 +144,7 @@ export type TenantInvitationRsvpResponse = {
   dietary_restrictions: string | null
   whatsapp: string | null
   companions_count: number
+  table_assignment: string | null
   status: 'confirmed' | string
   confirmed_at: string | null
   created_at: string | null
@@ -174,15 +175,83 @@ export type TenantInvitationRsvpListParams = {
   page?: number
   perPage?: number
   invitation_id?: number | string
+  table_assignment?: string
+  whatsapp_status?: 'all' | 'with' | 'without' | string
+  status?: 'all' | 'confirmed' | 'pending' | 'declined' | 'not_confirmed' | string
   search?: string
-  sortBy?: 'id' | 'name' | 'last_name' | 'confirmed_at' | 'confirmation' | 'date' | string
+  sortBy?: 'id' | 'name' | 'last_name' | 'status' | 'confirmed_at' | 'confirmation' | 'date' | string
   sortDir?: 'asc' | 'desc' | string
 }
 
 export type TenantInvitationRsvpPdfExportParams = {
   scope?: 'all' | 'confirmed'
+  status_filter?: 'all' | 'confirmed' | 'not_confirmed' | 'pending' | 'declined'
+  invitation_id?: number | string
+  table_assignment?: string
+  table_assignments?: Array<number | string>
+  include_unassigned_tables?: boolean
+  whatsapp_status?: 'all' | 'with' | 'without' | string
+  columns?: string[]
+  group_by?: 'name' | 'table' | 'dietary' | 'status'
   sortField?: 'last_name' | 'first_name'
   lastNameOrder?: 'asc' | 'desc'
+  tableOrder?: 'asc' | 'desc'
+}
+
+export type TenantInvitationDjSongRequest = {
+  id: number
+  invitation_id: number
+  invitation_title: string
+  song_name: string
+  reference_url: string | null
+  status: 'active' | string
+  suggested_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type TenantInvitationDjSongRequestSummary = {
+  enabled: boolean
+  total_requests: number
+  total_invitations: number
+}
+
+export type TenantInvitationDjSongRequestDetail = {
+  summary: TenantInvitationDjSongRequestSummary
+  sort?: {
+    by: 'id' | 'song_name' | 'created_at' | string
+    dir: 'asc' | 'desc' | string
+  }
+  items: TenantInvitationDjSongRequest[]
+  pagination: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
+export type TenantInvitationDjSongRequestListParams = {
+  page?: number
+  perPage?: number
+  invitation_id?: number | string
+  search?: string
+  linkStatus?: 'all' | 'with_link' | 'without_link' | string
+  sortBy?: 'id' | 'song_name' | 'created_at' | 'date' | string
+  sortDir?: 'asc' | 'desc' | string
+}
+
+export type TenantInvitationDjSongRequestExportParams = {
+  invitation_id?: number | string
+  search?: string
+  linkStatus?: 'all' | 'with_link' | 'without_link' | string
+  sortBy?: 'id' | 'song_name' | 'created_at' | 'date' | string
+  sortDir?: 'asc' | 'desc' | string
+}
+
+export type UpsertTenantInvitationDjSongRequestPayload = {
+  song_name: string
+  reference_url?: string | null
 }
 
 export type TenantDashboardSummary = {
@@ -483,6 +552,7 @@ const normalizeRsvpResponse = (value: unknown): TenantInvitationRsvpResponse => 
     dietary_restrictions: source.dietary_restrictions ? String(source.dietary_restrictions) : null,
     whatsapp: source.whatsapp ? String(source.whatsapp) : null,
     companions_count: toNumber(source.companions_count, 0),
+    table_assignment: source.table_assignment ? String(source.table_assignment) : null,
     status: String(source.status ?? 'confirmed'),
     confirmed_at: source.confirmed_at ? String(source.confirmed_at) : null,
     created_at: source.created_at ? String(source.created_at) : null,
@@ -494,6 +564,30 @@ const normalizeRsvpSummary = (value: unknown): TenantInvitationRsvpSummary => {
   const source = toRecord(value)
   return {
     total_confirmed: toNumber(source.total_confirmed, 0),
+    total_invitations: toNumber(source.total_invitations, 0),
+  }
+}
+
+const normalizeDjSongRequest = (value: unknown): TenantInvitationDjSongRequest => {
+  const source = toRecord(value)
+  return {
+    id: toNumber(source.id, 0),
+    invitation_id: toNumber(source.invitation_id, 0),
+    invitation_title: String(source.invitation_title ?? ''),
+    song_name: String(source.song_name ?? ''),
+    reference_url: source.reference_url ? String(source.reference_url) : null,
+    status: String(source.status ?? 'active'),
+    suggested_at: source.suggested_at ? String(source.suggested_at) : null,
+    created_at: source.created_at ? String(source.created_at) : null,
+    updated_at: source.updated_at ? String(source.updated_at) : null,
+  }
+}
+
+const normalizeDjSongRequestSummary = (value: unknown): TenantInvitationDjSongRequestSummary => {
+  const source = toRecord(value)
+  return {
+    enabled: Boolean(source.enabled),
+    total_requests: toNumber(source.total_requests, 0),
     total_invitations: toNumber(source.total_invitations, 0),
   }
 }
@@ -618,6 +712,18 @@ export const getTenantInvitationRsvpResponses = async (
     search.set('invitation_id', String(params.invitation_id))
   }
 
+  if (params.table_assignment && params.table_assignment.trim()) {
+    search.set('table_assignment', params.table_assignment.trim())
+  }
+
+  if (params.whatsapp_status && String(params.whatsapp_status).trim() && params.whatsapp_status !== 'all') {
+    search.set('whatsapp_status', String(params.whatsapp_status).trim())
+  }
+
+  if (params.status && String(params.status).trim()) {
+    search.set('status', String(params.status).trim())
+  }
+
   if (params.search && params.search.trim()) {
     search.set('search', params.search.trim())
   }
@@ -655,15 +761,33 @@ export const exportTenantInvitationRsvpPdf = async (
   params: TenantInvitationRsvpPdfExportParams = {},
 ): Promise<{ blob: Blob; fileName: string }> => {
   const scope = params.scope === 'all' ? 'all' : 'confirmed'
+  const statusFilter = params.status_filter ?? scope
   const sortField = params.sortField === 'first_name' ? 'first_name' : 'last_name'
   const lastNameOrder = params.lastNameOrder === 'desc' ? 'desc' : 'asc'
+  const tableOrder = params.tableOrder === 'desc' ? 'desc' : 'asc'
+  const invitationId = params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== ''
+    ? params.invitation_id
+    : undefined
+  const tableAssignment = params.table_assignment?.trim() || undefined
+  const whatsappStatus = params.whatsapp_status && params.whatsapp_status !== 'all'
+    ? params.whatsapp_status
+    : undefined
 
   const payload = await requestBlob(`${TENANT_BASE}/invitations/rsvp-responses/export-pdf`, {
     method: 'POST',
     body: {
       scope,
+      status_filter: statusFilter,
+      invitation_id: invitationId,
+      table_assignment: tableAssignment,
+      table_assignments: params.table_assignments?.map((item) => String(item).trim()).filter(Boolean),
+      include_unassigned_tables: Boolean(params.include_unassigned_tables),
+      whatsapp_status: whatsappStatus,
+      columns: params.columns?.filter(Boolean),
+      group_by: params.group_by ?? 'name',
       sort_field: sortField,
       last_name_order: lastNameOrder,
+      table_order: tableOrder,
     },
   })
 
@@ -672,6 +796,248 @@ export const exportTenantInvitationRsvpPdf = async (
   return {
     blob: payload.blob,
     fileName: payload.fileName?.trim() || defaultFileName,
+  }
+}
+
+export const exportTenantInvitationRsvpXlsx = async (
+  params: TenantInvitationRsvpPdfExportParams = {},
+): Promise<{ blob: Blob; fileName: string }> => {
+  const scope = params.scope === 'all' ? 'all' : 'confirmed'
+  const statusFilter = params.status_filter ?? scope
+  const sortField = params.sortField === 'first_name' ? 'first_name' : 'last_name'
+  const lastNameOrder = params.lastNameOrder === 'desc' ? 'desc' : 'asc'
+  const tableOrder = params.tableOrder === 'desc' ? 'desc' : 'asc'
+  const invitationId = params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== ''
+    ? params.invitation_id
+    : undefined
+  const tableAssignment = params.table_assignment?.trim() || undefined
+  const whatsappStatus = params.whatsapp_status && params.whatsapp_status !== 'all'
+    ? params.whatsapp_status
+    : undefined
+
+  const payload = await requestBlob(`${TENANT_BASE}/invitations/rsvp-responses/export-xlsx`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    },
+    body: {
+      scope,
+      status_filter: statusFilter,
+      invitation_id: invitationId,
+      table_assignment: tableAssignment,
+      table_assignments: params.table_assignments?.map((item) => String(item).trim()).filter(Boolean),
+      include_unassigned_tables: Boolean(params.include_unassigned_tables),
+      whatsapp_status: whatsappStatus,
+      columns: params.columns?.filter(Boolean),
+      group_by: params.group_by ?? 'name',
+      sort_field: sortField,
+      last_name_order: lastNameOrder,
+      table_order: tableOrder,
+    },
+  })
+
+  const defaultFileName = `invitados-${scope}-apellido-${lastNameOrder}.xlsx`
+
+  return {
+    blob: payload.blob,
+    fileName: payload.fileName?.trim() || defaultFileName,
+  }
+}
+
+export const updateTenantInvitationRsvpTableAssignment = async (
+  responseId: string | number,
+  tableAssignment: string | null,
+): Promise<{ response: { id: number; table_assignment: string | null } }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/rsvp-responses/${responseId}/table-assignment`,
+    {
+      method: 'PUT',
+      body: {
+        table_assignment: tableAssignment,
+      },
+    },
+  )
+
+  const data = toRecord(payload.data)
+  const response = toRecord(data.response)
+
+  return {
+    response: {
+      id: toNumber(response.id, 0),
+      table_assignment: response.table_assignment ? String(response.table_assignment) : null,
+    },
+  }
+}
+
+export const updateTenantInvitationRsvpStatus = async (
+  responseId: string | number,
+  status: 'confirmed' | 'pending' | 'declined',
+): Promise<{ response: { id: number; status: string; confirmed_at: string | null } }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/rsvp-responses/${responseId}/status`,
+    {
+      method: 'PUT',
+      body: {
+        status,
+      },
+    },
+  )
+
+  const data = toRecord(payload.data)
+  const response = toRecord(data.response)
+
+  return {
+    response: {
+      id: toNumber(response.id, 0),
+      status: String(response.status ?? status),
+      confirmed_at: response.confirmed_at ? String(response.confirmed_at) : null,
+    },
+  }
+}
+
+export const getTenantInvitationDjSongRequests = async (
+  params: TenantInvitationDjSongRequestListParams = {},
+): Promise<TenantInvitationDjSongRequestDetail> => {
+  const search = new URLSearchParams()
+  search.set('page', String(params.page ?? 1))
+  search.set('perPage', String(params.perPage ?? 10))
+
+  if (params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== '') {
+    search.set('invitation_id', String(params.invitation_id))
+  }
+
+  if (params.search && params.search.trim()) {
+    search.set('search', params.search.trim())
+  }
+
+  if (params.linkStatus && String(params.linkStatus).trim() && params.linkStatus !== 'all') {
+    search.set('linkStatus', String(params.linkStatus).trim())
+  }
+
+  if (params.sortBy && String(params.sortBy).trim()) {
+    search.set('sortBy', String(params.sortBy).trim())
+  }
+
+  if (params.sortDir && String(params.sortDir).trim()) {
+    search.set('sortDir', String(params.sortDir).trim())
+  }
+
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/dj-song-requests?${search.toString()}`,
+  )
+  const data = toRecord(payload.data)
+
+  return {
+    summary: normalizeDjSongRequestSummary(data.summary),
+    sort: {
+      by: String(toRecord(data.sort).by ?? 'created_at'),
+      dir: String(toRecord(data.sort).dir ?? 'desc'),
+    },
+    items: extractList(data.items).map(normalizeDjSongRequest),
+    pagination: {
+      current_page: toNumber(toRecord(data.pagination).current_page, 1),
+      last_page: toNumber(toRecord(data.pagination).last_page, 1),
+      per_page: toNumber(toRecord(data.pagination).per_page, 10),
+      total: toNumber(toRecord(data.pagination).total, 0),
+    },
+  }
+}
+
+const buildDjSongRequestExportBody = (params: TenantInvitationDjSongRequestExportParams) => ({
+  invitation_id: params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== ''
+    ? params.invitation_id
+    : undefined,
+  search: params.search?.trim() || undefined,
+  linkStatus: params.linkStatus && params.linkStatus !== 'all' ? params.linkStatus : undefined,
+  sortBy: params.sortBy,
+  sortDir: params.sortDir,
+})
+
+export const exportTenantInvitationDjSongRequestsPdf = async (
+  params: TenantInvitationDjSongRequestExportParams = {},
+): Promise<{ blob: Blob; fileName: string }> => {
+  const payload = await requestBlob(`${TENANT_BASE}/invitations/dj-song-requests/export-pdf`, {
+    method: 'POST',
+    body: buildDjSongRequestExportBody(params),
+  })
+
+  return {
+    blob: payload.blob,
+    fileName: payload.fileName?.trim() || 'canciones-sugeridas.pdf',
+  }
+}
+
+export const exportTenantInvitationDjSongRequestsXlsx = async (
+  params: TenantInvitationDjSongRequestExportParams = {},
+): Promise<{ blob: Blob; fileName: string }> => {
+  const payload = await requestBlob(`${TENANT_BASE}/invitations/dj-song-requests/export-xlsx`, {
+    method: 'POST',
+    body: buildDjSongRequestExportBody(params),
+    headers: {
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    },
+  })
+
+  return {
+    blob: payload.blob,
+    fileName: payload.fileName?.trim() || 'canciones-sugeridas.xlsx',
+  }
+}
+
+export const createTenantInvitationDjSongRequest = async (
+  invitationId: string | number,
+  body: UpsertTenantInvitationDjSongRequestPayload,
+): Promise<{ song: TenantInvitationDjSongRequest }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/dj-song-requests`,
+    {
+      method: 'POST',
+      body,
+    },
+  )
+
+  const data = toRecord(payload.data)
+  return {
+    song: normalizeDjSongRequest(data.song),
+  }
+}
+
+export const updateTenantInvitationDjSongRequest = async (
+  invitationId: string | number,
+  songRequestId: string | number,
+  body: UpsertTenantInvitationDjSongRequestPayload,
+): Promise<{ song: TenantInvitationDjSongRequest }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/dj-song-requests/${songRequestId}`,
+    {
+      method: 'PUT',
+      body,
+    },
+  )
+
+  const data = toRecord(payload.data)
+  return {
+    song: normalizeDjSongRequest(data.song),
+  }
+}
+
+export const deleteTenantInvitationDjSongRequest = async (
+  invitationId: string | number,
+  songRequestId: string | number,
+): Promise<{ deleted: boolean; deleted_song_request_id?: number }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/dj-song-requests/${songRequestId}`,
+    {
+      method: 'DELETE',
+    },
+  )
+
+  const data = toRecord(payload.data)
+  const deletedSongRequestId = toNumber(data.deleted_song_request_id, 0)
+
+  return {
+    deleted: Boolean(data.deleted),
+    deleted_song_request_id: deletedSongRequestId > 0 ? deletedSongRequestId : undefined,
   }
 }
 

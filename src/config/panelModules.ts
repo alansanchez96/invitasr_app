@@ -50,6 +50,7 @@ export const clientModuleGroups: PanelModuleGroup[] = [
     items: [
       { label: 'Mis invitaciones', href: '/panel/invitaciones' },
       { label: 'Lista de invitados', href: '/panel/invitados' },
+      { label: 'Canciones sugeridas', href: '/panel/canciones-sugeridas' },
     ],
   },
   {

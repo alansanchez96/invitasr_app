@@ -275,6 +275,17 @@ const goToPage = (page: number) => {
 const goToPrevPage = () => goToPage(currentPage.value - 1)
 const goToNextPage = () => goToPage(currentPage.value + 1)
 const refreshRows = () => void loadSubscriptions()
+const clearFilters = () => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
+
+  searchInput.value = ''
+  searchQuery.value = ''
+  selectedStatus.value = ''
+  resetToFirstPageOrLoad()
+}
 
 const cancelSubscription = async (item: TenantSubscriptionItem) => {
   if (!canCancelSubscription(item) || cancelingId.value) return
@@ -401,6 +412,19 @@ onBeforeUnmount(() => {
         <p class="filters-helper">{{ activeSortLabel }}</p>
 
         <div class="filters-actions">
+          <button
+            type="button"
+            class="clear-filter-btn"
+            :disabled="isLoading"
+            aria-label="Limpiar filtros"
+            title="Limpiar filtros"
+            @click="clearFilters">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+
           <div class="per-page-control">
             <select aria-label="Cantidad de filas" v-model.number="perPage" :disabled="isLoading">
               <option v-for="option in perPageOptions" :key="option" :value="option">
@@ -758,14 +782,21 @@ onBeforeUnmount(() => {
 }
 
 .filters-row {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(190px, 230px) auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: end;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filters-row > * {
   min-width: 0;
+}
+
+.filters-row .field,
+.filters-row .filters-helper {
+  flex: 1 1 calc(25% - 12px);
 }
 
 .field {
@@ -860,6 +891,8 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   min-height: 44px;
   justify-self: end;
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .per-page-control {
@@ -881,6 +914,7 @@ onBeforeUnmount(() => {
   padding: 0 0.6rem;
 }
 
+.clear-filter-btn,
 .refresh-icon-btn,
 .table-icon-btn,
 .detail-close {
@@ -892,6 +926,22 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.clear-filter-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+}
+
+.clear-filter-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .refresh-icon-btn {
@@ -906,6 +956,8 @@ onBeforeUnmount(() => {
   height: 16px;
 }
 
+.clear-filter-btn:hover,
+.clear-filter-btn:focus-visible,
 .refresh-icon-btn:hover,
 .refresh-icon-btn:focus-visible,
 .table-icon-btn:hover,
@@ -916,6 +968,7 @@ onBeforeUnmount(() => {
   border-color: #cdbcf2;
 }
 
+.clear-filter-btn:disabled,
 .refresh-icon-btn:disabled,
 .table-icon-btn:disabled {
   cursor: not-allowed;
@@ -1403,18 +1456,9 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .filters-row {
-    grid-template-columns: minmax(220px, 1fr) minmax(180px, 230px);
-  }
-
-  .filters-helper {
-    grid-column: 1 / -1;
-  }
-
-  .filters-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-    justify-self: stretch;
+  .filters-row .field,
+  .filters-row .filters-helper {
+    flex-basis: calc(50% - 12px);
   }
 }
 
@@ -1458,7 +1502,6 @@ th {
   }
 
   .filters-row {
-    grid-template-columns: 1fr;
     align-items: stretch;
     width: 100%;
     max-width: 100%;
@@ -1480,11 +1523,7 @@ th {
   }
 
   .filters-actions {
-    width: 100%;
     justify-content: space-between;
-    justify-self: stretch;
-    margin-left: 0;
-    grid-column: auto;
   }
 
   .table-wrap {
@@ -1536,15 +1575,20 @@ th {
   }
 
   .filters-row {
-    grid-template-columns: 1fr;
     align-items: stretch;
     width: 100%;
     max-width: 100%;
   }
 
+  .filters-row .field,
+  .filters-row .filters-helper {
+    flex-basis: 100%;
+  }
+
   .filters-actions {
     width: 100%;
     justify-content: space-between;
+    margin-left: 0;
   }
 
   .field-search {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PhoneCountrySelect from '@/components/ui/PhoneCountrySelect.vue'
-import { createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
+import { createPublicInvitationDjSongRequest, createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
 import type {
   InvitationTemplateRendererProps,
   InvitationThemeGradientConfig,
@@ -73,7 +73,15 @@ const rsvpWhatsappCountry = ref(DEFAULT_PHONE_COUNTRY)
 const rsvpWhatsapp = ref('')
 const rsvpCompanionsCount = ref<number | null>(null)
 const rsvpSuccessMessage = ref<string | null>(null)
+const rsvpConfirmationModalOpen = ref(false)
+const rsvpConfirmationAccepted = ref(false)
 const faqReviewedForRsvp = ref(false)
+const djSongModalOpen = ref(false)
+const djSongSubmitting = ref(false)
+const djSongName = ref('')
+const djSongReferenceUrl = ref('')
+const djSongSuccessMessage = ref<string | null>(null)
+const giftOptionsModalOpen = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
 const MOBILE_GALLERY_BREAKPOINT = 640
 const TABLET_GALLERY_BREAKPOINT = 900
@@ -465,6 +473,9 @@ const rsvpCompanionsEnabled = computed(() =>
   Boolean(props.data.rsvp?.features?.companionsEnabled ?? props.data.rsvp?.features?.companions_enabled)
   || rsvpFields.value.includes('companions'),
 )
+const rsvpPopupConfirmationEnabled = computed(() =>
+  Boolean(props.data.rsvp?.features?.popupConfirmationEnabled ?? props.data.rsvp?.features?.popup_confirmation_enabled),
+)
 const rsvpWhatsappMaxLength = computed(() => nationalPhoneInputMaxLength(rsvpWhatsappCountry.value))
 const rsvpEnabled = computed(() => props.data.rsvp?.enabled !== false)
 const faqReadRequiredForRsvp = computed(() => {
@@ -494,6 +505,61 @@ const rsvpGateHint = computed(() =>
         : 'Confirma tu asistencia para que podamos esperarte mejor.'
     ),
 )
+
+const djSongConfig = computed(() => {
+  const source = props.data.djSongRequests ?? {}
+  return {
+    enabled: source.enabled !== false,
+    buttonLabel: resolveText(source.buttonLabel, 'Sugerir canción'),
+    modalTitle: resolveText(source.modalTitle, 'Sugerir canción para la fiesta'),
+    songLabel: resolveText(source.songLabel, 'Nombre de la canción'),
+    referenceLabel: resolveText(source.referenceLabel, 'Enlace de referencia'),
+    submitLabel: resolveText(source.submitLabel, 'Enviar sugerencia'),
+    features: source.features ?? {},
+  }
+})
+
+const djSongRequestsEnabled = computed(() => {
+  const features = djSongConfig.value.features
+  return djSongConfig.value.enabled
+    && Boolean(features.enabled ?? features.djSongRequestsEnabled ?? features.dj_song_requests_enabled)
+})
+
+const djSongCanSubmit = computed(() =>
+  !props.editable
+  && !props.demoMode
+  && djSongRequestsEnabled.value
+  && !djSongSubmitting.value
+  && djSongName.value.trim().length >= 2,
+)
+
+const giftOptionsConfig = computed(() => {
+  const source = props.data.giftOptions ?? {}
+  const rawItems = Array.isArray(source.items) ? source.items : []
+  return {
+    enabled: source.enabled === true,
+    title: resolveText(source.title, 'Opciones de regalos'),
+    description: resolveText(source.description, 'Ideas simples para quienes quieran tener un detalle con nosotros.'),
+    buttonLabel: resolveText(source.buttonLabel, 'Ver opciones de regalos'),
+    modalTitle: resolveText(source.modalTitle, 'Opciones de regalos'),
+    emptyLabel: resolveText(source.emptyLabel, 'Aún no agregaste opciones de regalos.'),
+    features: source.features ?? {},
+    items: rawItems
+      .map((item, index) => ({
+        id: resolveText(item.id, `gift-${index + 1}`),
+        category: resolveText(item.category, 'Regalo'),
+        name: resolveText(item.name, ''),
+      }))
+      .filter((item) => item.name.trim().length > 0),
+  }
+})
+
+const giftOptionsEnabled = computed(() => {
+  const features = giftOptionsConfig.value.features
+  return giftOptionsConfig.value.enabled
+    && isSectionVisible('giftOptions')
+    && Boolean(features.enabled ?? features.giftOptionsEnabled ?? features.gift_options_enabled)
+})
 
 type TemplateLocationCard = {
   id: string
@@ -823,6 +889,21 @@ const previewButtonsFontClass = computed(() => {
   return previewZoomValue.value <= 80 ? 'snow-template--preview-buttons-16' : ''
 })
 
+const publishedOverlayOpen = computed(() =>
+  !props.editable
+  && !props.constrainedOverlay
+  && (
+    faqModalOpen.value
+    || checkinOverlayVisible.value
+    || galleryLightboxOpen.value
+    || wallComposerOpen.value
+    || wallArchiveOpen.value
+    || djSongModalOpen.value
+    || giftOptionsModalOpen.value
+    || rsvpConfirmationModalOpen.value
+  ),
+)
+
 const galleryItems = computed(() => {
   if (Array.isArray(props.data.gallery) && props.data.gallery.length) {
     return props.data.gallery
@@ -1032,6 +1113,35 @@ const checkinEntryText = computed(() => {
   return `Valor de la entrada: ${formattedAmount}.`
 })
 
+const rsvpPopupConfirmationMessage = computed(() => {
+  const amount = checkinEntryText.value
+    .replace('Valor de la entrada:', '')
+    .replace(/\.$/, '')
+    .trim()
+  const time = checkinEventDateText.value.trim()
+
+  if (!amount && !time) {
+    return 'Antes de enviar tu confirmación, revisa que tus datos estén correctos. ¿Quieres continuar?'
+  }
+
+  const amountText = amount ? `el valor de la tarjeta es ${amount}` : ''
+  const timeText = time ? `la recepción comienza el ${time}` : ''
+  const joined = [amountText, timeText].filter(Boolean).join(' y ')
+
+  return `¡Genial! Recuerda que ${joined}. ¿Deseas continuar?`
+})
+
+const closeRsvpConfirmationModal = () => {
+  if (rsvpSubmitting.value) return
+  rsvpConfirmationModalOpen.value = false
+}
+
+const confirmRsvpSubmission = () => {
+  rsvpConfirmationAccepted.value = true
+  rsvpConfirmationModalOpen.value = false
+  void submitRsvp()
+}
+
 const checkinOverlayStyle = computed<Record<string, string>>(() => {
   if (props.editable || props.constrainedOverlay) {
     return {
@@ -1173,6 +1283,12 @@ const submitRsvp = async () => {
     return
   }
 
+  if (rsvpPopupConfirmationEnabled.value && !rsvpConfirmationAccepted.value) {
+    rsvpConfirmationModalOpen.value = true
+    return
+  }
+  rsvpConfirmationAccepted.value = false
+
   rsvpSubmitting.value = true
   try {
     const payload: Parameters<typeof createPublicInvitationRsvpResponse>[0] = {
@@ -1208,6 +1324,60 @@ const submitRsvp = async () => {
 const handleRsvpPrimaryAction = () => {
   if (props.editable) return
   void submitRsvp()
+}
+
+const openDjSongModal = () => {
+  if (props.demoMode) {
+    notifyError('En la demo este botón es solo visual. En una invitación Pro tus invitados podrán sugerir canciones.')
+    return
+  }
+
+  if (!djSongRequestsEnabled.value) return
+  djSongSuccessMessage.value = null
+  djSongModalOpen.value = true
+}
+
+const closeDjSongModal = () => {
+  if (djSongSubmitting.value) return
+  djSongModalOpen.value = false
+}
+
+const openGiftOptionsModal = () => {
+  if (!giftOptionsEnabled.value) return
+  giftOptionsModalOpen.value = true
+}
+
+const closeGiftOptionsModal = () => {
+  giftOptionsModalOpen.value = false
+}
+
+const clearDjSongForm = () => {
+  djSongName.value = ''
+  djSongReferenceUrl.value = ''
+}
+
+const submitDjSongRequest = async () => {
+  if (props.editable) return
+  if (!djSongCanSubmit.value) {
+    notifyError('Escribe el nombre de la canción para enviarla.')
+    return
+  }
+
+  djSongSubmitting.value = true
+  try {
+    await createPublicInvitationDjSongRequest({
+      song_name: djSongName.value.trim(),
+      reference_url: djSongReferenceUrl.value.trim() || null,
+    })
+    clearDjSongForm()
+    djSongSuccessMessage.value = 'Listo. La canción quedó sugerida.'
+    notifySuccess('Tu canción quedó sugerida.')
+  } catch (error) {
+    const payload = error as { message?: string }
+    notifyError(payload?.message ?? 'No pudimos guardar tu canción ahora.')
+  } finally {
+    djSongSubmitting.value = false
+  }
 }
 
 const formatWallDate = (rawIso?: string | null): string => {
@@ -1428,10 +1598,10 @@ watch(galleryItems, (items) => {
   galleryLightboxIndex.value = normalizedGalleryLightboxIndex.value
 })
 
-watch(galleryLightboxOpen, (isOpen) => {
-  if (props.editable || props.constrainedOverlay) return
+watch(publishedOverlayOpen, (isOpen) => {
+  if (typeof document === 'undefined') return
   document.body.style.overflow = isOpen ? 'hidden' : ''
-})
+}, { immediate: true })
 
 watch(
   () => props.data.music?.muted,
@@ -1823,6 +1993,33 @@ watch(
       <span>{{ musicMuted ? 'Activar música' : 'Silenciar música' }}</span>
     </button>
 
+    <button
+      v-if="djSongRequestsEnabled"
+      type="button"
+      class="snow-dj-song-fab"
+      :class="{ 'snow-dj-song-fab--with-music': isSectionVisible('music') }"
+      @click="openDjSongModal"
+    >
+      {{ djSongConfig.buttonLabel }}
+    </button>
+
+    <button
+      v-if="giftOptionsEnabled"
+      type="button"
+      class="snow-gift-fab"
+      :class="{ 'snow-gift-fab--stacked': djSongRequestsEnabled || isSectionVisible('music') }"
+      @click="openGiftOptionsModal"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 12v8H4v-8" />
+        <path d="M2 7h20v5H2z" />
+        <path d="M12 7v13" />
+        <path d="M12 7H8.5a2 2 0 1 1 0-4C11 3 12 7 12 7Z" />
+        <path d="M12 7h3.5a2 2 0 1 0 0-4C13 3 12 7 12 7Z" />
+      </svg>
+      {{ giftOptionsConfig.buttonLabel }}
+    </button>
+
     <RouterLink v-if="branding.visible" class="snow-brand-watermark" to="/planes">
       <span>{{ branding.label }}</span>
       <strong>{{ branding.ctaLabel }}</strong>
@@ -1866,6 +2063,35 @@ watch(
     </div>
 
     <div
+      v-if="rsvpConfirmationModalOpen"
+      class="snow-modal-backdrop"
+      :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
+      @click.self="closeRsvpConfirmationModal">
+      <div class="snow-modal snow-modal--rsvp-confirm" :class="{ 'snow-modal--embedded': usesEmbeddedOverlay }">
+        <header class="snow-modal__head">
+          <h3>Antes de confirmar</h3>
+          <button type="button" aria-label="Salir de confirmación" title="Salir" @click="closeRsvpConfirmationModal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 6-12 12" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+        <div class="snow-modal__body snow-rsvp-confirm">
+          <p>{{ rsvpPopupConfirmationMessage }}</p>
+          <div class="snow-rsvp-confirm__actions">
+            <button type="button" class="snow-rsvp-confirm__secondary" @click="closeRsvpConfirmationModal">
+              Revisar
+            </button>
+            <button type="button" class="snow-action" @click="confirmRsvpSubmission">
+              Continuar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
       v-if="wallComposerOpen"
       class="snow-modal-backdrop"
       :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
@@ -1896,6 +2122,66 @@ watch(
               {{ wallSubmitting ? 'Publicando...' : 'Publicar mensaje' }}
             </button>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="djSongModalOpen"
+      class="snow-modal-backdrop"
+      :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
+      @click.self="closeDjSongModal">
+      <div class="snow-modal snow-modal--dj-song" :class="{ 'snow-modal--embedded': usesEmbeddedOverlay }">
+        <header class="snow-modal__head">
+          <h3>{{ djSongConfig.modalTitle }}</h3>
+          <button type="button" aria-label="Salir de sugerir canción" title="Salir" @click="closeDjSongModal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 6-12 12" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+        <div class="snow-modal__body">
+          <form class="snow-dj-song__form" @submit.prevent="submitDjSongRequest">
+            <label>
+              <span>{{ djSongConfig.songLabel }}</span>
+              <input v-model="djSongName" type="text" maxlength="180" :disabled="props.editable || props.demoMode || djSongSubmitting" required />
+            </label>
+            <label>
+              <span>{{ djSongConfig.referenceLabel }}</span>
+              <input v-model="djSongReferenceUrl" type="url" maxlength="2048" placeholder="YouTube, Spotify u otro enlace" :disabled="props.editable || props.demoMode || djSongSubmitting" />
+            </label>
+            <button type="submit" class="snow-action snow-dj-song__submit" :disabled="!djSongCanSubmit">
+              {{ djSongSubmitting ? 'Enviando...' : djSongConfig.submitLabel }}
+            </button>
+            <p v-if="djSongSuccessMessage" class="snow-dj-song__success">{{ djSongSuccessMessage }}</p>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="giftOptionsModalOpen"
+      class="snow-modal-backdrop"
+      :class="{ 'snow-modal-backdrop--embedded': usesEmbeddedOverlay }"
+      @click.self="closeGiftOptionsModal">
+      <div class="snow-modal snow-modal--gifts" :class="{ 'snow-modal--embedded': usesEmbeddedOverlay }">
+        <header class="snow-modal__head">
+          <h3>{{ giftOptionsConfig.modalTitle }}</h3>
+          <button type="button" aria-label="Salir de opciones de regalos" title="Salir" @click="closeGiftOptionsModal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 6-12 12" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+        <div class="snow-modal__body snow-gifts">
+          <p class="snow-gifts__intro">{{ giftOptionsConfig.description }}</p>
+          <article v-for="item in giftOptionsConfig.items" :key="item.id" class="snow-gift-item">
+            <span>{{ item.category }}</span>
+            <strong>{{ item.name }}</strong>
+          </article>
+          <p v-if="!giftOptionsConfig.items.length">{{ giftOptionsConfig.emptyLabel }}</p>
         </div>
       </div>
     </div>
@@ -2270,17 +2556,20 @@ watch(
   background: color-mix(in srgb, var(--section-surface, var(--snow-section-bg)) 86%, var(--section-accent, var(--snow-primary)));
 }
 
-.snow-wall__form {
+.snow-wall__form,
+.snow-dj-song__form {
   display: grid;
   gap: 10px;
 }
 
-.snow-wall__form label {
+.snow-wall__form label,
+.snow-dj-song__form label {
   display: grid;
   gap: 6px;
 }
 
-.snow-wall__form span {
+.snow-wall__form span,
+.snow-dj-song__form span {
   font-size: 0.78rem;
   color: color-mix(in srgb, var(--section-text, var(--snow-text)) 72%, #ffffff);
   font-weight: 700;
@@ -2295,7 +2584,8 @@ watch(
 }
 
 .snow-wall__form input,
-.snow-wall__form textarea {
+.snow-wall__form textarea,
+.snow-dj-song__form input {
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--section-accent, var(--snow-primary)) 20%, transparent);
   padding: 0.65rem 0.75rem;
@@ -2318,6 +2608,19 @@ watch(
   padding-inline: 1.25rem;
   text-align: center;
   box-shadow: 0 12px 22px color-mix(in srgb, var(--snow-button-bg) 20%, transparent);
+}
+
+.snow-dj-song__submit {
+  width: fit-content;
+  min-width: 150px;
+  min-height: 42px;
+}
+
+.snow-dj-song__success {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--section-accent, var(--snow-primary));
 }
 
 .snow-wall__grid {
@@ -2520,6 +2823,46 @@ watch(
   max-width: 460px;
 }
 
+.snow-modal--dj-song {
+  max-width: 430px;
+}
+
+.snow-modal--gifts {
+  max-width: 520px;
+}
+
+.snow-modal--rsvp-confirm {
+  max-width: 430px;
+}
+
+.snow-rsvp-confirm {
+  gap: 1rem;
+}
+
+.snow-rsvp-confirm p {
+  font-size: 0.96rem;
+  line-height: 1.55;
+}
+
+.snow-rsvp-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.snow-rsvp-confirm__secondary {
+  border: 1px solid color-mix(in srgb, var(--snow-primary) 24%, transparent);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--snow-text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 0.72rem 1rem;
+  cursor: pointer;
+}
+
 .snow-modal--wall-archive {
   width: min(920px, 94vw);
   max-height: min(88vh, 820px);
@@ -2538,6 +2881,8 @@ watch(
 
 .snow-wall-archive {
   padding: 1.15rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .snow-wall-cloud-layer {
@@ -3442,9 +3787,11 @@ watch(
 .snow-wall__chip,
 .snow-wall__empty,
 .snow-wall__form span,
+.snow-dj-song__form span,
 .snow-wall__counter,
 .snow-wall__form input,
 .snow-wall__form textarea,
+.snow-dj-song__form input,
 .snow-wall-note strong,
 .snow-wall-note time,
 .snow-wall-note p,
@@ -3585,6 +3932,105 @@ watch(
 .snow-music-fab.active {
   background: var(--snow-music-button-bg);
   color: var(--snow-music-button-text);
+}
+
+.snow-dj-song-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 91;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 0.62rem 0.92rem;
+  background: var(--snow-button-bg);
+  color: var(--snow-button-text);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.snow-dj-song-fab--with-music {
+  bottom: 78px;
+}
+
+.snow-dj-song-fab:hover,
+.snow-dj-song-fab:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 38px rgba(15, 23, 42, 0.38);
+}
+
+.snow-gift-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 91;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--snow-button-bg) 28%, #ffffff);
+  border-radius: 999px;
+  padding: 0.62rem 0.92rem;
+  background: color-mix(in srgb, var(--snow-section-bg) 92%, #ffffff);
+  color: var(--snow-button-bg);
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.snow-gift-fab--stacked {
+  bottom: 134px;
+}
+
+.snow-gift-fab svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.snow-gift-fab:hover,
+.snow-gift-fab:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 38px rgba(15, 23, 42, 0.3);
+}
+
+.snow-gifts {
+  display: grid;
+  gap: 12px;
+}
+
+.snow-gifts__intro {
+  margin: 0;
+}
+
+.snow-gift-item {
+  display: grid;
+  gap: 4px;
+  padding: 0.9rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--snow-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--snow-section-bg) 92%, #ffffff);
+}
+
+.snow-gift-item span {
+  color: var(--snow-primary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.snow-gift-item strong {
+  color: var(--snow-text);
+  font-size: 1rem;
 }
 
 .music-wave {
@@ -4031,10 +4477,22 @@ watch(
 }
 
 .snow-template--preview-tablet .snow-music-fab,
-.snow-template--preview-mobile .snow-music-fab {
+.snow-template--preview-tablet .snow-dj-song-fab,
+.snow-template--preview-mobile .snow-music-fab,
+.snow-template--preview-mobile .snow-dj-song-fab {
   right: 12px;
+}
+
+.snow-template--preview-tablet .snow-music-fab,
+.snow-template--preview-mobile .snow-music-fab {
   bottom: 12px;
   padding: 0.55rem 0.7rem;
+}
+
+.snow-template--preview-tablet .snow-dj-song-fab,
+.snow-template--preview-mobile .snow-dj-song-fab {
+  bottom: 64px;
+  max-width: calc(100% - 24px);
 }
 
 .snow-template--preview-tablet .snow-music-fab span:last-child,
@@ -4483,14 +4941,26 @@ watch(
   }
 
   .snow-wall__form input,
-  .snow-wall__form textarea {
+  .snow-wall__form textarea,
+  .snow-dj-song__form input {
     font-size: 0.88rem;
   }
 
-  .snow-wall__submit {
+  .snow-wall__submit,
+  .snow-dj-song__submit {
     justify-self: stretch;
     width: 100%;
     min-width: 0;
+  }
+
+  .snow-dj-song-fab {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+  }
+
+  .snow-dj-song-fab--with-music {
+    bottom: 66px;
   }
 
 }

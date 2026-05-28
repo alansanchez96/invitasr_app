@@ -252,6 +252,21 @@ const wallCloudMessagesDraft = computed({
     contentDraft.value = nextContent
   },
 })
+const rsvpPopupConfirmationDraft = computed({
+  get: () => {
+    const raw = getByPath(contentDraft.value, 'rsvp.features.popupConfirmationEnabled')
+      ?? getByPath(contentDraft.value, 'rsvp.features.popup_confirmation_enabled')
+    return isProLikePlan.value && Boolean(raw)
+  },
+  set: (enabled: boolean) => {
+    if (!isProLikePlan.value) return
+
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'rsvp.features.popupConfirmationEnabled', enabled)
+    setByPath(nextContent, 'rsvp.features.popup_confirmation_enabled', enabled)
+    contentDraft.value = nextContent
+  },
+})
 const rsvpFeaturePreview = computed(() => ({
   enabled: true,
   limit: 999,
@@ -266,6 +281,13 @@ const rsvpFeaturePreview = computed(() => ({
   companions_enabled: isProLikePlan.value,
   whatsappConfirmationsEnabled: rsvpWhatsappConfirmationsDraft.value,
   whatsapp_confirmations_enabled: rsvpWhatsappConfirmationsDraft.value,
+  popupConfirmationEnabled: rsvpPopupConfirmationDraft.value,
+  popup_confirmation_enabled: rsvpPopupConfirmationDraft.value,
+}))
+const djSongRequestFeaturePreview = computed(() => ({
+  enabled: isProLikePlan.value,
+  djSongRequestsEnabled: isProLikePlan.value,
+  dj_song_requests_enabled: isProLikePlan.value,
 }))
 const {
   isLoadingGallery,
@@ -328,6 +350,14 @@ const {
   getByPath: (source, path) => getByPath(source, path),
   setByPath: (source, path, value) => setByPath(source, path, value),
   asText: (value, fallback = '') => asText(value, fallback),
+})
+const effectiveWallMessageLimit = computed(() => {
+  const limit = wallSummary.value.limit
+  if (limit === null) return null
+  const numericLimit = Number(limit)
+  if (!Number.isFinite(numericLimit)) return null
+  if (isProLikePlan.value && numericLimit < 8) return 8
+  return Math.max(0, Math.floor(numericLimit))
 })
 const isDeletingPendingWallMessage = computed(() => {
   const messageId = pendingDeleteWallMessageId.value
@@ -987,6 +1017,13 @@ const ensureDefaultFeatureData = () => {
     setByPath(nextContent, 'rsvp.features.whatsapp_confirmations_enabled', isProLikePlan.value)
   }
 
+  const rawPopupConfirmation = getByPath(nextContent, 'rsvp.features.popupConfirmationEnabled')
+    ?? getByPath(nextContent, 'rsvp.features.popup_confirmation_enabled')
+  if (typeof rawPopupConfirmation !== 'boolean') {
+    setByPath(nextContent, 'rsvp.features.popupConfirmationEnabled', false)
+    setByPath(nextContent, 'rsvp.features.popup_confirmation_enabled', false)
+  }
+
   if (!asText(getByPath(nextContent, 'wall.title'))) {
     setByPath(nextContent, 'wall.title', 'Muro de mensajes')
   }
@@ -1031,6 +1068,28 @@ const ensureDefaultFeatureData = () => {
     } else {
       setByPath(nextContent, 'faq', [])
     }
+  }
+
+  if (!asText(getByPath(nextContent, 'giftOptions.title'))) {
+    setByPath(nextContent, 'giftOptions.title', 'Opciones de regalos')
+  }
+  if (!asText(getByPath(nextContent, 'giftOptions.description'))) {
+    setByPath(nextContent, 'giftOptions.description', 'Ideas simples para quienes quieran tener un detalle con nosotros.')
+  }
+  if (!asText(getByPath(nextContent, 'giftOptions.buttonLabel'))) {
+    setByPath(nextContent, 'giftOptions.buttonLabel', 'Ver opciones de regalos')
+  }
+  if (!asText(getByPath(nextContent, 'giftOptions.modalTitle'))) {
+    setByPath(nextContent, 'giftOptions.modalTitle', 'Opciones de regalos')
+  }
+  if (!asText(getByPath(nextContent, 'giftOptions.emptyLabel'))) {
+    setByPath(nextContent, 'giftOptions.emptyLabel', 'Aún no agregaste opciones de regalos.')
+  }
+  if (typeof getByPath(nextContent, 'giftOptions.enabled') !== 'boolean') {
+    setByPath(nextContent, 'giftOptions.enabled', false)
+  }
+  if (!Array.isArray(getByPath(nextContent, 'giftOptions.items'))) {
+    setByPath(nextContent, 'giftOptions.items', [])
   }
 
   const countdownTarget = asText(getByPath(nextContent, 'countdown.targetDateIso'))
@@ -1092,6 +1151,7 @@ const templateSections = computed<EditorSection[]>(() => {
     if (['faq', 'frequently-asked-questions', 'preguntas-frecuentes'].includes(normalized)) return 'faq'
     if (['rsvp', 'confirm', 'attendance'].includes(normalized)) return 'rsvp'
     if (['wall', 'messages', 'message-wall', 'muro'].includes(normalized)) return 'wall'
+    if (['gift-options', 'gifts', 'regalos', 'opciones-de-regalos'].includes(normalized)) return 'giftOptions'
     return rawKey
   }
 
@@ -1130,6 +1190,7 @@ const templateSections = computed<EditorSection[]>(() => {
     { key: 'faq', label: 'Preguntas frecuentes', optional: true },
     { key: 'rsvp', label: 'Confirmación de asistencia', optional: true },
     { key: 'wall', label: 'Muro de mensajes', optional: true },
+    { key: 'giftOptions', label: 'Opciones de regalos', optional: true },
   ]
 
   for (const section of defaults.filter((item) => supportsSection(item.key))) {
@@ -1224,6 +1285,7 @@ const configBarIconPaths: Record<string, string[]> = {
   gallery: ['M4 5h16v14H4z', 'M8 11l3 3 2-2 3 4', 'M8 8h.01'],
   faq: ['M12 18h.01', 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.5 1-1.5 2.2', 'M4 4h16v16H4z'],
   wall: ['M4 5h16v11H8l-4 4V5Z', 'M8 9h8', 'M8 13h5'],
+  giftOptions: ['M20 12v8H4v-8', 'M2 7h20v5H2z', 'M12 7v13', 'M12 7H8.5a2 2 0 1 1 0-4C11 3 12 7 12 7Z', 'M12 7h3.5a2 2 0 1 0 0-4C13 3 12 7 12 7Z'],
   rsvp: ['M4 6h16', 'M4 12h10', 'M4 18h8', 'M16 17l2 2 4-5'],
   location: ['M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z', 'M12 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z'],
   saveDate: ['M7 3v4', 'M17 3v4', 'M4 7h16v14H4z', 'M8 13h8'],
@@ -1787,6 +1849,31 @@ const faqItems = computed(() => {
   })
 })
 
+const giftOptionsEnabledDraft = computed({
+  get: () => isProLikePlan.value && Boolean(getByPath(contentDraft.value, 'giftOptions.enabled') ?? false),
+  set: (enabled: boolean) => {
+    if (!isProLikePlan.value) return
+
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'giftOptions.enabled', enabled)
+    contentDraft.value = nextContent
+  },
+})
+
+const giftItems = computed(() => {
+  const raw = getByPath(contentDraft.value, 'giftOptions.items')
+  if (!Array.isArray(raw)) return [] as Array<{ id: string; category: string; name: string }>
+
+  return raw.map((item, index) => {
+    const row = toRecord(item)
+    return {
+      id: asText(row.id, `gift-${index + 1}`),
+      category: asText(row.category),
+      name: asText(row.name),
+    }
+  })
+})
+
 const musicSelection = computed({
   get: () => {
     const audioUrl = asText(getByPath(contentDraft.value, 'music.audioUrl'))
@@ -2178,6 +2265,8 @@ const previewData = computed<WeddingTemplateData>(() => {
       description: asText(getByPath(contentDraft.value, 'wall.description'), 'Deja unas palabras lindas para este gran día.'),
       addLabel: asText(getByPath(contentDraft.value, 'wall.addLabel'), 'Añadir mensaje'),
       emptyStateLabel: asText(getByPath(contentDraft.value, 'wall.emptyStateLabel'), 'Sé la primera persona en dejar un mensaje.'),
+      limit: effectiveWallMessageLimit.value,
+      receivedCount: wallUsedCountInEditor.value,
       cloudMessagesEnabled: wallCloudMessagesDraft.value,
       cloud_messages_enabled: wallCloudMessagesDraft.value,
       features: {
@@ -2194,6 +2283,29 @@ const previewData = computed<WeddingTemplateData>(() => {
           isVisible: item.is_visible,
           postedAt: item.posted_at,
         })),
+    },
+    djSongRequests: {
+      enabled: isProLikePlan.value,
+      buttonLabel: asText(getByPath(contentDraft.value, 'djSongRequests.buttonLabel'), 'Sugerir canción'),
+      modalTitle: asText(getByPath(contentDraft.value, 'djSongRequests.modalTitle'), 'Sugerir canción para la fiesta'),
+      songLabel: asText(getByPath(contentDraft.value, 'djSongRequests.songLabel'), 'Nombre de la canción'),
+      referenceLabel: asText(getByPath(contentDraft.value, 'djSongRequests.referenceLabel'), 'Enlace de referencia'),
+      submitLabel: asText(getByPath(contentDraft.value, 'djSongRequests.submitLabel'), 'Enviar sugerencia'),
+      features: djSongRequestFeaturePreview.value,
+    },
+    giftOptions: {
+      enabled: giftOptionsEnabledDraft.value,
+      title: asText(getByPath(contentDraft.value, 'giftOptions.title'), 'Opciones de regalos'),
+      description: asText(getByPath(contentDraft.value, 'giftOptions.description'), 'Ideas simples para quienes quieran tener un detalle con nosotros.'),
+      buttonLabel: asText(getByPath(contentDraft.value, 'giftOptions.buttonLabel'), 'Ver opciones de regalos'),
+      modalTitle: asText(getByPath(contentDraft.value, 'giftOptions.modalTitle'), 'Opciones de regalos'),
+      emptyLabel: asText(getByPath(contentDraft.value, 'giftOptions.emptyLabel'), 'Aún no agregaste opciones de regalos.'),
+      items: giftItems.value,
+      features: {
+        enabled: isProLikePlan.value,
+        giftOptionsEnabled: isProLikePlan.value,
+        gift_options_enabled: isProLikePlan.value,
+      },
     },
     branding: {
       visible: false,
@@ -2449,6 +2561,35 @@ const updateFaqItem = (index: number, key: 'question' | 'answer', value: string)
   contentDraft.value = nextContent
 }
 
+const setDraftPathValue = (path: string, value: unknown) => {
+  const nextContent = cloneRecord(contentDraft.value)
+  setByPath(nextContent, path, value)
+  contentDraft.value = nextContent
+}
+
+const addGiftItem = () => {
+  const nextItems = [...giftItems.value, { id: `gift-${Date.now()}`, category: '', name: '' }]
+  const nextContent = cloneRecord(contentDraft.value)
+  setByPath(nextContent, 'giftOptions.items', nextItems)
+  contentDraft.value = nextContent
+}
+
+const removeGiftItem = (index: number) => {
+  const nextItems = giftItems.value.filter((_, currentIndex) => currentIndex !== index)
+  const nextContent = cloneRecord(contentDraft.value)
+  setByPath(nextContent, 'giftOptions.items', nextItems)
+  contentDraft.value = nextContent
+}
+
+const updateGiftItem = (index: number, key: 'category' | 'name', value: string) => {
+  const nextItems = giftItems.value.map((item, currentIndex) =>
+    currentIndex === index ? { ...item, [key]: value } : item,
+  )
+  const nextContent = cloneRecord(contentDraft.value)
+  setByPath(nextContent, 'giftOptions.items', nextItems)
+  contentDraft.value = nextContent
+}
+
 const updateRsvpLabel = (key: 'firstName' | 'lastName' | 'dietaryRestrictions' | 'whatsapp' | 'companions', value: string) => {
   rsvpLabelsDraft.value = { ...rsvpLabelsDraft.value, [key]: value }
 }
@@ -2637,6 +2778,8 @@ const performSaveChanges = async () => {
     const hadPendingWallDeletes = hasPendingWallMessageDeletes.value
 
     const projectedContent = await buildProjectedContentForSave()
+    setByPath(projectedContent, 'wall.limit', effectiveWallMessageLimit.value)
+    setByPath(projectedContent, 'wall.receivedCount', wallUsedCountInEditor.value)
     contentDraft.value = projectedContent
 
     const response = await updateTenantInvitation(invitation.value.id, {
@@ -3475,12 +3618,63 @@ onBeforeRouteLeave((to) => {
                         <BaseButton type="button" variant="ghost" @click="addFaqItem">Agregar pregunta</BaseButton>
                       </div>
 
+                      <div v-else-if="section.key === 'giftOptions'" class="option-panel">
+                        <template v-if="isProLikePlan">
+                          <div class="feature-inline-switch">
+                            <span>Visible en la invitación</span>
+                            <label class="switch">
+                              <input v-model="giftOptionsEnabledDraft" type="checkbox" />
+                              <span class="switch-track"></span>
+                            </label>
+                          </div>
+
+                          <label class="field">
+                            <span>Título</span>
+                            <input :value="asText(getByPath(contentDraft, 'giftOptions.title'), 'Opciones de regalos')" type="text"
+                              @input="setDraftPathValue('giftOptions.title', ($event.target as HTMLInputElement).value)" />
+                          </label>
+
+                          <label class="field">
+                            <span>Descripción</span>
+                            <textarea :value="asText(getByPath(contentDraft, 'giftOptions.description'), '')" rows="2"
+                              @input="setDraftPathValue('giftOptions.description', ($event.target as HTMLTextAreaElement).value)" />
+                          </label>
+
+                          <label class="field">
+                            <span>Texto del botón</span>
+                            <input :value="asText(getByPath(contentDraft, 'giftOptions.buttonLabel'), 'Ver opciones de regalos')" type="text"
+                              @input="setDraftPathValue('giftOptions.buttonLabel', ($event.target as HTMLInputElement).value)" />
+                          </label>
+
+                          <div class="faq-editor">
+                            <article v-for="(item, index) in giftItems" :key="item.id" class="faq-item">
+                              <label class="field">
+                                <span>Categoría</span>
+                                <input :value="item.category" type="text" placeholder="Ej: Mueble"
+                                  @input="updateGiftItem(index, 'category', ($event.target as HTMLInputElement).value)" />
+                              </label>
+
+                              <label class="field">
+                                <span>Regalo</span>
+                                <input :value="item.name" type="text" placeholder="Ej: Mesa redonda"
+                                  @input="updateGiftItem(index, 'name', ($event.target as HTMLInputElement).value)" />
+                              </label>
+
+                              <button type="button" class="link-button" @click="removeGiftItem(index)">Quitar</button>
+                            </article>
+                          </div>
+
+                          <BaseButton type="button" variant="ghost" @click="addGiftItem">Agregar regalo</BaseButton>
+                        </template>
+                        <p v-else>Las opciones de regalos están disponibles en Pro y Planner.</p>
+                      </div>
+
                       <div v-else-if="section.key === 'wall'" class="option-panel">
                         <p class="gallery-panel-copy">
                           {{ isLoadingWallMessages
                             ? 'Cargando mensajes...'
-                            : `Mensajes recibidos: ${wallUsedCountInEditor}${wallSummary.limit === null ? '' : ` /
-                          ${wallSummary.limit}`}` }}
+                            : `Mensajes recibidos: ${wallUsedCountInEditor}${effectiveWallMessageLimit === null ? '' : ` /
+                          ${effectiveWallMessageLimit}`}` }}
                         </p>
                         <p v-if="!isLoadingWallMessages" class="gallery-panel-copy">
                           Visibles en la invitación: {{ wallVisibleCountInEditor }}
@@ -3583,6 +3777,14 @@ onBeforeRouteLeave((to) => {
                         </label>
 
                         <template v-if="isProLikePlan">
+                          <div class="feature-inline-switch">
+                            <span>Mostrar aviso antes de confirmar</span>
+                            <label class="switch">
+                              <input v-model="rsvpPopupConfirmationDraft" type="checkbox" />
+                              <span class="switch-track"></span>
+                            </label>
+                          </div>
+
                           <div class="feature-inline-switch">
                             <span>Pedir WhatsApp y enviar confirmación</span>
                             <label class="switch">
