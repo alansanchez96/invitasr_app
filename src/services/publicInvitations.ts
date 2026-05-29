@@ -99,6 +99,15 @@ export type PublicDjSongRequest = {
   createdAt: string | null
 }
 
+export type PublicInvitationInteractionType =
+  | 'maps_click'
+  | 'uber_click'
+  | 'rsvp_submit'
+  | 'faq_open'
+  | 'save_date_click'
+  | 'gallery_open'
+  | 'gallery_navigate'
+
 const toRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 
@@ -344,5 +353,23 @@ export const createPublicInvitationDjSongRequest = async (payload: {
       suggestedAt: toString(rawSong.suggested_at) || null,
       createdAt: toString(rawSong.created_at) || null,
     },
+  }
+}
+
+export const trackPublicInvitationInteraction = async (payload: {
+  event_type: PublicInvitationInteractionType
+  metadata?: Record<string, unknown> | null
+}): Promise<{ tracked: boolean }> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>('/invitations/interactions', {
+    method: 'POST',
+    token: '',
+    credentials: 'omit',
+    body: payload,
+  })
+
+  const data = toRecord(response.data)
+
+  return {
+    tracked: Boolean(data.tracked),
   }
 }

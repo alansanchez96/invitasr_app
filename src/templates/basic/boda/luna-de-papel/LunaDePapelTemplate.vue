@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PhoneCountrySelect from '@/components/ui/PhoneCountrySelect.vue'
-import { createPublicInvitationDjSongRequest, createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
+import {
+  createPublicInvitationDjSongRequest,
+  createPublicInvitationRsvpResponse,
+  createPublicInvitationWallMessage,
+  trackPublicInvitationInteraction,
+  type PublicInvitationInteractionType,
+} from '@/services/publicInvitations'
 import type {
   InvitationGalleryItem,
   InvitationTemplateRendererProps,
@@ -774,10 +780,20 @@ const rsvpGateHint = computed(() =>
     : 'Confirma tu asistencia para que podamos esperarte mejor.',
 )
 
+const trackInteraction = (eventType: PublicInvitationInteractionType, metadata?: Record<string, unknown>) => {
+  if (props.editable || props.demoMode) return
+
+  void trackPublicInvitationInteraction({
+    event_type: eventType,
+    metadata: metadata ?? null,
+  }).catch(() => undefined)
+}
+
 const onFaqToggle = (event: Event) => {
   const target = event.target as HTMLDetailsElement | null
   if (target?.open) {
     faqReviewedForRsvp.value = true
+    trackInteraction('faq_open')
   }
 }
 
@@ -835,6 +851,7 @@ const handleRsvp = async () => {
     }
 
     await createPublicInvitationRsvpResponse(payload)
+    trackInteraction('rsvp_submit')
     rsvpSuccessMessage.value = 'Gracias. Tu asistencia quedó confirmada.'
     rsvpFirstName.value = ''
     rsvpLastName.value = ''
@@ -1000,6 +1017,7 @@ const openGalleryLightbox = (index: number) => {
   if (!galleryItems.value.length) return
   galleryLightboxIndex.value = index
   galleryLightboxOpen.value = true
+  trackInteraction('gallery_open', { index })
 }
 
 const closeGalleryLightbox = () => {
@@ -1009,6 +1027,7 @@ const closeGalleryLightbox = () => {
 const selectLightboxSlide = (index: number) => {
   if (!galleryItems.value.length) return
   galleryLightboxIndex.value = index
+  trackInteraction('gallery_navigate', { index })
 }
 
 const goToPreviousLightboxSlide = () => {
@@ -1232,8 +1251,8 @@ watch(
         <p>{{ data.location.address }}</p>
       </div>
       <div class="luna-actions">
-        <a :href="data.location.mapsUrl" target="_blank" rel="noopener noreferrer">Ver mapa</a>
-        <a v-if="data.location.uberEnabled && data.location.uberUrl" :href="data.location.uberUrl" target="_blank" rel="noopener noreferrer">Pedir viaje</a>
+        <a :href="data.location.mapsUrl" target="_blank" rel="noopener noreferrer" @click="trackInteraction('maps_click')">Ver mapa</a>
+        <a v-if="data.location.uberEnabled && data.location.uberUrl" :href="data.location.uberUrl" target="_blank" rel="noopener noreferrer" @click="trackInteraction('uber_click')">Pedir viaje</a>
       </div>
     </section>
 
@@ -1244,7 +1263,7 @@ watch(
       </article>
       <article v-if="isSectionVisible('saveDate') && data.saveDate?.enabled" :style="sectionThemeStyle('saveDate')">
         <p class="luna-eyebrow">Agenda</p>
-        <a v-if="saveDateUrl && !editable" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">{{ data.saveDate.label || 'Guardar fecha' }}</a>
+        <a v-if="saveDateUrl && !editable" :href="saveDateUrl" target="_blank" rel="noopener noreferrer" @click="trackInteraction('save_date_click')">{{ data.saveDate.label || 'Guardar fecha' }}</a>
         <span v-else>{{ data.saveDate.label || 'Guardar fecha' }}</span>
       </article>
     </section>

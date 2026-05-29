@@ -1,21 +1,35 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { getTenantDashboardSummary } from '@/services/tenantInvitations'
+import { getTenantDashboardSummary, type TenantDashboardSummary } from '@/services/tenantInvitations'
 
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
-const dashboard = ref({
+
+const createEmptyDashboard = (): TenantDashboardSummary => ({
   total_invitations: 0,
   draft_invitations: 0,
   published_invitations: 0,
   invitation_visits_total: 0,
   invitation_last_visit_at: null as string | null,
+  invitation_last_visit: null,
   total_guests: 0,
   total_confirmed_guests: 0,
+  last_confirmed_guest: null,
   credits_available: 0,
   last_updated_at: null as string | null,
+  analytics: {
+    basic_enabled: false,
+    medium_enabled: false,
+    advanced_enabled: false,
+  },
+  total_dj_song_requests: 0,
+  total_wall_messages: 0,
+  daily_activity: [],
+  interaction_breakdown: [],
 })
+
+const dashboard = ref<TenantDashboardSummary>(createEmptyDashboard())
 
 const formatNumber = (value: number) => new Intl.NumberFormat('es-AR').format(Math.max(0, Number(value) || 0))
 
@@ -47,6 +61,7 @@ const publicationRate = computed(() => {
 const confirmationRateClamped = computed(() => Math.min(100, Math.max(0, confirmationRate.value)))
 const publicationRateClamped = computed(() => Math.min(100, Math.max(0, publicationRate.value)))
 const isConfirmationComplete = computed(() => confirmationRateClamped.value >= 100)
+const mediumStatsEnabled = computed(() => dashboard.value.analytics.medium_enabled)
 
 const confirmationRateStyle = computed<Record<string, string>>(() => ({
   '--pct': `${confirmationRateClamped.value}%`,
@@ -79,6 +94,19 @@ const statsCards = computed(() => [
   },
 ])
 
+const proStatsCards = computed(() => [
+  {
+    label: 'Canciones sugeridas',
+    value: formatNumber(dashboard.value.total_dj_song_requests),
+    hint: 'Ideas que tus invitados dejaron para la fiesta.',
+  },
+  {
+    label: 'Mensajes del muro',
+    value: formatNumber(dashboard.value.total_wall_messages),
+    hint: 'Palabras recibidas en el mural de tu invitación.',
+  },
+])
+
 const summaryMetrics = computed(() => [
   { label: 'Invitaciones', value: formatNumber(dashboard.value.total_invitations) },
   { label: 'Publicadas', value: formatNumber(dashboard.value.published_invitations) },
@@ -86,6 +114,30 @@ const summaryMetrics = computed(() => [
   { label: 'Créditos', value: formatNumber(dashboard.value.credits_available) },
   { label: 'Publicación', value: `${publicationRate.value}%` },
 ])
+
+const dailyActivityMax = computed(() => {
+  const values = dashboard.value.daily_activity.flatMap((item) => [
+    item.visits,
+    item.confirmed_guests,
+  ])
+
+  return Math.max(1, ...values)
+})
+
+const dailyActivityRows = computed(() =>
+  dashboard.value.daily_activity.map((item) => ({
+    ...item,
+    visitsWidth: `${Math.round((item.visits / dailyActivityMax.value) * 100)}%`,
+    confirmedWidth: `${Math.round((item.confirmed_guests / dailyActivityMax.value) * 100)}%`,
+  })),
+)
+
+const interactionRows = computed(() =>
+  dashboard.value.interaction_breakdown.map((item) => ({
+    ...item,
+    width: `${Math.max(4, item.percentage)}%`,
+  })),
+)
 
 const loadData = async () => {
   isLoading.value = true
@@ -184,6 +236,66 @@ onMounted(() => {
         <p class="stat-card__hint">{{ item.hint }}</p>
       </article>
     </section>
+
+    <template v-if="mediumStatsEnabled">
+      <section class="stats-grid" aria-label="Indicadores Pro">
+        <article v-for="item in proStatsCards" :key="item.label" class="bo-card stat-card stat-card--pro">
+          <span class="stat-card__label">{{ item.label }}</span>
+          <strong class="stat-card__value">{{ item.value }}</strong>
+          <p class="stat-card__hint">{{ item.hint }}</p>
+        </article>
+      </section>
+
+      <section class="medium-insights" aria-label="Estadísticas ampliadas">
+        <article class="bo-card activity-card">
+          <header class="chart-head">
+            <div>
+              <p class="client-kicker">Últimos 14 días</p>
+              <h2>Actividad diaria</h2>
+            </div>
+            <div class="chart-legend" aria-hidden="true">
+              <span><i class="legend-dot legend-dot--visits" /> Visitas</span>
+              <span><i class="legend-dot legend-dot--confirmed" /> Confirmaciones</span>
+            </div>
+          </header>
+
+          <div class="activity-chart">
+            <div v-for="item in dailyActivityRows" :key="item.date" class="activity-row">
+              <span class="activity-row__date">{{ item.label }}</span>
+              <div class="activity-row__bars">
+                <span class="activity-bar activity-bar--visits" :style="{ width: item.visitsWidth }" />
+                <span class="activity-bar activity-bar--confirmed" :style="{ width: item.confirmedWidth }" />
+              </div>
+              <span class="activity-row__value">
+                {{ formatNumber(item.visits) }} / {{ formatNumber(item.confirmed_guests) }}
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <article class="bo-card activity-card">
+          <header class="chart-head">
+            <div>
+              <p class="client-kicker">Interacciones</p>
+              <h2>Qué usan tus invitados</h2>
+            </div>
+          </header>
+
+          <div class="interaction-list">
+            <div v-for="item in interactionRows" :key="item.key" class="interaction-row">
+              <div class="interaction-row__head">
+                <span>{{ item.label }}</span>
+                <strong>{{ formatNumber(item.count) }}</strong>
+              </div>
+              <div class="interaction-track" aria-hidden="true">
+                <span :style="{ width: item.width }" />
+              </div>
+              <small>{{ item.percentage }}% del total</small>
+            </div>
+          </div>
+        </article>
+      </section>
+    </template>
   </section>
 </template>
 
@@ -454,6 +566,12 @@ onMounted(() => {
     linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(251, 247, 255, 0.95));
 }
 
+.stat-card--pro {
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(242, 87, 137, 0.12), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 242, 255, 0.96));
+}
+
 .stat-card__label {
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -472,12 +590,149 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
+.medium-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 16px;
+}
+
+.activity-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(111, 57, 187, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 247, 255, 0.96));
+}
+
+.chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chart-head h2 {
+  margin: 0;
+  color: #241642;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #6a5a84;
+  font-size: 0.84rem;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-dot--visits {
+  background: #6f39bb;
+}
+
+.legend-dot--confirmed {
+  background: #ef4f83;
+}
+
+.activity-chart,
+.interaction-list {
+  display: grid;
+  gap: 12px;
+}
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 72px;
+  gap: 10px;
+  align-items: center;
+}
+
+.activity-row__date,
+.activity-row__value,
+.interaction-row small {
+  color: #6a5a84;
+  font-size: 0.82rem;
+}
+
+.activity-row__value {
+  text-align: right;
+}
+
+.activity-row__bars {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-bar,
+.interaction-track span {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  min-width: 4px;
+  transition: width 0.25s ease;
+}
+
+.activity-bar--visits {
+  background: linear-gradient(90deg, #5e69ff, #6f39bb);
+}
+
+.activity-bar--confirmed {
+  background: linear-gradient(90deg, #f0588f, #ff9e6e);
+}
+
+.interaction-row {
+  display: grid;
+  gap: 7px;
+}
+
+.interaction-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #241642;
+}
+
+.interaction-row__head span {
+  font-weight: 700;
+}
+
+.interaction-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(111, 57, 187, 0.14);
+  overflow: hidden;
+}
+
+.interaction-track span {
+  height: 100%;
+  background: linear-gradient(90deg, #6f39bb, #ef4f83);
+}
+
 @media (max-width: 900px) {
   .stats-grid {
     grid-template-columns: 1fr;
   }
 
   .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .medium-insights {
     grid-template-columns: 1fr;
   }
 
@@ -517,6 +772,19 @@ onMounted(() => {
   .insight-card__body {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .chart-head {
+    flex-direction: column;
+  }
+
+  .activity-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .activity-row__value {
+    grid-column: 2;
+    text-align: left;
   }
 }
 </style>

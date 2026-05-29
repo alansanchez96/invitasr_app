@@ -281,6 +281,25 @@ export type TenantDashboardSummary = {
   } | null
   credits_available: number
   last_updated_at: string | null
+  analytics: {
+    basic_enabled: boolean
+    medium_enabled: boolean
+    advanced_enabled: boolean
+  }
+  total_dj_song_requests: number
+  total_wall_messages: number
+  daily_activity: Array<{
+    date: string
+    label: string
+    visits: number
+    confirmed_guests: number
+  }>
+  interaction_breakdown: Array<{
+    key: string
+    label: string
+    count: number
+    percentage: number
+  }>
 }
 
 export type UpsertTenantInvitationPayload = {
@@ -595,6 +614,9 @@ const normalizeDjSongRequestSummary = (value: unknown): TenantInvitationDjSongRe
 export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummary> => {
   const payload = await request<TenantDashboardResponse>(`${TENANT_BASE}/dashboard`)
   const data = toRecord(payload.data)
+  const analytics = toRecord(data.analytics)
+  const dailyActivity = Array.isArray(data.daily_activity) ? data.daily_activity : []
+  const interactionBreakdown = Array.isArray(data.interaction_breakdown) ? data.interaction_breakdown : []
 
   return {
     total_invitations: toNumber(data.total_invitations, 0),
@@ -627,6 +649,31 @@ export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummar
       : null,
     credits_available: toNumber(data.credits_available, 0),
     last_updated_at: (data.last_updated_at ?? null) as string | null,
+    analytics: {
+      basic_enabled: Boolean(analytics.basic_enabled),
+      medium_enabled: Boolean(analytics.medium_enabled),
+      advanced_enabled: Boolean(analytics.advanced_enabled),
+    },
+    total_dj_song_requests: toNumber(data.total_dj_song_requests, 0),
+    total_wall_messages: toNumber(data.total_wall_messages, 0),
+    daily_activity: dailyActivity.map((item) => {
+      const source = toRecord(item)
+      return {
+        date: String(source.date ?? ''),
+        label: String(source.label ?? source.date ?? ''),
+        visits: toNumber(source.visits, 0),
+        confirmed_guests: toNumber(source.confirmed_guests, 0),
+      }
+    }),
+    interaction_breakdown: interactionBreakdown.map((item) => {
+      const source = toRecord(item)
+      return {
+        key: String(source.key ?? ''),
+        label: String(source.label ?? ''),
+        count: toNumber(source.count, 0),
+        percentage: toNumber(source.percentage, 0),
+      }
+    }),
   }
 }
 

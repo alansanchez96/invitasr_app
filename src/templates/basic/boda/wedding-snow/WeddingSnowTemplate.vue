@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PhoneCountrySelect from '@/components/ui/PhoneCountrySelect.vue'
-import { createPublicInvitationDjSongRequest, createPublicInvitationRsvpResponse, createPublicInvitationWallMessage } from '@/services/publicInvitations'
+import {
+  createPublicInvitationDjSongRequest,
+  createPublicInvitationRsvpResponse,
+  createPublicInvitationWallMessage,
+  trackPublicInvitationInteraction,
+  type PublicInvitationInteractionType,
+} from '@/services/publicInvitations'
 import type {
   InvitationTemplateRendererProps,
   InvitationThemeGradientConfig,
@@ -1199,11 +1205,21 @@ const goToNextGallerySlide = () => {
   selectGallerySlide(normalizedGalleryCarouselIndex.value + 1)
 }
 
+const trackInteraction = (eventType: PublicInvitationInteractionType, metadata?: Record<string, unknown>) => {
+  if (props.editable || props.demoMode) return
+
+  void trackPublicInvitationInteraction({
+    event_type: eventType,
+    metadata: metadata ?? null,
+  }).catch(() => undefined)
+}
+
 const openGalleryLightbox = (index = normalizedGalleryCarouselIndex.value) => {
   const total = galleryItems.value.length
   if (!total) return
   galleryLightboxIndex.value = normalizeGalleryIndex(index, total)
   galleryLightboxOpen.value = true
+  trackInteraction('gallery_open', { index: galleryLightboxIndex.value })
 }
 
 const closeGalleryLightbox = () => {
@@ -1214,6 +1230,7 @@ const selectLightboxSlide = (index: number) => {
   const total = galleryItems.value.length
   if (!total) return
   galleryLightboxIndex.value = normalizeGalleryIndex(index, total)
+  trackInteraction('gallery_navigate', { index: galleryLightboxIndex.value })
 }
 
 const goToPreviousLightboxSlide = () => {
@@ -1236,6 +1253,7 @@ const toggleMute = () => {
 const openFaq = () => {
   faqReviewedForRsvp.value = true
   faqModalOpen.value = true
+  trackInteraction('faq_open')
 }
 
 const closeFaq = () => {
@@ -1307,6 +1325,7 @@ const submitRsvp = async () => {
 
     const fullName = response.response.fullName || `${response.response.firstName} ${response.response.lastName}`.trim()
     rsvpSuccessMessage.value = `¡Gracias ${fullName}! Tu asistencia quedó confirmada.`
+    trackInteraction('rsvp_submit')
     rsvpFirstName.value = ''
     rsvpLastName.value = ''
     rsvpDietaryRestrictions.value = ''
@@ -1863,9 +1882,9 @@ watch(
           <strong>{{ locationCard.name }}</strong>
           <p>{{ locationCard.address }}</p>
           <div class="snow-actions-inline">
-            <a class="snow-link" :href="locationCard.mapsUrl" target="_blank" rel="noopener noreferrer">Google Maps</a>
+            <a class="snow-link" :href="locationCard.mapsUrl" target="_blank" rel="noopener noreferrer" @click="trackInteraction('maps_click')">Google Maps</a>
             <a v-if="locationCard.uberEnabled" class="snow-link" :href="locationCard.uberUrl" target="_blank"
-              rel="noopener noreferrer">
+              rel="noopener noreferrer" @click="trackInteraction('uber_click')">
               Pedir Uber
             </a>
           </div>
@@ -1877,7 +1896,7 @@ watch(
       <section v-if="isSectionVisible('saveDate')" class="snow-card snow-card--half snow-section snow-section--save-date"
         :style="sectionThemeStyle('saveDate')">
         <p class="section-kicker">Save the date</p>
-        <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer">
+        <a v-if="!editable" class="snow-link" :href="saveDateUrl" target="_blank" rel="noopener noreferrer" @click="trackInteraction('save_date_click')">
           {{ saveDateLabel }}
         </a>
         <button v-else type="button" class="snow-action" disabled>

@@ -29,6 +29,15 @@ const dashboard = ref<TenantDashboardSummary>({
   last_confirmed_guest: null,
   credits_available: 0,
   last_updated_at: null,
+  analytics: {
+    basic_enabled: false,
+    medium_enabled: false,
+    advanced_enabled: false,
+  },
+  total_dj_song_requests: 0,
+  total_wall_messages: 0,
+  daily_activity: [],
+  interaction_breakdown: [],
 })
 const creditOptions = ref<CreditPurchaseOptions | null>(null)
 const isLoading = ref(false)
