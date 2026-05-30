@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import SearchableSelect from '@/components/ui/SearchableSelect.vue'
 import { useSessionStore } from '@/stores/session'
 import {
   createTenantInvitationDjSongRequest,
@@ -19,6 +20,10 @@ type SortField = 'song_name' | 'created_at'
 type SortDirection = 'asc' | 'desc'
 type LinkFilter = 'all' | 'with_link' | 'without_link'
 type ExportFormat = 'pdf' | 'xlsx'
+type SearchableSelectOption = {
+  value: string
+  label: string
+}
 const INVITATION_SELECT_RESULT_LIMIT = 25
 
 const isLoading = ref(false)
@@ -32,7 +37,7 @@ const invitations = ref<TenantInvitationItem[]>([])
 const invitationTitleById = ref<Record<string, string>>({})
 const searchInput = ref('')
 const searchQuery = ref('')
-const selectedInvitationId = ref('')
+const selectedInvitationIds = ref<string[]>([])
 const invitationFilterOpen = ref(false)
 const invitationFilterSearch = ref('')
 const linkFilter = ref<LinkFilter>('all')
@@ -55,7 +60,7 @@ const summary = ref({
 const modalOpen = ref(false)
 const showExportModal = ref(false)
 const exportFormat = ref<ExportFormat>('pdf')
-const exportInvitationId = ref('')
+const exportInvitationIds = ref<string[]>([])
 const exportLinkFilter = ref<LinkFilter>('all')
 const exportSortBy = ref<SortField>('created_at')
 const exportSortDir = ref<SortDirection>('desc')
@@ -152,11 +157,36 @@ const planLabel = computed(() => {
 })
 
 const selectedInvitationLabel = computed(() => {
-  if (!selectedInvitationId.value) return 'Todas'
-  return invitationTitleById.value[selectedInvitationId.value] ?? 'Invitación seleccionada'
+  if (!selectedInvitationIds.value.length) return 'Todas'
+  if (selectedInvitationIds.value.length === 1) {
+    return invitationTitleById.value[selectedInvitationIds.value[0] ?? ''] ?? 'Invitación seleccionada'
+  }
+  return `${selectedInvitationIds.value.length} invitaciones seleccionadas`
 })
 
 const filteredInvitations = computed(() => invitations.value)
+const searchableInvitationOptions = computed<SearchableSelectOption[]>(() => {
+  const options = invitations.value
+    .filter((item) => Number(item.id ?? 0) > 0)
+    .map((item) => ({
+      value: String(item.id ?? ''),
+      label: String(item.title ?? '').trim() || 'Invitación sin título',
+    }))
+
+  options.unshift(
+    ...selectedInvitationIds.value
+      .concat(exportInvitationIds.value)
+      .concat(form.value.invitationId ? [form.value.invitationId] : [])
+      .filter((id, index, list) => id && list.indexOf(id) === index)
+      .filter((id) => invitationTitleById.value[id] && !options.some((option) => option.value === id))
+      .map((id) => ({
+        value: id,
+        label: invitationTitleById.value[id] ?? 'Invitación seleccionada',
+      })),
+  )
+
+  return options
+})
 
 const formatDateTime = (value: string | null) => {
   if (!value) return 'Sin fecha'
@@ -222,6 +252,7 @@ const loadInvitations = async (query = '') => {
     const result = await listTenantInvitations({
       page: 1,
       perPage: INVITATION_SELECT_RESULT_LIMIT,
+      status: 'published',
       search: query.trim() || undefined,
       orderField: 'updated_at',
       orderDirection: 'desc',
@@ -239,6 +270,17 @@ const loadInvitations = async (query = '') => {
   }
 }
 
+const searchInvitationOptions = (query: string) => {
+  if (invitationSearchDebounceTimer) {
+    clearTimeout(invitationSearchDebounceTimer)
+  }
+
+  invitationSearchDebounceTimer = setTimeout(() => {
+    invitationSearchDebounceTimer = null
+    void loadInvitations(query)
+  }, 260)
+}
+
 const loadSongs = async () => {
   isLoading.value = true
   loadError.value = null
@@ -247,7 +289,7 @@ const loadSongs = async () => {
     const result = await getTenantInvitationDjSongRequests({
       page: currentPage.value,
       perPage: perPage.value,
-      invitation_id: selectedInvitationId.value || undefined,
+      invitation_ids: selectedInvitationIds.value,
       search: searchQuery.value,
       linkStatus: linkFilter.value,
       sortBy: sortBy.value,
@@ -302,7 +344,7 @@ const clearSongFilters = () => {
   }
   searchInput.value = ''
   searchQuery.value = ''
-  selectedInvitationId.value = ''
+  selectedInvitationIds.value = []
   invitationFilterSearch.value = ''
   invitationFilterOpen.value = false
   linkFilter.value = 'all'
@@ -310,7 +352,7 @@ const clearSongFilters = () => {
 }
 
 const currentExportParams = () => ({
-  invitation_id: exportInvitationId.value || undefined,
+  invitation_ids: exportInvitationIds.value,
   search: searchQuery.value,
   linkStatus: exportLinkFilter.value,
   sortBy: exportSortBy.value,
@@ -330,7 +372,7 @@ const triggerBlobDownload = (blob: Blob, fileName: string) => {
 
 const openExportModal = (format: ExportFormat) => {
   exportFormat.value = format
-  exportInvitationId.value = selectedInvitationId.value
+  exportInvitationIds.value = [...selectedInvitationIds.value]
   exportLinkFilter.value = linkFilter.value
   exportSortBy.value = sortBy.value
   exportSortDir.value = sortDir.value
@@ -394,7 +436,7 @@ const toggleInvitationFilter = () => {
 }
 
 const selectInvitationFilter = (value: string, title = '') => {
-  selectedInvitationId.value = value
+  selectedInvitationIds.value = value ? [value] : []
   if (value && title) {
     invitationTitleById.value = { ...invitationTitleById.value, [value]: title }
   }
@@ -405,7 +447,7 @@ const selectInvitationFilter = (value: string, title = '') => {
 const openCreateModal = () => {
   editingSong.value = null
   form.value = {
-    invitationId: selectedInvitationId.value || String(invitations.value[0]?.id ?? ''),
+    invitationId: selectedInvitationIds.value[0] || String(invitations.value[0]?.id ?? ''),
     songName: '',
     referenceUrl: '',
   }
@@ -507,7 +549,7 @@ const handleDocumentPointerDown = (event: PointerEvent) => {
   }
 }
 
-watch([selectedInvitationId, linkFilter, sortBy, sortDir, perPage], resetToFirstPageOrLoad)
+watch([selectedInvitationIds, linkFilter, sortBy, sortDir, perPage], resetToFirstPageOrLoad)
 watch(currentPage, () => {
   void loadSongs()
 })
@@ -638,42 +680,17 @@ onBeforeUnmount(() => {
 
         <div class="field field-invitation-filter">
           <span>Invitación</span>
-          <div ref="invitationSelectRef" class="invitation-select" :class="{ open: invitationFilterOpen }">
-            <button
-              type="button"
-              class="invitation-select__button"
-              :aria-expanded="invitationFilterOpen"
-              aria-controls="dj-song-invitation-options"
-              @click="toggleInvitationFilter">
-              <span>{{ selectedInvitationLabel }}</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div v-if="invitationFilterOpen" id="dj-song-invitation-options" class="invitation-select__menu">
-              <input
-                v-model="invitationFilterSearch"
-                class="invitation-select__search"
-                type="search"
-                placeholder="Buscar invitación" />
-              <button type="button" class="invitation-select__option" :class="{ selected: !selectedInvitationId }" @click="selectInvitationFilter('')">
-                Todas
-              </button>
-              <button
-                v-for="invitation in filteredInvitations"
-                :key="invitation.id"
-                type="button"
-                class="invitation-select__option"
-                :class="{ selected: String(invitation.id) === selectedInvitationId }"
-                @click="selectInvitationFilter(String(invitation.id), String(invitation.title || 'Invitación sin título'))">
-                {{ invitation.title || 'Invitación sin título' }}
-              </button>
-              <p v-if="!filteredInvitations.length" class="invitation-select__empty">No encontramos invitaciones.</p>
-              <p v-else-if="filteredInvitations.length >= INVITATION_SELECT_RESULT_LIMIT" class="invitation-select__empty">
-                Mostramos hasta {{ INVITATION_SELECT_RESULT_LIMIT }} resultados. Escribe para afinar la búsqueda.
-              </p>
-            </div>
-          </div>
+          <SearchableSelect
+            v-model="selectedInvitationIds"
+            multiple
+            :options="searchableInvitationOptions"
+            all-label="Todas"
+            placeholder="Selecciona invitaciones"
+            search-placeholder="Buscar invitación"
+            empty-label="No encontramos invitaciones publicadas."
+            :result-limit="INVITATION_SELECT_RESULT_LIMIT"
+            @open="loadInvitations"
+            @search-change="searchInvitationOptions" />
         </div>
       </div>
 
@@ -919,12 +936,18 @@ onBeforeUnmount(() => {
               <p class="export-option-title">Invitación</p>
               <label class="field">
                 <span>Incluir</span>
-                <select v-model="exportInvitationId" :disabled="isExporting">
-                  <option value="">Todas las invitaciones</option>
-                  <option v-for="invitation in invitations" :key="invitation.id" :value="String(invitation.id)">
-                    {{ invitation.title || 'Invitación sin título' }}
-                  </option>
-                </select>
+                <SearchableSelect
+                  v-model="exportInvitationIds"
+                  multiple
+                  :options="searchableInvitationOptions"
+                  all-label="Todas las invitaciones"
+                  placeholder="Selecciona una invitación"
+                  search-placeholder="Buscar invitación"
+                  empty-label="No encontramos invitaciones."
+                  :result-limit="INVITATION_SELECT_RESULT_LIMIT"
+                  :disabled="isExporting"
+                  @open="loadInvitations"
+                  @search-change="searchInvitationOptions" />
               </label>
             </section>
 
@@ -1006,12 +1029,16 @@ onBeforeUnmount(() => {
           <form class="export-modal-body export-modal-body--form" @submit.prevent="saveSong">
             <label v-if="!editingSong" class="field">
               <span>Invitación</span>
-              <select v-model="form.invitationId" required>
-                <option value="" disabled>Selecciona una invitación</option>
-                <option v-for="invitation in invitations" :key="invitation.id" :value="String(invitation.id)">
-                  {{ invitation.title || 'Invitación sin título' }}
-                </option>
-              </select>
+              <SearchableSelect
+                v-model="form.invitationId"
+                :options="searchableInvitationOptions"
+                placeholder="Selecciona una invitación"
+                search-placeholder="Buscar invitación"
+                empty-label="No encontramos invitaciones."
+                :result-limit="INVITATION_SELECT_RESULT_LIMIT"
+                required
+                @open="loadInvitations"
+                @search-change="searchInvitationOptions" />
             </label>
             <label class="field">
               <span>Nombre de la canción</span>

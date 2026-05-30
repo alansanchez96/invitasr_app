@@ -1,10 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import { getTenantDashboardSummary, type TenantDashboardSummary } from '@/services/tenantInvitations'
+import SearchableSelect from '@/components/ui/SearchableSelect.vue'
+import {
+  getTenantDashboardSummary,
+  listTenantInvitations,
+  type TenantDashboardSummary,
+  type TenantInvitationItem,
+} from '@/services/tenantInvitations'
+
+const INVITATION_SELECT_RESULT_LIMIT = 25
+type SearchableSelectOption = {
+  value: string
+  label: string
+}
 
 const isLoading = ref(false)
+const isLoadingInvitations = ref(false)
 const loadError = ref<string | null>(null)
+const selectedInvitationIds = ref<string[]>([])
+const invitationOptions = ref<TenantInvitationItem[]>([])
+const invitationTitleById = ref<Record<string, string>>({})
+let invitationSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const createEmptyDashboard = (): TenantDashboardSummary => ({
   total_invitations: 0,
@@ -27,6 +44,7 @@ const createEmptyDashboard = (): TenantDashboardSummary => ({
   total_wall_messages: 0,
   daily_activity: [],
   interaction_breakdown: [],
+  invitation_performance: [],
 })
 
 const dashboard = ref<TenantDashboardSummary>(createEmptyDashboard())
@@ -62,6 +80,25 @@ const confirmationRateClamped = computed(() => Math.min(100, Math.max(0, confirm
 const publicationRateClamped = computed(() => Math.min(100, Math.max(0, publicationRate.value)))
 const isConfirmationComplete = computed(() => confirmationRateClamped.value >= 100)
 const mediumStatsEnabled = computed(() => dashboard.value.analytics.medium_enabled)
+const invitationSelectOptions = computed<SearchableSelectOption[]>(() => {
+  const options = invitationOptions.value
+    .filter((item) => Number(item.id ?? 0) > 0)
+    .map((item) => ({
+      value: String(item.id ?? ''),
+      label: String(item.title ?? '').trim() || 'Invitación sin título',
+    }))
+
+  const selectedOptions = selectedInvitationIds.value
+    .filter((id) => invitationTitleById.value[id] && !options.some((option) => option.value === id))
+    .map((id) => ({
+      value: id,
+      label: String(invitationTitleById.value[id] ?? 'Invitación seleccionada'),
+    }))
+
+  options.unshift(...selectedOptions)
+
+  return options
+})
 
 const confirmationRateStyle = computed<Record<string, string>>(() => ({
   '--pct': `${confirmationRateClamped.value}%`,
@@ -132,6 +169,23 @@ const dailyActivityRows = computed(() =>
   })),
 )
 
+const totalDailyVisits = computed(() =>
+  dashboard.value.daily_activity.reduce((total, item) => total + item.visits, 0),
+)
+
+const totalDailyConfirmations = computed(() =>
+  dashboard.value.daily_activity.reduce((total, item) => total + item.confirmed_guests, 0),
+)
+
+const peakActivityDay = computed(() => {
+  const fallback = { label: 'Sin actividad', total: 0 }
+
+  return dashboard.value.daily_activity.reduce((best, item) => {
+    const total = item.visits + item.confirmed_guests
+    return total > best.total ? { label: item.label, total } : best
+  }, fallback)
+})
+
 const interactionRows = computed(() =>
   dashboard.value.interaction_breakdown.map((item) => ({
     ...item,
@@ -139,12 +193,82 @@ const interactionRows = computed(() =>
   })),
 )
 
+const topInteractionRows = computed(() =>
+  [...dashboard.value.interaction_breakdown]
+    .filter((item) => item.count > 0)
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 3),
+)
+
+const performanceRows = computed(() => dashboard.value.invitation_performance)
+
+const performanceMax = computed(() =>
+  Math.max(1, ...performanceRows.value.map((item) => item.engagement_score)),
+)
+
+const performanceRowsWithWidth = computed(() =>
+  performanceRows.value.map((item) => ({
+    ...item,
+    width: `${Math.max(4, Math.round((item.engagement_score / performanceMax.value) * 100))}%`,
+  })),
+)
+
+const hasMultiplePerformanceRows = computed(() => performanceRows.value.length > 1)
+
+const formatStatusLabel = (status: string) => {
+  const value = status.trim().toLowerCase()
+  if (value === 'published') return 'Publicada'
+  if (value === 'draft') return 'Borrador'
+  if (value === 'disabled') return 'Desactivada'
+  return status || 'Sin estado'
+}
+
+const loadInvitationOptions = async (query = '') => {
+  isLoadingInvitations.value = true
+  try {
+    const result = await listTenantInvitations({
+      page: 1,
+      perPage: INVITATION_SELECT_RESULT_LIMIT,
+      status: 'published',
+      search: query.trim() || undefined,
+      orderField: 'updated_at',
+      orderDirection: 'desc',
+    })
+    invitationOptions.value = result.list.filter((item) => Number(item.id ?? 0) > 0)
+    invitationTitleById.value = {
+      ...invitationTitleById.value,
+      ...Object.fromEntries(invitationOptions.value.map((item) => [
+        String(item.id ?? ''),
+        String(item.title ?? '').trim() || 'Invitación sin título',
+      ]).filter(([id]) => id !== '')),
+    }
+  } catch {
+    invitationOptions.value = []
+  } finally {
+    isLoadingInvitations.value = false
+  }
+}
+
+const searchInvitationOptions = (query: string) => {
+  if (invitationSearchDebounceTimer) {
+    clearTimeout(invitationSearchDebounceTimer)
+  }
+
+  invitationSearchDebounceTimer = setTimeout(() => {
+    invitationSearchDebounceTimer = null
+    void loadInvitationOptions(query)
+  }, 260)
+}
+
 const loadData = async () => {
   isLoading.value = true
   loadError.value = null
 
   try {
-    dashboard.value = await getTenantDashboardSummary()
+    dashboard.value = await getTenantDashboardSummary({
+      invitation_ids: selectedInvitationIds.value,
+      published_only: true,
+    })
   } catch (error) {
     const payload = error as { message?: string }
     loadError.value = payload?.message ?? 'No pudimos cargar tus estadísticas en este momento.'
@@ -153,8 +277,19 @@ const loadData = async () => {
   }
 }
 
-onMounted(() => {
+watch(selectedInvitationIds, () => {
   void loadData()
+})
+
+onMounted(() => {
+  void loadInvitationOptions()
+  void loadData()
+})
+
+onBeforeUnmount(() => {
+  if (invitationSearchDebounceTimer) {
+    clearTimeout(invitationSearchDebounceTimer)
+  }
 })
 </script>
 
@@ -173,6 +308,24 @@ onMounted(() => {
         <BaseButton as="RouterLink" to="/panel/invitaciones" variant="primary">Ver invitaciones</BaseButton>
       </div>
     </header>
+
+    <article class="bo-card stats-filter-card" aria-label="Filtros de estadísticas">
+      <label class="stats-filter-field">
+        <span>Invitación</span>
+        <SearchableSelect
+          v-model="selectedInvitationIds"
+          multiple
+          :options="invitationSelectOptions"
+          all-label="Todas las invitaciones"
+          placeholder="Selecciona una invitación"
+          search-placeholder="Buscar invitación"
+          empty-label="No encontramos invitaciones."
+          :result-limit="INVITATION_SELECT_RESULT_LIMIT"
+          :disabled="isLoadingInvitations"
+          @open="loadInvitationOptions"
+          @search-change="searchInvitationOptions" />
+      </label>
+    </article>
 
     <section class="bo-card hero-stat" aria-label="Resumen rápido">
       <div class="hero-stat__copy">
@@ -259,6 +412,12 @@ onMounted(() => {
             </div>
           </header>
 
+          <div class="activity-summary">
+            <span>{{ formatNumber(totalDailyVisits) }} visitas</span>
+            <span>{{ formatNumber(totalDailyConfirmations) }} confirmaciones</span>
+            <span>Día más activo: {{ peakActivityDay.label }}</span>
+          </div>
+
           <div class="activity-chart">
             <div v-for="item in dailyActivityRows" :key="item.date" class="activity-row">
               <span class="activity-row__date">{{ item.label }}</span>
@@ -281,6 +440,13 @@ onMounted(() => {
             </div>
           </header>
 
+          <div v-if="topInteractionRows.length" class="top-interactions" aria-label="Interacciones principales">
+            <article v-for="item in topInteractionRows" :key="`top-${item.key}`">
+              <span>{{ item.label }}</span>
+              <strong>{{ formatNumber(item.count) }}</strong>
+            </article>
+          </div>
+
           <div class="interaction-list">
             <div v-for="item in interactionRows" :key="item.key" class="interaction-row">
               <div class="interaction-row__head">
@@ -294,6 +460,45 @@ onMounted(() => {
             </div>
           </div>
         </article>
+      </section>
+
+      <section class="bo-card performance-card" aria-label="Comparativa por invitación">
+        <header class="chart-head">
+          <div>
+            <p class="client-kicker">Comparativa</p>
+            <h2>{{ hasMultiplePerformanceRows ? 'Rendimiento por invitación' : 'Detalle de la invitación' }}</h2>
+          </div>
+          <p class="performance-card__hint">
+            {{ hasMultiplePerformanceRows ? 'Ordenado por actividad total.' : 'Datos de la invitación seleccionada.' }}
+          </p>
+        </header>
+
+        <div class="performance-list">
+          <article v-for="item in performanceRowsWithWidth" :key="item.invitation_id" class="performance-row">
+            <div class="performance-row__head">
+              <div>
+                <strong>{{ item.title }}</strong>
+                <span>{{ formatStatusLabel(item.status) }} · Última actividad: {{ formatDateTime(item.last_activity_at, 'Sin actividad') }}</span>
+              </div>
+              <b>{{ formatNumber(item.engagement_score) }}</b>
+            </div>
+            <div class="performance-track" aria-hidden="true">
+              <span :style="{ width: item.width }" />
+            </div>
+            <div class="performance-row__metrics">
+              <span>{{ formatNumber(item.visits) }} visitas</span>
+              <span>{{ formatNumber(item.confirmed_guests) }}/{{ formatNumber(item.total_guests) }} RSVP</span>
+              <span>{{ item.confirmation_rate }}% confirmación</span>
+              <span>{{ formatNumber(item.interactions) }} interacciones</span>
+              <span>{{ formatNumber(item.dj_song_requests) }} canciones</span>
+              <span>{{ formatNumber(item.wall_messages) }} mensajes</span>
+            </div>
+          </article>
+
+          <p v-if="!performanceRowsWithWidth.length" class="performance-empty">
+            Todavía no hay datos suficientes para comparar invitaciones.
+          </p>
+        </div>
       </section>
     </template>
   </section>
@@ -346,6 +551,25 @@ onMounted(() => {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.stats-filter-card {
+  padding: 18px 22px;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(251, 247, 255, 0.95));
+}
+
+.stats-filter-field {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 420px);
+}
+
+.stats-filter-field > span {
+  color: #241642;
+  font-weight: 700;
+  font-size: 0.92rem;
 }
 
 .hero-stat {
@@ -654,6 +878,40 @@ onMounted(() => {
   gap: 12px;
 }
 
+.activity-summary,
+.top-interactions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.activity-summary span,
+.top-interactions article {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  padding: 9px 10px;
+  color: #3d2d62;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.top-interactions article {
+  display: grid;
+  gap: 2px;
+}
+
+.top-interactions article span {
+  color: #6a5a84;
+  font-size: 0.76rem;
+}
+
+.top-interactions article strong {
+  color: #241642;
+  font-size: 1.05rem;
+}
+
 .activity-row {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 72px;
@@ -723,6 +981,101 @@ onMounted(() => {
   background: linear-gradient(90deg, #6f39bb, #ef4f83);
 }
 
+.performance-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(111, 57, 187, 0.14);
+  background:
+    radial-gradient(100% 90% at 100% 0%, rgba(94, 105, 255, 0.1), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 247, 255, 0.96));
+}
+
+.performance-card__hint {
+  margin: 0;
+  color: #6a5a84;
+  font-size: 0.9rem;
+}
+
+.performance-list {
+  display: grid;
+  gap: 12px;
+}
+
+.performance-row {
+  display: grid;
+  gap: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 14px;
+}
+
+.performance-row__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.performance-row__head > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.performance-row__head strong {
+  color: #241642;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.performance-row__head span,
+.performance-row__metrics,
+.performance-empty {
+  color: #6a5a84;
+  font-size: 0.84rem;
+}
+
+.performance-row__head b {
+  color: #4f2d81;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.performance-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(111, 57, 187, 0.14);
+  overflow: hidden;
+}
+
+.performance-track span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5e69ff, #7e45d9 55%, #ef4f83);
+}
+
+.performance-row__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.performance-row__metrics span {
+  border-radius: 999px;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  background: rgba(247, 241, 255, 0.72);
+  padding: 5px 8px;
+}
+
+.performance-empty {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .stats-grid {
     grid-template-columns: 1fr;
@@ -763,6 +1116,10 @@ onMounted(() => {
     width: 100%;
   }
 
+  .stats-filter-field {
+    width: 100%;
+  }
+
   .hero-stat__metrics {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -785,6 +1142,15 @@ onMounted(() => {
   .activity-row__value {
     grid-column: 2;
     text-align: left;
+  }
+
+  .activity-summary,
+  .top-interactions {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-row__head {
+    display: grid;
   }
 }
 </style>

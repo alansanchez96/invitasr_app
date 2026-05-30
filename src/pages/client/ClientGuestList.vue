@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import SearchableSelect from '@/components/ui/SearchableSelect.vue'
 import { useSessionStore } from '@/stores/session'
 import {
   exportTenantInvitationRsvpPdf,
@@ -42,6 +43,10 @@ type ExportColumnKey =
   | 'table_assignment'
   | 'status'
 type ExportGroupBy = 'name' | 'table' | 'dietary' | 'status'
+type SearchableSelectOption = {
+  value: string
+  label: string
+}
 const INVITATION_SELECT_RESULT_LIMIT = 25
 const EXPORT_COLUMNS: Array<{ key: ExportColumnKey; label: string }> = [
   { key: 'first_name', label: 'Nombre' },
@@ -62,7 +67,7 @@ const rows = ref<ConfirmedGuestRow[]>([])
 
 const searchInput = ref('')
 const searchQuery = ref('')
-const selectedInvitationId = ref('')
+const selectedInvitationIds = ref<string[]>([])
 const invitationFilterOpen = ref(false)
 const invitationSearchInput = ref('')
 const tableAssignmentInput = ref('')
@@ -96,7 +101,7 @@ const savingStatusGuestIds = ref<number[]>([])
 const exportScope = ref<'all' | 'confirmed'>('confirmed')
 const exportStatusFilter = ref<GuestStatusFilter>('confirmed')
 const exportFormat = ref<'pdf' | 'xlsx'>('pdf')
-const exportInvitationId = ref('')
+const exportInvitationIds = ref<string[]>([])
 const exportInvitationFilterOpen = ref(false)
 const exportInvitationSearch = ref('')
 const exportTableAssignment = ref('')
@@ -191,15 +196,40 @@ const normalizeInvitationOption = (item: TenantInvitationItem): { id: number; ti
 
 const filteredInvitationOptions = computed(() => invitationOptions.value)
 const filteredExportInvitationOptions = computed(() => invitationOptions.value)
+const searchableInvitationOptions = computed<SearchableSelectOption[]>(() => {
+  const options = invitationOptions.value.map((item) => ({
+    value: String(item.id),
+    label: item.title,
+  }))
+
+  options.unshift(
+    ...selectedInvitationIds.value
+      .concat(exportInvitationIds.value)
+      .filter((id, index, list) => id && list.indexOf(id) === index)
+      .filter((id) => invitationTitleById.value[id] && !options.some((option) => option.value === id))
+      .map((id) => ({
+        value: id,
+        label: invitationTitleById.value[id] ?? 'Invitación seleccionada',
+      })),
+  )
+
+  return options
+})
 
 const selectedInvitationLabel = computed(() => {
-  if (!selectedInvitationId.value) return 'Todas las invitaciones'
-  return invitationTitleById.value[selectedInvitationId.value] ?? 'Invitación seleccionada'
+  if (!selectedInvitationIds.value.length) return 'Todas las invitaciones'
+  if (selectedInvitationIds.value.length === 1) {
+    return invitationTitleById.value[selectedInvitationIds.value[0] ?? ''] ?? 'Invitación seleccionada'
+  }
+  return `${selectedInvitationIds.value.length} invitaciones seleccionadas`
 })
 
 const selectedExportInvitationLabel = computed(() => {
-  if (!exportInvitationId.value) return 'Todas'
-  return invitationTitleById.value[exportInvitationId.value] ?? 'Invitación seleccionada'
+  if (!exportInvitationIds.value.length) return 'Todas'
+  if (exportInvitationIds.value.length === 1) {
+    return invitationTitleById.value[exportInvitationIds.value[0] ?? ''] ?? 'Invitación seleccionada'
+  }
+  return `${exportInvitationIds.value.length} invitaciones seleccionadas`
 })
 
 const exportSelectedTables = computed(() =>
@@ -321,7 +351,7 @@ const loadGuests = async () => {
     const result = await getTenantInvitationRsvpResponses({
       page: currentPage.value,
       perPage: perPage.value,
-      invitation_id: selectedInvitationId.value || undefined,
+      invitation_ids: selectedInvitationIds.value,
       table_assignment: tableAssignmentFilter.value || undefined,
       whatsapp_status: whatsappStatus.value,
       status: guestStatus.value,
@@ -355,6 +385,7 @@ const loadInvitationOptions = async (query = '') => {
     const response = await listTenantInvitations({
       page: 1,
       perPage: INVITATION_SELECT_RESULT_LIMIT,
+      status: 'published',
       search: query.trim() || undefined,
       orderField: 'title',
       orderDirection: 'asc',
@@ -372,6 +403,17 @@ const loadInvitationOptions = async (query = '') => {
   } finally {
     isLoadingInvitations.value = false
   }
+}
+
+const searchInvitationOptions = (query: string) => {
+  if (invitationSearchDebounceTimer) {
+    clearTimeout(invitationSearchDebounceTimer)
+  }
+
+  invitationSearchDebounceTimer = setTimeout(() => {
+    invitationSearchDebounceTimer = null
+    void loadInvitationOptions(query)
+  }, 260)
 }
 
 const resetToFirstPageOrLoad = () => {
@@ -411,7 +453,7 @@ const clearTableFilters = () => {
   }
   searchInput.value = ''
   searchQuery.value = ''
-  selectedInvitationId.value = ''
+  selectedInvitationIds.value = []
   invitationSearchInput.value = ''
   tableAssignmentInput.value = ''
   tableAssignmentFilter.value = ''
@@ -430,7 +472,7 @@ const toggleInvitationFilter = () => {
 }
 
 const selectInvitationFilter = (value: string, title = '') => {
-  selectedInvitationId.value = value
+  selectedInvitationIds.value = value ? [value] : []
   if (value && title) {
     invitationTitleById.value = { ...invitationTitleById.value, [value]: title }
   }
@@ -447,7 +489,7 @@ const toggleExportInvitationFilter = () => {
 }
 
 const selectExportInvitationFilter = (value: string, title = '') => {
-  exportInvitationId.value = value
+  exportInvitationIds.value = value ? [value] : []
   if (value && title) {
     invitationTitleById.value = { ...invitationTitleById.value, [value]: title }
   }
@@ -461,7 +503,7 @@ const openExportModal = (format: 'pdf' | 'xlsx' = 'pdf') => {
     return
   }
   exportFormat.value = format
-  exportInvitationId.value = selectedInvitationId.value
+  exportInvitationIds.value = [...selectedInvitationIds.value]
   exportInvitationSearch.value = ''
   exportInvitationFilterOpen.value = false
   exportTableAssignment.value = tableAssignmentFilter.value
@@ -511,7 +553,7 @@ const exportGuestsPdf = async () => {
     const response = await exportTenantInvitationRsvpPdf({
       scope: exportScope.value,
       status_filter: exportStatusFilter.value,
-      invitation_id: exportInvitationId.value || undefined,
+      invitation_ids: exportInvitationIds.value,
       table_assignment: exportTableAssignment.value || undefined,
       table_assignments: exportSelectedTables.value,
       include_unassigned_tables: exportIncludeUnassignedTables.value,
@@ -549,7 +591,7 @@ const exportGuestsXlsx = async () => {
     const response = await exportTenantInvitationRsvpXlsx({
       scope: exportScope.value,
       status_filter: exportStatusFilter.value,
-      invitation_id: exportInvitationId.value || undefined,
+      invitation_ids: exportInvitationIds.value,
       table_assignment: exportTableAssignment.value || undefined,
       table_assignments: exportSelectedTables.value,
       include_unassigned_tables: exportIncludeUnassignedTables.value,
@@ -709,7 +751,7 @@ watch(searchQuery, () => {
   resetToFirstPageOrLoad()
 })
 
-watch([selectedInvitationId, tableAssignmentFilter, whatsappStatus, guestStatus], () => {
+watch([selectedInvitationIds, tableAssignmentFilter, whatsappStatus, guestStatus], () => {
   resetToFirstPageOrLoad()
 })
 
@@ -868,43 +910,18 @@ onBeforeUnmount(() => {
 
         <div class="field field-filter">
           <span>Invitación</span>
-          <div ref="invitationSelectRef" class="invitation-select" :class="{ open: invitationFilterOpen }">
-            <button
-              type="button"
-              class="invitation-select__button"
-              :aria-expanded="invitationFilterOpen"
-              aria-controls="guest-list-invitation-options"
-              :disabled="isLoadingInvitations"
-              @click="toggleInvitationFilter">
-              <span>{{ selectedInvitationLabel }}</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div v-if="invitationFilterOpen" id="guest-list-invitation-options" class="invitation-select__menu">
-              <input
-                v-model="invitationSearchInput"
-                class="invitation-select__search"
-                type="search"
-                placeholder="Buscar invitación" />
-              <button type="button" class="invitation-select__option" :class="{ selected: !selectedInvitationId }" @click="selectInvitationFilter('')">
-                Todas las invitaciones
-              </button>
-              <button
-                v-for="invitation in filteredInvitationOptions"
-                :key="invitation.id"
-                type="button"
-                class="invitation-select__option"
-                :class="{ selected: String(invitation.id) === selectedInvitationId }"
-                @click="selectInvitationFilter(String(invitation.id), invitation.title)">
-                {{ invitation.title }}
-              </button>
-              <p v-if="!filteredInvitationOptions.length" class="invitation-select__empty">No encontramos invitaciones.</p>
-              <p v-else-if="filteredInvitationOptions.length >= INVITATION_SELECT_RESULT_LIMIT" class="invitation-select__empty">
-                Mostramos hasta {{ INVITATION_SELECT_RESULT_LIMIT }} resultados. Escribe para afinar la búsqueda.
-              </p>
-            </div>
-          </div>
+          <SearchableSelect
+            v-model="selectedInvitationIds"
+            multiple
+            :options="searchableInvitationOptions"
+            all-label="Todas las invitaciones"
+            placeholder="Selecciona invitaciones"
+            search-placeholder="Buscar invitación"
+            empty-label="No encontramos invitaciones publicadas."
+            :result-limit="INVITATION_SELECT_RESULT_LIMIT"
+            :disabled="isLoadingInvitations"
+            @open="loadInvitationOptions"
+            @search-change="searchInvitationOptions" />
         </div>
       </div>
 
@@ -1240,43 +1257,18 @@ onBeforeUnmount(() => {
               <p class="export-option-title">Invitación</p>
               <div class="export-field">
                 <span>Elegir invitación</span>
-                <div ref="exportInvitationSelectRef" class="invitation-select invitation-select--export" :class="{ open: exportInvitationFilterOpen }">
-                  <button
-                    type="button"
-                    class="invitation-select__button"
-                    :aria-expanded="exportInvitationFilterOpen"
-                    aria-controls="guest-export-invitation-options"
-                    :disabled="isLoadingInvitations"
-                    @click="toggleExportInvitationFilter">
-                    <span>{{ selectedExportInvitationLabel }}</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-                  <div v-if="exportInvitationFilterOpen" id="guest-export-invitation-options" class="invitation-select__menu">
-                    <input
-                      v-model="exportInvitationSearch"
-                      class="invitation-select__search"
-                      type="search"
-                      placeholder="Buscar invitación" />
-                    <button type="button" class="invitation-select__option" :class="{ selected: !exportInvitationId }" @click="selectExportInvitationFilter('')">
-                      Todas
-                    </button>
-                    <button
-                      v-for="invitation in filteredExportInvitationOptions"
-                      :key="invitation.id"
-                      type="button"
-                      class="invitation-select__option"
-                      :class="{ selected: String(invitation.id) === exportInvitationId }"
-                      @click="selectExportInvitationFilter(String(invitation.id), invitation.title)">
-                      {{ invitation.title }}
-                    </button>
-                    <p v-if="!filteredExportInvitationOptions.length" class="invitation-select__empty">No encontramos invitaciones.</p>
-                    <p v-else-if="filteredExportInvitationOptions.length >= INVITATION_SELECT_RESULT_LIMIT" class="invitation-select__empty">
-                      Mostramos hasta {{ INVITATION_SELECT_RESULT_LIMIT }} resultados. Escribe para afinar la búsqueda.
-                    </p>
-                  </div>
-                </div>
+                <SearchableSelect
+                  v-model="exportInvitationIds"
+                  multiple
+                  :options="searchableInvitationOptions"
+                  all-label="Todas"
+                  placeholder="Selecciona invitaciones"
+                  search-placeholder="Buscar invitación"
+                  empty-label="No encontramos invitaciones publicadas."
+                  :result-limit="INVITATION_SELECT_RESULT_LIMIT"
+                  :disabled="isLoadingInvitations || isExporting"
+                  @open="loadInvitationOptions"
+                  @search-change="searchInvitationOptions" />
               </div>
             </section>
 

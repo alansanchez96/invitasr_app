@@ -38,6 +38,7 @@ const dashboard = ref<TenantDashboardSummary>({
   total_wall_messages: 0,
   daily_activity: [],
   interaction_breakdown: [],
+  invitation_performance: [],
 })
 const creditOptions = ref<CreditPurchaseOptions | null>(null)
 const isLoading = ref(false)

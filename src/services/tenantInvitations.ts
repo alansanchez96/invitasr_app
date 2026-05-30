@@ -175,6 +175,7 @@ export type TenantInvitationRsvpListParams = {
   page?: number
   perPage?: number
   invitation_id?: number | string
+  invitation_ids?: Array<number | string>
   table_assignment?: string
   whatsapp_status?: 'all' | 'with' | 'without' | string
   status?: 'all' | 'confirmed' | 'pending' | 'declined' | 'not_confirmed' | string
@@ -187,6 +188,7 @@ export type TenantInvitationRsvpPdfExportParams = {
   scope?: 'all' | 'confirmed'
   status_filter?: 'all' | 'confirmed' | 'not_confirmed' | 'pending' | 'declined'
   invitation_id?: number | string
+  invitation_ids?: Array<number | string>
   table_assignment?: string
   table_assignments?: Array<number | string>
   include_unassigned_tables?: boolean
@@ -235,6 +237,7 @@ export type TenantInvitationDjSongRequestListParams = {
   page?: number
   perPage?: number
   invitation_id?: number | string
+  invitation_ids?: Array<number | string>
   search?: string
   linkStatus?: 'all' | 'with_link' | 'without_link' | string
   sortBy?: 'id' | 'song_name' | 'created_at' | 'date' | string
@@ -243,6 +246,7 @@ export type TenantInvitationDjSongRequestListParams = {
 
 export type TenantInvitationDjSongRequestExportParams = {
   invitation_id?: number | string
+  invitation_ids?: Array<number | string>
   search?: string
   linkStatus?: 'all' | 'with_link' | 'without_link' | string
   sortBy?: 'id' | 'song_name' | 'created_at' | 'date' | string
@@ -300,6 +304,27 @@ export type TenantDashboardSummary = {
     count: number
     percentage: number
   }>
+  invitation_performance: Array<{
+    invitation_id: number
+    title: string
+    status: string
+    published_at: string | null
+    visits: number
+    total_guests: number
+    confirmed_guests: number
+    confirmation_rate: number
+    dj_song_requests: number
+    wall_messages: number
+    interactions: number
+    last_activity_at: string | null
+    engagement_score: number
+  }>
+}
+
+export type TenantDashboardSummaryParams = {
+  invitation_id?: number | string
+  invitation_ids?: Array<number | string>
+  published_only?: boolean
 }
 
 export type UpsertTenantInvitationPayload = {
@@ -611,12 +636,58 @@ const normalizeDjSongRequestSummary = (value: unknown): TenantInvitationDjSongRe
   }
 }
 
-export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummary> => {
-  const payload = await request<TenantDashboardResponse>(`${TENANT_BASE}/dashboard`)
+const normalizeInvitationIds = (params: { invitation_id?: number | string; invitation_ids?: Array<number | string> }) => {
+  const ids = Array.isArray(params.invitation_ids) ? params.invitation_ids : []
+  const normalized = ids
+    .map((item) => String(item).trim())
+    .filter((item, index, list) => item !== '' && list.indexOf(item) === index)
+
+  if (!normalized.length && params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== '') {
+    normalized.push(String(params.invitation_id).trim())
+  }
+
+  return normalized
+}
+
+const appendInvitationFilters = (
+  search: URLSearchParams,
+  params: { invitation_id?: number | string; invitation_ids?: Array<number | string> },
+) => {
+  const ids = normalizeInvitationIds(params)
+  if (ids.length === 1) {
+    search.set('invitation_id', ids[0] ?? '')
+    return
+  }
+
+  ids.forEach((id) => search.append('invitation_ids[]', id))
+}
+
+const buildInvitationFilterBody = (params: { invitation_id?: number | string; invitation_ids?: Array<number | string> }) => {
+  const ids = normalizeInvitationIds(params)
+
+  return {
+    invitation_id: ids.length === 1 ? ids[0] : undefined,
+    invitation_ids: ids.length > 1 ? ids : undefined,
+  }
+}
+
+const buildDashboardQuery = (params: TenantDashboardSummaryParams = {}) => {
+  const search = new URLSearchParams()
+  appendInvitationFilters(search, params)
+  if (params.published_only) {
+    search.set('published_only', '1')
+  }
+  const query = search.toString()
+  return query ? `?${query}` : ''
+}
+
+export const getTenantDashboardSummary = async (params: TenantDashboardSummaryParams = {}): Promise<TenantDashboardSummary> => {
+  const payload = await request<TenantDashboardResponse>(`${TENANT_BASE}/dashboard${buildDashboardQuery(params)}`)
   const data = toRecord(payload.data)
   const analytics = toRecord(data.analytics)
   const dailyActivity = Array.isArray(data.daily_activity) ? data.daily_activity : []
   const interactionBreakdown = Array.isArray(data.interaction_breakdown) ? data.interaction_breakdown : []
+  const invitationPerformance = Array.isArray(data.invitation_performance) ? data.invitation_performance : []
 
   return {
     total_invitations: toNumber(data.total_invitations, 0),
@@ -672,6 +743,24 @@ export const getTenantDashboardSummary = async (): Promise<TenantDashboardSummar
         label: String(source.label ?? ''),
         count: toNumber(source.count, 0),
         percentage: toNumber(source.percentage, 0),
+      }
+    }),
+    invitation_performance: invitationPerformance.map((item) => {
+      const source = toRecord(item)
+      return {
+        invitation_id: toNumber(source.invitation_id, 0),
+        title: String(source.title ?? ''),
+        status: String(source.status ?? ''),
+        published_at: (source.published_at ?? null) as string | null,
+        visits: toNumber(source.visits, 0),
+        total_guests: toNumber(source.total_guests, 0),
+        confirmed_guests: toNumber(source.confirmed_guests, 0),
+        confirmation_rate: toNumber(source.confirmation_rate, 0),
+        dj_song_requests: toNumber(source.dj_song_requests, 0),
+        wall_messages: toNumber(source.wall_messages, 0),
+        interactions: toNumber(source.interactions, 0),
+        last_activity_at: (source.last_activity_at ?? null) as string | null,
+        engagement_score: toNumber(source.engagement_score, 0),
       }
     }),
   }
@@ -755,9 +844,7 @@ export const getTenantInvitationRsvpResponses = async (
   search.set('page', String(params.page ?? 1))
   search.set('perPage', String(params.perPage ?? 10))
 
-  if (params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== '') {
-    search.set('invitation_id', String(params.invitation_id))
-  }
+  appendInvitationFilters(search, params)
 
   if (params.table_assignment && params.table_assignment.trim()) {
     search.set('table_assignment', params.table_assignment.trim())
@@ -812,9 +899,7 @@ export const exportTenantInvitationRsvpPdf = async (
   const sortField = params.sortField === 'first_name' ? 'first_name' : 'last_name'
   const lastNameOrder = params.lastNameOrder === 'desc' ? 'desc' : 'asc'
   const tableOrder = params.tableOrder === 'desc' ? 'desc' : 'asc'
-  const invitationId = params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== ''
-    ? params.invitation_id
-    : undefined
+  const invitationFilter = buildInvitationFilterBody(params)
   const tableAssignment = params.table_assignment?.trim() || undefined
   const whatsappStatus = params.whatsapp_status && params.whatsapp_status !== 'all'
     ? params.whatsapp_status
@@ -825,7 +910,7 @@ export const exportTenantInvitationRsvpPdf = async (
     body: {
       scope,
       status_filter: statusFilter,
-      invitation_id: invitationId,
+      ...invitationFilter,
       table_assignment: tableAssignment,
       table_assignments: params.table_assignments?.map((item) => String(item).trim()).filter(Boolean),
       include_unassigned_tables: Boolean(params.include_unassigned_tables),
@@ -854,9 +939,7 @@ export const exportTenantInvitationRsvpXlsx = async (
   const sortField = params.sortField === 'first_name' ? 'first_name' : 'last_name'
   const lastNameOrder = params.lastNameOrder === 'desc' ? 'desc' : 'asc'
   const tableOrder = params.tableOrder === 'desc' ? 'desc' : 'asc'
-  const invitationId = params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== ''
-    ? params.invitation_id
-    : undefined
+  const invitationFilter = buildInvitationFilterBody(params)
   const tableAssignment = params.table_assignment?.trim() || undefined
   const whatsappStatus = params.whatsapp_status && params.whatsapp_status !== 'all'
     ? params.whatsapp_status
@@ -870,7 +953,7 @@ export const exportTenantInvitationRsvpXlsx = async (
     body: {
       scope,
       status_filter: statusFilter,
-      invitation_id: invitationId,
+      ...invitationFilter,
       table_assignment: tableAssignment,
       table_assignments: params.table_assignments?.map((item) => String(item).trim()).filter(Boolean),
       include_unassigned_tables: Boolean(params.include_unassigned_tables),
@@ -949,9 +1032,7 @@ export const getTenantInvitationDjSongRequests = async (
   search.set('page', String(params.page ?? 1))
   search.set('perPage', String(params.perPage ?? 10))
 
-  if (params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== '') {
-    search.set('invitation_id', String(params.invitation_id))
-  }
+  appendInvitationFilters(search, params)
 
   if (params.search && params.search.trim()) {
     search.set('search', params.search.trim())
@@ -991,9 +1072,7 @@ export const getTenantInvitationDjSongRequests = async (
 }
 
 const buildDjSongRequestExportBody = (params: TenantInvitationDjSongRequestExportParams) => ({
-  invitation_id: params.invitation_id !== undefined && params.invitation_id !== null && String(params.invitation_id).trim() !== ''
-    ? params.invitation_id
-    : undefined,
+  ...buildInvitationFilterBody(params),
   search: params.search?.trim() || undefined,
   linkStatus: params.linkStatus && params.linkStatus !== 'all' ? params.linkStatus : undefined,
   sortBy: params.sortBy,
