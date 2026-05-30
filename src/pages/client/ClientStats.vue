@@ -21,6 +21,14 @@ const loadError = ref<string | null>(null)
 const selectedInvitationIds = ref<string[]>([])
 const invitationOptions = ref<TenantInvitationItem[]>([])
 const invitationTitleById = ref<Record<string, string>>({})
+const showInteractionLegend = ref(false)
+const interactionLegendRef = ref<HTMLElement | null>(null)
+const hoveredInteraction = ref<{
+  label: string
+  count: number
+  percentage: number
+  color: string
+} | null>(null)
 let invitationSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const createEmptyDashboard = (): TenantDashboardSummary => ({
@@ -164,8 +172,8 @@ const dailyActivityMax = computed(() => {
 const dailyActivityRows = computed(() =>
   dashboard.value.daily_activity.map((item) => ({
     ...item,
-    visitsWidth: `${Math.round((item.visits / dailyActivityMax.value) * 100)}%`,
-    confirmedWidth: `${Math.round((item.confirmed_guests / dailyActivityMax.value) * 100)}%`,
+    visitsHeight: `${Math.round((item.visits / dailyActivityMax.value) * 100)}%`,
+    confirmedHeight: `${Math.round((item.confirmed_guests / dailyActivityMax.value) * 100)}%`,
   })),
 )
 
@@ -186,19 +194,45 @@ const peakActivityDay = computed(() => {
   }, fallback)
 })
 
+const interactionColors = ['#6f39bb', '#ef4f83', '#5e69ff', '#36d2a2', '#ff9e6e', '#8f5cff', '#2f9bd8']
+const interactionPieCircumference = 2 * Math.PI * 70
+const interactionTotal = computed(() =>
+  dashboard.value.interaction_breakdown.reduce((total, item) => total + item.count, 0),
+)
 const interactionRows = computed(() =>
-  dashboard.value.interaction_breakdown.map((item) => ({
-    ...item,
-    width: `${Math.max(4, item.percentage)}%`,
-  })),
-)
+  dashboard.value.interaction_breakdown.map((item, index) => {
+    const percentage = interactionTotal.value > 0
+      ? Math.round((item.count / interactionTotal.value) * 100)
+      : 0
 
-const topInteractionRows = computed(() =>
-  [...dashboard.value.interaction_breakdown]
-    .filter((item) => item.count > 0)
-    .sort((left, right) => right.count - left.count)
-    .slice(0, 3),
+    return {
+      ...item,
+      color: interactionColors[index % interactionColors.length] ?? '#6f39bb',
+      percentage,
+    }
+  }),
 )
+const interactionPieSegments = computed(() => {
+  if (interactionTotal.value <= 0) {
+    return []
+  }
+
+  let offset = 0
+
+  return interactionRows.value
+    .filter((item) => item.count > 0)
+    .map((item) => {
+      const length = (item.count / interactionTotal.value) * interactionPieCircumference
+      const segment = {
+        ...item,
+        dasharray: `${length} ${interactionPieCircumference - length}`,
+        dashoffset: -offset,
+      }
+      offset += length
+
+      return segment
+    })
+})
 
 const performanceRows = computed(() => dashboard.value.invitation_performance)
 
@@ -277,6 +311,13 @@ const loadData = async () => {
   }
 }
 
+const handleDocumentPointerDown = (event: PointerEvent) => {
+  if (!showInteractionLegend.value) return
+  const target = event.target as Node | null
+  if (!target || interactionLegendRef.value?.contains(target)) return
+  showInteractionLegend.value = false
+}
+
 watch(selectedInvitationIds, () => {
   void loadData()
 })
@@ -284,11 +325,17 @@ watch(selectedInvitationIds, () => {
 onMounted(() => {
   void loadInvitationOptions()
   void loadData()
+  if (typeof document !== 'undefined') {
+    document.addEventListener('pointerdown', handleDocumentPointerDown)
+  }
 })
 
 onBeforeUnmount(() => {
   if (invitationSearchDebounceTimer) {
     clearTimeout(invitationSearchDebounceTimer)
+  }
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('pointerdown', handleDocumentPointerDown)
   }
 })
 </script>
@@ -418,16 +465,21 @@ onBeforeUnmount(() => {
             <span>Día más activo: {{ peakActivityDay.label }}</span>
           </div>
 
-          <div class="activity-chart">
-            <div v-for="item in dailyActivityRows" :key="item.date" class="activity-row">
-              <span class="activity-row__date">{{ item.label }}</span>
-              <div class="activity-row__bars">
-                <span class="activity-bar activity-bar--visits" :style="{ width: item.visitsWidth }" />
-                <span class="activity-bar activity-bar--confirmed" :style="{ width: item.confirmedWidth }" />
+          <div class="activity-chart" aria-label="Actividad diaria en barras verticales">
+            <div v-for="item in dailyActivityRows" :key="item.date" class="activity-column">
+              <span class="activity-column__date">{{ item.label }}</span>
+              <div class="activity-column__bars">
+                <span
+                  class="activity-bar activity-bar--visits"
+                  :style="{ height: item.visitsHeight }"
+                  :data-tooltip="`${formatNumber(item.visits)} visitas`"
+                  :title="`${formatNumber(item.visits)} visitas`" />
+                <span
+                  class="activity-bar activity-bar--confirmed"
+                  :style="{ height: item.confirmedHeight }"
+                  :data-tooltip="`${formatNumber(item.confirmed_guests)} confirmaciones`"
+                  :title="`${formatNumber(item.confirmed_guests)} confirmaciones`" />
               </div>
-              <span class="activity-row__value">
-                {{ formatNumber(item.visits) }} / {{ formatNumber(item.confirmed_guests) }}
-              </span>
             </div>
           </div>
         </article>
@@ -438,25 +490,69 @@ onBeforeUnmount(() => {
               <p class="client-kicker">Interacciones</p>
               <h2>Qué usan tus invitados</h2>
             </div>
+            <div ref="interactionLegendRef" class="chart-actions">
+              <button
+                type="button"
+                class="chart-toggle"
+                :class="{ 'chart-toggle--open': showInteractionLegend }"
+                :aria-expanded="showInteractionLegend"
+                aria-controls="interaction-legend"
+                title="Ver detalle"
+                @click="showInteractionLegend = !showInteractionLegend">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              <Transition name="legend-slide">
+                <div v-if="showInteractionLegend" id="interaction-legend" class="interaction-dropdown">
+                  <div v-for="item in interactionRows" :key="item.key" class="interaction-row">
+                    <div class="interaction-row__head">
+                      <span><i :style="{ background: item.color }" /> {{ item.label }}</span>
+                      <strong>{{ formatNumber(item.count) }}</strong>
+                    </div>
+                    <small>{{ item.percentage }}% del total</small>
+                  </div>
+                </div>
+              </Transition>
+            </div>
           </header>
 
-          <div v-if="topInteractionRows.length" class="top-interactions" aria-label="Interacciones principales">
-            <article v-for="item in topInteractionRows" :key="`top-${item.key}`">
-              <span>{{ item.label }}</span>
-              <strong>{{ formatNumber(item.count) }}</strong>
-            </article>
-          </div>
-
-          <div class="interaction-list">
-            <div v-for="item in interactionRows" :key="item.key" class="interaction-row">
-              <div class="interaction-row__head">
-                <span>{{ item.label }}</span>
-                <strong>{{ formatNumber(item.count) }}</strong>
+          <div class="interaction-pie-layout" :class="{ 'interaction-pie-layout--empty': interactionTotal <= 0 }">
+            <div class="interaction-pie" aria-label="Gráfico de pastel de interacciones">
+              <svg class="interaction-pie__svg" viewBox="0 0 200 200" role="img">
+                <circle class="interaction-pie__base" cx="100" cy="100" r="70" />
+                <circle
+                  v-if="interactionTotal <= 0"
+                  class="interaction-pie__empty"
+                  cx="100"
+                  cy="100"
+                  r="70" />
+                <circle
+                  v-for="item in interactionPieSegments"
+                  :key="item.key"
+                  class="interaction-pie__segment"
+                  cx="100"
+                  cy="100"
+                  r="70"
+                  :stroke="item.color"
+                  :stroke-dasharray="item.dasharray"
+                  :stroke-dashoffset="item.dashoffset"
+                  @mouseenter="hoveredInteraction = item"
+                  @mouseleave="hoveredInteraction = null" />
+              </svg>
+              <div class="interaction-pie__center">
+                <span>{{ formatNumber(interactionTotal) }}</span>
+                <small>interacciones</small>
               </div>
-              <div class="interaction-track" aria-hidden="true">
-                <span :style="{ width: item.width }" />
-              </div>
-              <small>{{ item.percentage }}% del total</small>
+              <Transition name="pie-tooltip">
+                <div
+                  v-if="hoveredInteraction"
+                  class="interaction-pie-tooltip"
+                  :style="{ '--tooltip-color': hoveredInteraction.color }">
+                  <strong>{{ hoveredInteraction.label }}</strong>
+                  <span>{{ formatNumber(hoveredInteraction.count) }} · {{ hoveredInteraction.percentage }}%</span>
+                </div>
+              </Transition>
             </div>
           </div>
         </article>
@@ -827,6 +923,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(111, 57, 187, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 247, 255, 0.96));
+  overflow: visible;
 }
 
 .chart-head {
@@ -834,6 +931,8 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  position: relative;
+  overflow: visible;
 }
 
 .chart-head h2 {
@@ -857,6 +956,50 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+.chart-actions {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 5;
+}
+
+.chart-toggle {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(111, 57, 187, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #5b2d90;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(90, 57, 153, 0.1);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.chart-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(111, 57, 187, 0.34);
+  background: #fff;
+}
+
+.chart-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+
+.chart-toggle--open svg {
+  transform: rotate(180deg);
+}
+
 .legend-dot {
   width: 10px;
   height: 10px;
@@ -876,6 +1019,20 @@ onBeforeUnmount(() => {
 .interaction-list {
   display: grid;
   gap: 12px;
+}
+
+.activity-chart {
+  min-height: 255px;
+  grid-template-columns: repeat(14, minmax(34px, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 10px 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(111, 57, 187, 0.1);
+  background:
+    linear-gradient(180deg, rgba(111, 57, 187, 0.08) 1px, transparent 1px) 0 0 / 100% 25%,
+    rgba(255, 255, 255, 0.64);
+  overflow-x: auto;
 }
 
 .activity-summary,
@@ -912,49 +1069,262 @@ onBeforeUnmount(() => {
   font-size: 1.05rem;
 }
 
-.activity-row {
+.activity-column {
+  min-width: 34px;
+  height: 100%;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 72px;
-  gap: 10px;
-  align-items: center;
+  grid-template-rows: auto minmax(170px, 1fr);
+  gap: 7px;
+  align-items: stretch;
+  justify-items: center;
 }
 
-.activity-row__date,
-.activity-row__value,
+.activity-column__date,
 .interaction-row small {
   color: #6a5a84;
   font-size: 0.82rem;
 }
 
-.activity-row__value {
-  text-align: right;
+.activity-column__date {
+  min-height: 18px;
+  font-weight: 700;
 }
 
-.activity-row__bars {
-  display: grid;
-  gap: 4px;
+.activity-column__bars {
+  width: 100%;
+  height: 170px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 5px;
 }
 
-.activity-bar,
-.interaction-track span {
+.activity-bar {
   display: block;
-  height: 8px;
+  width: clamp(9px, 34%, 16px);
+  min-height: 4px;
+  border-radius: 999px 999px 5px 5px;
+  position: relative;
+  transition: height 0.25s ease;
+  box-shadow: 0 8px 16px rgba(90, 57, 153, 0.12);
+}
+
+.activity-bar::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
   border-radius: 999px;
-  min-width: 4px;
-  transition: width 0.25s ease;
+  padding: 5px 8px;
+  background: #241642;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(36, 22, 66, 0.22);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  z-index: 3;
+}
+
+.activity-bar:hover::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .activity-bar--visits {
-  background: linear-gradient(90deg, #5e69ff, #6f39bb);
+  background: linear-gradient(180deg, #5e69ff, #6f39bb);
 }
 
 .activity-bar--confirmed {
-  background: linear-gradient(90deg, #f0588f, #ff9e6e);
+  background: linear-gradient(180deg, #f0588f, #ff9e6e);
+}
+
+.interaction-pie-layout {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  position: relative;
+}
+
+.interaction-pie {
+  width: min(100%, 270px);
+  aspect-ratio: 1;
+  display: block;
+  justify-self: center;
+  text-align: center;
+  position: relative;
+  filter: drop-shadow(0 22px 36px rgba(90, 57, 153, 0.18));
+}
+
+.interaction-pie__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.interaction-pie__base,
+.interaction-pie__empty,
+.interaction-pie__segment {
+  fill: none;
+  stroke-width: 42;
+  transform: rotate(-90deg);
+  transform-origin: 100px 100px;
+}
+
+.interaction-pie__base {
+  stroke: rgba(111, 57, 187, 0.12);
+}
+
+.interaction-pie__empty {
+  stroke: rgba(111, 57, 187, 0.16);
+}
+
+.interaction-pie__segment {
+  cursor: default;
+  transition:
+    stroke-width 0.18s ease,
+    filter 0.18s ease;
+}
+
+.interaction-pie__segment:hover {
+  stroke-width: 47;
+  filter: drop-shadow(0 0 8px rgba(36, 22, 66, 0.18));
+}
+
+.interaction-pie__center {
+  position: absolute;
+  inset: 31%;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(111, 57, 187, 0.12);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  box-shadow: inset 0 0 0 7px rgba(247, 241, 255, 0.68);
+}
+
+.interaction-pie__center span {
+  color: #241642;
+  font-weight: 800;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  line-height: 1;
+}
+
+.interaction-pie__center small {
+  color: #6a5a84;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.interaction-pie-tooltip {
+  --tooltip-color: #6f39bb;
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
+  min-width: 150px;
+  max-width: 220px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: #241642;
+  color: #fff;
+  padding: 8px 10px 8px 12px;
+  box-shadow: 0 16px 32px rgba(36, 22, 66, 0.24);
+  pointer-events: none;
+  text-align: left;
+  z-index: 4;
+}
+
+.interaction-pie-tooltip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: var(--tooltip-color);
+}
+
+.interaction-pie-tooltip strong,
+.interaction-pie-tooltip span {
+  display: block;
+}
+
+.interaction-pie-tooltip strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.interaction-pie-tooltip span {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.pie-tooltip-enter-active,
+.pie-tooltip-leave-active {
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+
+.pie-tooltip-enter-from,
+.pie-tooltip-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 4px);
+}
+
+.legend-slide-enter-active,
+.legend-slide-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.legend-slide-enter-from,
+.legend-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.legend-slide-enter-to,
+.legend-slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.interaction-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(320px, calc(100vw - 48px));
+  max-height: 320px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(111, 57, 187, 0.14);
+  background: rgba(255, 255, 255, 0.98);
+  padding: 10px;
+  box-shadow: 0 18px 42px rgba(54, 30, 92, 0.18);
+  z-index: 20;
 }
 
 .interaction-row {
   display: grid;
   gap: 7px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 57, 187, 0.11);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 9px 10px;
 }
 
 .interaction-row__head {
@@ -966,19 +1336,17 @@ onBeforeUnmount(() => {
 }
 
 .interaction-row__head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
 }
 
-.interaction-track {
+.interaction-row__head i {
+  width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: rgba(111, 57, 187, 0.14);
-  overflow: hidden;
-}
-
-.interaction-track span {
-  height: 100%;
-  background: linear-gradient(90deg, #6f39bb, #ef4f83);
+  flex: 0 0 auto;
 }
 
 .performance-card {
@@ -1135,13 +1503,17 @@ onBeforeUnmount(() => {
     flex-direction: column;
   }
 
-  .activity-row {
-    grid-template-columns: 44px minmax(0, 1fr);
+  .activity-chart {
+    grid-template-columns: repeat(14, minmax(32px, 1fr));
+    min-height: 230px;
   }
 
-  .activity-row__value {
-    grid-column: 2;
-    text-align: left;
+  .activity-column__bars {
+    height: 150px;
+  }
+
+  .interaction-pie-layout {
+    grid-template-columns: 1fr;
   }
 
   .activity-summary,

@@ -115,6 +115,7 @@ type EditorSnapshot = {
   removedGalleryImageIds: number[]
   pendingDeleteWallMessageIds: number[]
   pendingWallMessageVisibilityById: Record<number, boolean>
+  pendingWallMessageOrderIds: number[]
 }
 
 type DraftLocationItem = {
@@ -327,20 +328,26 @@ const {
   updatingWallMessageIds,
   pendingDeleteWallMessageIds,
   pendingWallMessageVisibilityById,
+  pendingWallMessageOrderIds,
   wallMessagesInEditor,
   wallUsedCountInEditor,
   wallVisibleCountInEditor,
   hasPendingWallMessageDeletes,
   hasPendingWallMessageVisibilityChanges,
+  hasPendingWallMessageOrderChanges,
   syncWallSummaryWithEditorState,
   syncWallMessagesIntoContent,
   setPendingDeleteWallMessageIds,
   setPendingWallMessageVisibilityById,
+  setPendingWallMessageOrderIds,
   loadWallMessagesData,
   updateWallMessageVisibility,
   queueDeleteWallMessage: queueDeleteWallMessageById,
+  canMoveWallMessage,
+  moveWallMessage,
   persistPendingWallMessageDeletes,
   persistPendingWallMessageVisibilityChanges,
+  persistPendingWallMessageOrderChanges,
 } = useInvitationEditorWall({
   invitationId: invitationRecordId,
   contentDraft,
@@ -359,6 +366,9 @@ const effectiveWallMessageLimit = computed(() => {
   if (isProLikePlan.value && numericLimit < 8) return 8
   return Math.max(0, Math.floor(numericLimit))
 })
+const wallMessageOrderingEnabled = computed(() =>
+  isProLikePlan.value && Boolean(wallSummary.value.ordering_enabled ?? wallSummary.value.orderingEnabled),
+)
 const isDeletingPendingWallMessage = computed(() => {
   const messageId = pendingDeleteWallMessageId.value
   if (!messageId) return false
@@ -1629,6 +1639,7 @@ const createSnapshot = (): EditorSnapshot => ({
   removedGalleryImageIds: [...removedGalleryImageIds.value],
   pendingDeleteWallMessageIds: [...pendingDeleteWallMessageIds.value],
   pendingWallMessageVisibilityById: { ...pendingWallMessageVisibilityById.value },
+  pendingWallMessageOrderIds: pendingWallMessageOrderIds.value ? [...pendingWallMessageOrderIds.value] : [],
 })
 
 const cloneSnapshot = (snapshot: EditorSnapshot): EditorSnapshot => ({
@@ -1663,6 +1674,9 @@ const cloneSnapshot = (snapshot: EditorSnapshot): EditorSnapshot => ({
       return carry
     }, {})
     : {},
+  pendingWallMessageOrderIds: Array.isArray(snapshot.pendingWallMessageOrderIds)
+    ? snapshot.pendingWallMessageOrderIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [],
 })
 
 const applySnapshot = async (snapshot: EditorSnapshot) => {
@@ -1695,6 +1709,9 @@ const applySnapshot = async (snapshot: EditorSnapshot) => {
       return carry
     }, {})
     : {})
+  setPendingWallMessageOrderIds(Array.isArray(snapshot.pendingWallMessageOrderIds)
+    ? snapshot.pendingWallMessageOrderIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [])
   syncWallSummaryWithEditorState()
   syncWallMessagesIntoContent()
   await loadTemplateRenderer()
@@ -1734,6 +1751,9 @@ const snapshotFromSerializedState = (state: string): EditorSnapshot | null => {
             return carry
           }, {})
           : {},
+      pendingWallMessageOrderIds: Array.isArray(parsed.pendingWallMessageOrderIds)
+        ? parsed.pendingWallMessageOrderIds.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+        : [],
     }
   } catch {
     return null
@@ -2273,7 +2293,7 @@ const previewData = computed<WeddingTemplateData>(() => {
         cloudMessagesEnabled: wallCloudMessagesDraft.value,
         cloud_messages_enabled: wallCloudMessagesDraft.value,
       },
-      messages: wallMessages.value
+      messages: wallMessagesInEditor.value
         .filter((item) => item.is_visible)
         .map((item) => ({
           id: String(item.id),
@@ -2282,6 +2302,7 @@ const previewData = computed<WeddingTemplateData>(() => {
           status: item.status,
           isVisible: item.is_visible,
           postedAt: item.posted_at,
+          displayOrder: item.display_order,
         })),
     },
     djSongRequests: {
@@ -2776,6 +2797,7 @@ const performSaveChanges = async () => {
     const hadGalleryChanges = hasPendingGalleryChanges.value
     const hadPendingWallVisibilityChanges = hasPendingWallMessageVisibilityChanges.value
     const hadPendingWallDeletes = hasPendingWallMessageDeletes.value
+    const hadPendingWallOrderChanges = hasPendingWallMessageOrderChanges.value
 
     const projectedContent = await buildProjectedContentForSave()
     setByPath(projectedContent, 'wall.limit', effectiveWallMessageLimit.value)
@@ -2838,6 +2860,16 @@ const performSaveChanges = async () => {
       } catch (error) {
         const payload = error as { message?: string }
         notifyError(payload?.message ?? 'Guardamos tus cambios, pero no pudimos actualizar la visibilidad de uno o más mensajes.')
+        return
+      }
+    }
+
+    if (hadPendingWallOrderChanges) {
+      try {
+        await persistPendingWallMessageOrderChanges()
+      } catch (error) {
+        const payload = error as { message?: string }
+        notifyError(payload?.message ?? 'Guardamos tus cambios, pero no pudimos actualizar el orden de los mensajes.')
         return
       }
     }
@@ -2911,6 +2943,7 @@ const serializedEditorState = computed(() =>
     removedGalleryImageIds: removedGalleryImageIds.value,
     pendingDeleteWallMessageIds: pendingDeleteWallMessageIds.value,
     pendingWallMessageVisibilityById: pendingWallMessageVisibilityById.value,
+    pendingWallMessageOrderIds: pendingWallMessageOrderIds.value ?? [],
   }),
 )
 const {
@@ -3689,6 +3722,10 @@ onBeforeRouteLeave((to) => {
                           class="gallery-panel-copy">
                           Tienes cambios de visibilidad pendientes. Se aplicarán al guardar cambios.
                         </p>
+                        <p v-if="!isLoadingWallMessages && hasPendingWallMessageOrderChanges"
+                          class="gallery-panel-copy">
+                          Tienes un nuevo orden pendiente. Se aplicará al guardar cambios.
+                        </p>
                         <p v-if="!wallSummary.enabled && !isLoadingWallMessages" class="gallery-panel-copy">
                           Tu plan actual no tiene activo el muro de mensajes.
                         </p>
@@ -3705,10 +3742,15 @@ onBeforeRouteLeave((to) => {
                         </p>
 
                         <div class="faq-editor">
-                          <article v-for="item in wallMessagesInEditor" :key="item.id"
+                          <article v-for="(item, index) in wallMessagesInEditor" :key="item.id"
                             class="faq-item wall-message-item">
                             <div class="wall-message-item__head">
-                              <strong>{{ item.guest_name }}</strong>
+                              <span class="wall-message-item__author">
+                                <span v-if="wallMessageOrderingEnabled" class="wall-message-item__position">
+                                  {{ index + 1 }}
+                                </span>
+                                <strong>{{ item.guest_name }}</strong>
+                              </span>
                               <small>{{ formatWallMessageDate(item.posted_at) }}</small>
                             </div>
                             <p class="wall-message-item__text">
@@ -3720,6 +3762,23 @@ onBeforeRouteLeave((to) => {
                             </button>
 
                             <div class="wall-message-item__actions">
+                              <div v-if="wallMessageOrderingEnabled" class="wall-message-order-controls"
+                                aria-label="Ordenar mensaje">
+                                <button type="button" class="wall-message-order-btn"
+                                  :disabled="isSaving || isWallMessageUpdating(item.id) || !canMoveWallMessage(item.id, -1)"
+                                  aria-label="Subir mensaje" title="Subir mensaje" @click="moveWallMessage(item.id, -1)">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m6 15 6-6 6 6" />
+                                  </svg>
+                                </button>
+                                <button type="button" class="wall-message-order-btn"
+                                  :disabled="isSaving || isWallMessageUpdating(item.id) || !canMoveWallMessage(item.id, 1)"
+                                  aria-label="Bajar mensaje" title="Bajar mensaje" @click="moveWallMessage(item.id, 1)">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m6 9 6 6 6-6" />
+                                  </svg>
+                                </button>
+                              </div>
                               <div class="feature-inline-switch feature-inline-switch--compact">
                                 <label class="switch" title="Mostrar u ocultar mensaje en la invitación">
                                   <span class="sr-only">
@@ -5706,9 +5765,32 @@ onBeforeRouteLeave((to) => {
   gap: 8px;
 }
 
+.wall-message-item__author {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wall-message-item__position {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: rgba(124, 58, 237, 0.12);
+  color: #5b21b6;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .wall-message-item__head strong {
+  min-width: 0;
   font-size: 0.82rem;
   color: #0f172a;
+  overflow-wrap: anywhere;
 }
 
 .wall-message-item__head small {
@@ -5749,6 +5831,47 @@ onBeforeRouteLeave((to) => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.wall-message-order-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.wall-message-order-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  color: #5b21b6;
+  cursor: pointer;
+}
+
+.wall-message-order-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wall-message-order-btn:hover:not(:disabled),
+.wall-message-order-btn:focus-visible:not(:disabled) {
+  border-color: rgba(124, 58, 237, 0.45);
+  background: rgba(124, 58, 237, 0.1);
+}
+
+.wall-message-order-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .feature-inline-switch--compact {

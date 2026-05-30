@@ -11,6 +11,8 @@ type PublicWallMessageRaw = {
   id?: number | string
   guest_name?: string
   message?: string
+  display_order?: number | string | null
+  displayOrder?: number | string | null
   status?: string
   is_visible?: boolean
   posted_at?: string | null
@@ -72,6 +74,7 @@ export type PublicWallMessage = {
   id: string
   guestName: string
   message: string
+  displayOrder: number | null
   status: string
   isVisible: boolean
   postedAt: string | null
@@ -272,6 +275,11 @@ export const createPublicInvitationWallMessage = async (payload: {
       id: String(rawMessage.id ?? ''),
       guestName: toString(rawMessage.guest_name),
       message: toString(rawMessage.message),
+      displayOrder: rawMessage.display_order === null || rawMessage.display_order === undefined
+        ? rawMessage.displayOrder === null || rawMessage.displayOrder === undefined
+          ? null
+          : toNumber(rawMessage.displayOrder)
+        : toNumber(rawMessage.display_order),
       status: toString(rawMessage.status, 'visible'),
       isVisible: Boolean(rawMessage.is_visible ?? true),
       postedAt: toString(rawMessage.posted_at) || null,

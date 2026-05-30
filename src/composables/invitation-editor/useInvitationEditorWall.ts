@@ -2,6 +2,7 @@ import { computed, ref, watch, type Ref } from 'vue'
 import {
   deleteTenantInvitationWallMessage,
   getTenantInvitationWallMessages,
+  updateTenantInvitationWallMessageOrder,
   updateTenantInvitationWallMessage,
   type TenantInvitationWallMessage,
   type TenantInvitationWallSummary,
@@ -35,10 +36,43 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
   const updatingWallMessageIds = ref<number[]>([])
   const pendingDeleteWallMessageIds = ref<number[]>([])
   const pendingWallMessageVisibilityById = ref<Record<number, boolean>>({})
+  const pendingWallMessageOrderIds = ref<number[] | null>(null)
 
-  const wallMessagesInEditor = computed(() =>
+  const getActiveWallMessageIds = () =>
     wallMessages.value
-      .filter((item) => !pendingDeleteWallMessageIds.value.includes(item.id))
+      .map((item) => Number(item.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+
+  const getEditorWallMessageIds = () =>
+    getActiveWallMessageIds().filter((id) => !pendingDeleteWallMessageIds.value.includes(id))
+
+  const normalizeWallMessageOrderIds = (ids: number[], sourceIds = getEditorWallMessageIds()) => {
+    const sourceSet = new Set(sourceIds)
+    const nextIds = ids
+      .map((item) => Number(item))
+      .filter((id, index, list) =>
+        Number.isFinite(id) && id > 0 && sourceSet.has(id) && list.indexOf(id) === index,
+      )
+
+    for (const id of sourceIds) {
+      if (!nextIds.includes(id)) {
+        nextIds.push(id)
+      }
+    }
+
+    return nextIds
+  }
+
+  const wallMessagesInEditor = computed(() => {
+    const sourceMessages = wallMessages.value.filter((item) => !pendingDeleteWallMessageIds.value.includes(item.id))
+    const sourceMap = new Map(sourceMessages.map((item) => [Number(item.id), item]))
+    const orderIds = pendingWallMessageOrderIds.value
+      ? normalizeWallMessageOrderIds(pendingWallMessageOrderIds.value, sourceMessages.map((item) => Number(item.id)))
+      : sourceMessages.map((item) => Number(item.id))
+
+    return orderIds
+      .map((id) => sourceMap.get(id))
+      .filter((item): item is TenantInvitationWallMessage => Boolean(item))
       .map((item) => {
         const override = pendingWallMessageVisibilityById.value[item.id]
         if (typeof override !== 'boolean') return item
@@ -49,8 +83,8 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
           status: nextStatus,
           is_visible: override,
         }
-      }),
-  )
+      })
+  })
 
   const wallUsedCountInEditor = computed(() => wallMessagesInEditor.value.length)
   const wallVisibleCountInEditor = computed(() =>
@@ -60,6 +94,12 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
   const hasPendingWallMessageVisibilityChanges = computed(
     () => Object.keys(pendingWallMessageVisibilityById.value).length > 0,
   )
+  const hasPendingWallMessageOrderChanges = computed(() => {
+    if (!pendingWallMessageOrderIds.value) return false
+    const sourceIds = getEditorWallMessageIds()
+    const nextIds = normalizeWallMessageOrderIds(pendingWallMessageOrderIds.value, sourceIds)
+    return nextIds.length === sourceIds.length && nextIds.some((id, index) => id !== sourceIds[index])
+  })
 
   const syncWallSummaryWithEditorState = () => {
     wallSummary.value = {
@@ -85,6 +125,7 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
         status: item.status,
         isVisible: item.is_visible,
         postedAt: item.posted_at,
+        displayOrder: item.display_order,
       }))
 
     const nextWall = {
@@ -128,9 +169,21 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
     pendingWallMessageVisibilityById.value = sanitizePendingVisibilityMap(value)
   }
 
+  const setPendingWallMessageOrderIds = (ids: number[] | null | undefined) => {
+    if (!Array.isArray(ids)) {
+      pendingWallMessageOrderIds.value = null
+      return
+    }
+
+    const sourceIds = getEditorWallMessageIds()
+    const nextIds = normalizeWallMessageOrderIds(ids, sourceIds)
+    pendingWallMessageOrderIds.value = nextIds.some((id, index) => id !== sourceIds[index]) ? nextIds : null
+  }
+
   const resetPendingWallChanges = () => {
     pendingDeleteWallMessageIds.value = []
     pendingWallMessageVisibilityById.value = {}
+    pendingWallMessageOrderIds.value = null
   }
 
   const loadWallMessagesData = async (payload?: { silent?: boolean }) => {
@@ -185,7 +238,31 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
     if (!wallMessages.value.some((item) => item.id === messageId)) return false
 
     pendingDeleteWallMessageIds.value = [...pendingDeleteWallMessageIds.value, messageId]
+    setPendingWallMessageOrderIds(pendingWallMessageOrderIds.value ?? wallMessagesInEditor.value.map((item) => item.id))
     syncWallSummaryWithEditorState()
+    syncWallMessagesIntoContent()
+    return true
+  }
+
+  const canMoveWallMessage = (messageId: number, direction: -1 | 1): boolean => {
+    const ids = wallMessagesInEditor.value.map((item) => Number(item.id))
+    const currentIndex = ids.indexOf(Number(messageId))
+    if (currentIndex < 0) return false
+    const nextIndex = currentIndex + direction
+    return nextIndex >= 0 && nextIndex < ids.length
+  }
+
+  const moveWallMessage = (messageId: number, direction: -1 | 1): boolean => {
+    const ids = wallMessagesInEditor.value.map((item) => Number(item.id))
+    const currentIndex = ids.indexOf(Number(messageId))
+    const nextIndex = currentIndex + direction
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= ids.length) return false
+
+    const nextIds = [...ids]
+    const [selected] = nextIds.splice(currentIndex, 1)
+    if (selected === undefined) return false
+    nextIds.splice(nextIndex, 0, selected)
+    setPendingWallMessageOrderIds(nextIds)
     syncWallMessagesIntoContent()
     return true
   }
@@ -219,6 +296,7 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
         delete nextVisibilityMap[id]
       }
       pendingWallMessageVisibilityById.value = nextVisibilityMap
+      setPendingWallMessageOrderIds(pendingWallMessageOrderIds.value)
       syncWallSummaryWithEditorState()
       syncWallMessagesIntoContent()
     }
@@ -226,6 +304,21 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
     if (firstError) {
       throw firstError
     }
+  }
+
+  const persistPendingWallMessageOrderChanges = async () => {
+    const currentInvitationId = Number(options.invitationId.value ?? 0)
+    if (!Number.isFinite(currentInvitationId) || currentInvitationId <= 0) return
+    if (!hasPendingWallMessageOrderChanges.value || !pendingWallMessageOrderIds.value) return
+
+    const nextIds = normalizeWallMessageOrderIds(pendingWallMessageOrderIds.value)
+    if (!nextIds.length) return
+
+    const response = await updateTenantInvitationWallMessageOrder(currentInvitationId, nextIds)
+    wallMessages.value = response.items
+    pendingWallMessageOrderIds.value = null
+    syncWallSummaryWithEditorState()
+    syncWallMessagesIntoContent()
   }
 
   const persistPendingWallMessageVisibilityChanges = async () => {
@@ -284,6 +377,10 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
     if (currentEntries !== nextEntries) {
       pendingWallMessageVisibilityById.value = nextVisibilityMap
     }
+
+    if (pendingWallMessageOrderIds.value) {
+      setPendingWallMessageOrderIds(pendingWallMessageOrderIds.value)
+    }
   })
 
   return {
@@ -293,21 +390,27 @@ export const useInvitationEditorWall = (options: UseInvitationEditorWallOptions)
     updatingWallMessageIds,
     pendingDeleteWallMessageIds,
     pendingWallMessageVisibilityById,
+    pendingWallMessageOrderIds,
     wallMessagesInEditor,
     wallUsedCountInEditor,
     wallVisibleCountInEditor,
     hasPendingWallMessageDeletes,
     hasPendingWallMessageVisibilityChanges,
+    hasPendingWallMessageOrderChanges,
     syncWallSummaryWithEditorState,
     syncWallMessagesIntoContent,
     setPendingDeleteWallMessageIds,
     setPendingWallMessageVisibilityById,
+    setPendingWallMessageOrderIds,
     resetPendingWallChanges,
     loadWallMessagesData,
     updateWallMessageVisibility,
     queueDeleteWallMessage,
+    canMoveWallMessage,
+    moveWallMessage,
     persistPendingWallMessageDeletes,
     persistPendingWallMessageVisibilityChanges,
+    persistPendingWallMessageOrderChanges,
   }
 }
 

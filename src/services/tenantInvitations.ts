@@ -114,6 +114,7 @@ export type TenantInvitationWallMessage = {
   id: number
   guest_name: string
   message: string
+  display_order: number | null
   status: 'visible' | 'hidden'
   is_visible: boolean
   posted_at: string | null
@@ -127,6 +128,8 @@ export type TenantInvitationWallSummary = {
   used: number
   visible_count: number
   remaining: number | null
+  ordering_enabled?: boolean
+  orderingEnabled?: boolean
 }
 
 export type TenantInvitationWallDetail = {
@@ -564,6 +567,8 @@ const normalizeWallSummary = (value: unknown): TenantInvitationWallSummary => {
     used: toNumber(source.used, 0),
     visible_count: toNumber(source.visible_count, 0),
     remaining: source.remaining === null || source.remaining === undefined ? null : toNumber(source.remaining, 0),
+    ordering_enabled: Boolean(source.ordering_enabled ?? source.orderingEnabled),
+    orderingEnabled: Boolean(source.orderingEnabled ?? source.ordering_enabled),
   }
 }
 
@@ -576,6 +581,9 @@ const normalizeWallMessage = (value: unknown): TenantInvitationWallMessage => {
     id: toNumber(source.id, 0),
     guest_name: String(source.guest_name ?? ''),
     message: String(source.message ?? ''),
+    display_order: source.display_order === null || source.display_order === undefined
+      ? null
+      : toNumber(source.display_order, 0),
     status: normalizedStatus,
     is_visible: Boolean(source.is_visible) || normalizedStatus === 'visible',
     posted_at: source.posted_at ? String(source.posted_at) : null,
@@ -1341,6 +1349,26 @@ export const updateTenantInvitationWallMessage = async (
   const data = toRecord(payload.data)
   return {
     message: normalizeWallMessage(data.message),
+  }
+}
+
+export const updateTenantInvitationWallMessageOrder = async (
+  invitationId: string | number,
+  messageIds: Array<string | number>,
+): Promise<{ items: TenantInvitationWallMessage[] }> => {
+  const payload = await request<TenantApiResponse<Record<string, unknown>>>(
+    `${TENANT_BASE}/invitations/${invitationId}/wall-messages/order`,
+    {
+      method: 'PUT',
+      body: {
+        message_ids: messageIds,
+      },
+    },
+  )
+
+  const data = toRecord(payload.data)
+  return {
+    items: extractList(data.items).map(normalizeWallMessage),
   }
 }
 

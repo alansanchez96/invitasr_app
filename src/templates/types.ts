@@ -151,6 +151,7 @@ export type InvitationWallMessage = {
   id: string
   guestName: string
   message: string
+  displayOrder?: number | null
   status?: string
   isVisible?: boolean
   postedAt?: string | null

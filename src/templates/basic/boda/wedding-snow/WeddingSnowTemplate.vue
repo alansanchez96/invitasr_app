@@ -109,6 +109,7 @@ type WallMessage = {
   id: string
   guestName: string
   message: string
+  displayOrder?: number | null
   status?: string
   isVisible?: boolean
   postedAt?: string | null
@@ -687,6 +688,7 @@ const normalizeWallMessage = (value: unknown, fallbackIndex: number): WallMessag
     id: resolveText(source.id, `wall-${fallbackIndex + 1}`),
     guestName: resolveText(source.guestName, 'Invitado'),
     message: resolveText(source.message, ''),
+    displayOrder: Number.isFinite(Number(source.displayOrder)) ? Number(source.displayOrder) : null,
     status: resolveText(source.status, 'visible'),
     isVisible: source.isVisible === false ? false : true,
     postedAt: resolveText(source.postedAt, '') || null,
