@@ -3,11 +3,11 @@ import { computed, ref, type Ref } from 'vue'
 export type InvitationEditorResponsiveDevice = 'mobile' | 'tablet' | 'desktop'
 
 const ZOOM_MIN_PERCENT = 50
-const ZOOM_MAX_PERCENT = 140
+const ZOOM_MAX_PERCENT = 100
 const ZOOM_STEP_PERCENT = 5
 const DEVICE_ZOOM_PRESET: Record<InvitationEditorResponsiveDevice, number> = {
-  mobile: 130,
-  tablet: 115,
+  mobile: 100,
+  tablet: 100,
   desktop: 100,
 }
 
@@ -17,12 +17,6 @@ const DEVICE_OPTIONS: Array<{ value: InvitationEditorResponsiveDevice; label: st
   { value: 'desktop', label: 'Desktop' },
 ]
 
-const resolvePreviewDeviceByZoom = (zoomValue: number): InvitationEditorResponsiveDevice => {
-  if (zoomValue <= 100) return 'desktop'
-  if (zoomValue <= 125) return 'tablet'
-  return 'mobile'
-}
-
 const clampZoom = (value: number): number => {
   const bounded = Math.min(ZOOM_MAX_PERCENT, Math.max(ZOOM_MIN_PERCENT, value))
   return Math.round(bounded / ZOOM_STEP_PERCENT) * ZOOM_STEP_PERCENT
@@ -30,11 +24,9 @@ const clampZoom = (value: number): number => {
 
 export const useInvitationEditorViewport = () => {
   const previewDevice = ref<InvitationEditorResponsiveDevice>('mobile')
-  const previewZoomPercent = ref(DEVICE_ZOOM_PRESET.mobile)
+  const previewZoomPercent = ref(clampZoom(DEVICE_ZOOM_PRESET.mobile))
 
-  const effectivePreviewDevice = computed<InvitationEditorResponsiveDevice>(() =>
-    resolvePreviewDeviceByZoom(previewZoomPercent.value),
-  )
+  const effectivePreviewDevice = computed<InvitationEditorResponsiveDevice>(() => previewDevice.value)
 
   const effectivePreviewDeviceLabel = computed(() => {
     const row = DEVICE_OPTIONS.find((item) => item.value === effectivePreviewDevice.value)

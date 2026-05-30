@@ -135,6 +135,11 @@ type DraftLocationItem = {
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const PREVIEW_DEVICE_WIDTHS: Record<ResponsiveDevice, number> = {
+  mobile: 390,
+  tablet: 860,
+  desktop: 1366,
+}
 
 const invitation = ref<TenantInvitationItem | null>(null)
 const template = ref<TenantTemplateSummary | null>(null)
@@ -207,9 +212,13 @@ const {
 } = useInvitationEditorWallPreview(wallEditorExpandedMessageIds)
 const galleryInputRef = ref<HTMLInputElement | null>(null)
 const musicInputRef = ref<HTMLInputElement | null>(null)
+const previewStageRef = ref<HTMLElement | null>(null)
+const previewFrameRef = ref<HTMLElement | null>(null)
 const isUploadingMusic = ref(false)
 let slugAvailabilityTimer: ReturnType<typeof setTimeout> | null = null
 let slugAvailabilityCheckId = 0
+let previewResizeObserver: ResizeObserver | null = null
+let previewFrameResizeObserver: ResizeObserver | null = null
 
 const invitationId = computed(() => Number(route.params.invitationId))
 const invitationRecordId = computed(() => invitation.value?.id ?? null)
@@ -220,6 +229,32 @@ const isProLikePlan = computed(() => {
 })
 const canUploadCustomMusic = computed(() => isProLikePlan.value)
 const maxLocationsPerInvitation = computed(() => (isProLikePlan.value ? 5 : 2))
+const previewStageWidth = ref(0)
+const previewFrameHeight = ref(0)
+const previewBaseWidth = computed(() => PREVIEW_DEVICE_WIDTHS[effectivePreviewDevice.value])
+const inlinePreviewScale = computed(() => {
+  const availableWidth = Math.max(0, previewStageWidth.value)
+  const baseWidth = previewBaseWidth.value
+  const zoomScale = previewZoomPercent.value / 100
+  if (!availableWidth || !baseWidth) return zoomScale
+
+  const fitScale = Math.min(1, availableWidth / baseWidth)
+  return baseWidth > availableWidth ? fitScale * Math.min(zoomScale, 1) : zoomScale
+})
+const inlinePreviewShellStyle = computed(() => {
+  const scale = inlinePreviewScale.value
+  const width = Math.ceil(previewBaseWidth.value * scale)
+  const height = previewFrameHeight.value > 0 ? Math.ceil(previewFrameHeight.value * scale) : undefined
+
+  return {
+    width: `${width}px`,
+    ...(height ? { height: `${height}px` } : {}),
+  }
+})
+const inlinePreviewFrameStyle = computed(() => ({
+  width: `${previewBaseWidth.value}px`,
+  transform: `scale(${inlinePreviewScale.value})`,
+}))
 const rsvpWhatsappConfirmationsDraft = computed({
   get: () => {
     if (!isProLikePlan.value) return false
@@ -3079,15 +3114,58 @@ watch(showCheckinPreview, (isOpen) => {
   }
 })
 
+const refreshInlinePreviewMetrics = () => {
+  previewStageWidth.value = previewStageRef.value?.clientWidth ?? 0
+  const frame = previewFrameRef.value
+  previewFrameHeight.value = frame ? Math.max(frame.scrollHeight, frame.offsetHeight) : 0
+}
+
+watch(previewStageRef, (nextElement, previousElement) => {
+  if (previousElement) {
+    previewResizeObserver?.unobserve(previousElement)
+  }
+  if (nextElement) {
+    previewResizeObserver?.observe(nextElement)
+  }
+  requestAnimationFrame(refreshInlinePreviewMetrics)
+})
+
+watch(previewFrameRef, (nextElement, previousElement) => {
+  if (previousElement) {
+    previewFrameResizeObserver?.unobserve(previousElement)
+  }
+  if (nextElement) {
+    previewFrameResizeObserver?.observe(nextElement)
+  }
+  requestAnimationFrame(refreshInlinePreviewMetrics)
+})
+
+watch([effectivePreviewDevice, previewZoomPercent, previewData], () => {
+  requestAnimationFrame(refreshInlinePreviewMetrics)
+})
+
 onMounted(() => {
   window.addEventListener('keydown', handleEditorHotkeys)
   window.addEventListener('beforeunload', handleBeforeUnload)
+  previewResizeObserver = new ResizeObserver(() => refreshInlinePreviewMetrics())
+  previewFrameResizeObserver = new ResizeObserver(() => refreshInlinePreviewMetrics())
+  if (previewStageRef.value) {
+    previewResizeObserver.observe(previewStageRef.value)
+  }
+  if (previewFrameRef.value) {
+    previewFrameResizeObserver.observe(previewFrameRef.value)
+  }
+  requestAnimationFrame(refreshInlinePreviewMetrics)
   void loadData()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEditorHotkeys)
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  previewResizeObserver?.disconnect()
+  previewFrameResizeObserver?.disconnect()
+  previewResizeObserver = null
+  previewFrameResizeObserver = null
   if (slugAvailabilityTimer) {
     clearTimeout(slugAvailabilityTimer)
     slugAvailabilityTimer = null
@@ -3223,23 +3301,26 @@ onBeforeRouteLeave((to) => {
 
           <p v-if="!templateModule" class="preview-note">No encontramos una vista para este estilo.</p>
 
-          <div v-else class="preview-stage" @wheel="handlePreviewWheelZoom">
-            <div class="preview-frame" :class="previewViewportClass" :style="previewFrameStyle">
-              <component :is="templateModule.component" v-if="supportsInlineEditor"
-                :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
-                :manifest="templateModule.manifest" :data="previewData"
-                :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
-                :editable="true" :constrained-overlay="true" :preview-viewport="effectivePreviewDevice"
-                :preview-zoom-percent="previewZoomPercent" :active-field="activeTextField"
-                :section-visibility="previewSectionVisibility"
-                :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']" @start-edit="startTextEdit"
-                @update-field="updateFieldValue" @finish-edit="finishTextEdit"
-                @checkin-preview-closed="onCheckinPreviewClosed" />
-              <component :is="templateModule.component" v-else
-                :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
-                :manifest="templateModule.manifest" :data="previewData"
-                :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
-                :preview-viewport="effectivePreviewDevice" :preview-zoom-percent="previewZoomPercent" />
+          <div v-else ref="previewStageRef" class="preview-stage" @wheel="handlePreviewWheelZoom">
+            <div class="preview-frame-shell" :style="inlinePreviewShellStyle">
+              <div ref="previewFrameRef" class="preview-frame" :class="previewViewportClass"
+                :style="inlinePreviewFrameStyle">
+                <component :is="templateModule.component" v-if="supportsInlineEditor"
+                  :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
+                  :manifest="templateModule.manifest" :data="previewData"
+                  :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
+                  :editable="true" :constrained-overlay="true" :preview-viewport="effectivePreviewDevice"
+                  :preview-zoom-percent="previewZoomPercent" :active-field="activeTextField"
+                  :section-visibility="previewSectionVisibility"
+                  :checkin-preview="showCheckinPreview && previewSectionVisibility['checkin']" @start-edit="startTextEdit"
+                  @update-field="updateFieldValue" @finish-edit="finishTextEdit"
+                  @checkin-preview-closed="onCheckinPreviewClosed" />
+                <component :is="templateModule.component" v-else
+                  :template-id="Number(selectedTemplateId || invitation?.template_id || templateModule.manifest.id)"
+                  :manifest="templateModule.manifest" :data="previewData"
+                  :invitation-title="title || invitation?.title || ''" :type-event-name="typeEvent?.name || ''"
+                  :preview-viewport="effectivePreviewDevice" :preview-zoom-percent="previewZoomPercent" />
+              </div>
             </div>
           </div>
         </article>
@@ -4622,14 +4703,24 @@ onBeforeRouteLeave((to) => {
 
 .preview-stage {
   width: 100%;
-  overflow: auto;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: clamp(760px, 82vh, 1180px);
+}
+
+.preview-frame-shell {
+  position: relative;
+  justify-self: center;
 }
 
 .preview-frame {
   position: relative;
   isolation: isolate;
-  transform: translateZ(0);
+  transform-origin: top left;
+  will-change: transform;
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 16px;
   background: #f1f5f9;
@@ -4640,17 +4731,20 @@ onBeforeRouteLeave((to) => {
 }
 
 .preview-frame--mobile {
-  width: min(390px, 100%);
+  width: 390px;
+  max-width: none;
   margin: 0 auto;
 }
 
 .preview-frame--tablet {
-  width: min(860px, 100%);
+  width: 860px;
+  max-width: none;
   margin: 0 auto;
 }
 
 .preview-frame--desktop {
-  width: 100%;
+  width: 1366px;
+  max-width: none;
   margin: 0 auto;
 }
 
