@@ -10,6 +10,7 @@ import {
 } from '@/services/publicInvitations'
 import type {
   InvitationGalleryItem,
+  InvitationMultilangLanguageCode,
   InvitationTemplateRendererProps,
   InvitationThemeGradientConfig,
   InvitationThemeSectionConfig,
@@ -54,6 +55,7 @@ const emit = defineEmits<{
   (event: 'update-field', payload: { field: string; value: string }): void
   (event: 'finish-edit'): void
   (event: 'checkin-preview-closed'): void
+  (event: 'language-change', language: InvitationMultilangLanguageCode): void
 }>()
 
 const countdownNow = ref(Date.now())
@@ -88,12 +90,19 @@ const djSongName = ref('')
 const djSongReferenceUrl = ref('')
 const djSongSuccessMessage = ref<string | null>(null)
 const giftOptionsModalOpen = ref(false)
+const languageMenuOpen = ref(false)
 let timerId: ReturnType<typeof setInterval> | null = null
 const WALL_MESSAGE_MAX_LENGTH = 250
 const WALL_MESSAGE_PREVIEW_LENGTH = 120
 const WALL_VISIBLE_PREVIEW_LIMIT = 2
 const WALL_CLOUD_SCROLL_COOLDOWN_MS = 1600
 const WALL_CLOUD_LIFETIME_MS = 4600
+
+type MultilangLanguageOption = {
+  code: InvitationMultilangLanguageCode
+  label: string
+  shortLabel: string
+}
 
 type WallMessage = {
   id: string
@@ -118,6 +127,17 @@ const wallCloudShownIds = new Set<string>()
 const wallCloudTimeouts: ReturnType<typeof window.setTimeout>[] = []
 let lastWallCloudAt = 0
 let nextWallCloudSide: WallCloudMessage['side'] = 'left'
+
+const MULTILANG_DEFAULT_LANGUAGE: InvitationMultilangLanguageCode = 'es'
+const MULTILANG_FALLBACK_LANGUAGE_OPTION: MultilangLanguageOption = {
+  code: 'es',
+  label: 'Español',
+  shortLabel: 'ES',
+}
+const MULTILANG_LANGUAGE_OPTIONS: MultilangLanguageOption[] = [
+  MULTILANG_FALLBACK_LANGUAGE_OPTION,
+  { code: 'en', label: 'English', shortLabel: 'EN' },
+]
 
 const demoWallMessages: WallMessage[] = [
   {
@@ -517,6 +537,52 @@ const syncGalleryViewportWidth = () => {
   galleryViewportWidth.value = window.innerWidth
 }
 const usesEmbeddedOverlay = computed(() => props.editable || props.constrainedOverlay)
+const normalizeMultilangLanguageCodes = (value: unknown): InvitationMultilangLanguageCode[] => {
+  const validCodes = new Set(MULTILANG_LANGUAGE_OPTIONS.map((item) => item.code))
+  const normalized = Array.isArray(value)
+    ? value
+        .map((item) => String(item).trim().toLowerCase())
+        .filter((item): item is InvitationMultilangLanguageCode => validCodes.has(item as InvitationMultilangLanguageCode))
+    : []
+  const unique = normalized.filter((item, index, list) => list.indexOf(item) === index)
+
+  return unique.includes(MULTILANG_DEFAULT_LANGUAGE)
+    ? unique
+    : [MULTILANG_DEFAULT_LANGUAGE, ...unique]
+}
+const multilangConfig = computed(() => props.data.multilang ?? {})
+const multilangCopy = computed(() => multilangConfig.value.copy ?? {})
+const enabledMultilangLanguages = computed(() =>
+  normalizeMultilangLanguageCodes(multilangConfig.value.languages)
+    .map((code) => MULTILANG_LANGUAGE_OPTIONS.find((option) => option.code === code))
+    .filter((option): option is MultilangLanguageOption => Boolean(option)),
+)
+const activeLanguage = computed<InvitationMultilangLanguageCode>(() => {
+  const configured = String(props.activeLanguage ?? multilangConfig.value.activeLanguage ?? MULTILANG_DEFAULT_LANGUAGE).trim().toLowerCase()
+  return configured === 'en' ? 'en' : MULTILANG_DEFAULT_LANGUAGE
+})
+const activeLanguageOption = computed(
+  () =>
+    enabledMultilangLanguages.value.find((option) => option.code === activeLanguage.value)
+    ?? enabledMultilangLanguages.value[0]
+    ?? MULTILANG_FALLBACK_LANGUAGE_OPTION,
+)
+const multilangSelectorEnabled = computed(
+  () =>
+    Boolean(multilangConfig.value.enabled)
+    && Boolean(multilangConfig.value.features?.enabled ?? multilangConfig.value.features?.multi_language_enabled ?? multilangConfig.value.features?.multiLanguageEnabled ?? true)
+    && enabledMultilangLanguages.value.length > 0,
+)
+const copyText = (key: string, fallback: string): string => {
+  const value = multilangCopy.value[key]
+  return typeof value === 'string' && value.trim() !== '' ? value : fallback
+}
+const selectLanguage = (code: InvitationMultilangLanguageCode) => {
+  languageMenuOpen.value = false
+  if (code !== activeLanguage.value) {
+    emit('language-change', code)
+  }
+}
 const galleryHasMultipleItems = computed(() => galleryItems.value.length > 1)
 const normalizedGalleryLightboxIndex = computed(() =>
   galleryItems.value.length
@@ -1107,6 +1173,16 @@ watch([musicAudioUrl, musicMuted], () => {
   void syncAudioPlayback()
 })
 
+watch(
+  enabledMultilangLanguages,
+  () => {
+    if (!multilangSelectorEnabled.value) {
+      languageMenuOpen.value = false
+    }
+  },
+  { immediate: true },
+)
+
 watch(publishedOverlayOpen, (isOpen) => {
   if (typeof document === 'undefined') return
   document.body.style.overflow = isOpen ? 'hidden' : ''
@@ -1334,16 +1410,51 @@ watch(
       </article>
     </div>
 
+    <div
+      v-if="multilangSelectorEnabled"
+      class="luna-language-fab"
+      :class="{ 'luna-language-fab--embedded': usesEmbeddedOverlay }"
+    >
+      <div v-if="languageMenuOpen" class="luna-language-fab__menu" role="menu">
+        <button
+          v-for="language in enabledMultilangLanguages"
+          :key="language.code"
+          type="button"
+          :class="{ active: language.code === activeLanguage }"
+          role="menuitem"
+          @click="selectLanguage(language.code)"
+        >
+          <span>{{ language.shortLabel }}</span>
+          <strong>{{ language.label }}</strong>
+        </button>
+      </div>
+      <button
+        type="button"
+        class="luna-language-fab__button"
+        :aria-expanded="languageMenuOpen"
+        :aria-label="copyText('chooseLanguage', 'Elegir idioma')"
+        @click="languageMenuOpen = !languageMenuOpen"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18" />
+          <path d="M12 3a13 13 0 0 1 0 18" />
+          <path d="M12 3a13 13 0 0 0 0 18" />
+        </svg>
+        <span>{{ activeLanguageOption.shortLabel }}</span>
+      </button>
+    </div>
+
     <button
       v-if="isSectionVisible('music')"
       type="button"
       class="luna-music-fab"
       :class="{ active: !musicMuted, 'luna-music-fab--embedded': usesEmbeddedOverlay }"
-      :aria-label="musicMuted ? 'Activar música' : 'Silenciar música'"
+      :aria-label="musicMuted ? copyText('activateMusic', 'Activar música') : copyText('muteMusic', 'Silenciar música')"
       @click="toggleMusic"
     >
       <span class="luna-music-wave" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span>{{ musicMuted ? 'Activar música' : 'Silenciar música' }}</span>
+      <span>{{ musicMuted ? copyText('activateMusic', 'Activar música') : copyText('muteMusic', 'Silenciar música') }}</span>
     </button>
 
     <button
@@ -2248,6 +2359,101 @@ h2 {
   display: block;
 }
 
+.luna-language-fab {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.luna-language-fab--embedded {
+  position: absolute;
+}
+
+.luna-language-fab__button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--luna-moss) 24%, transparent);
+  border-radius: 999px;
+  background: var(--luna-paper);
+  color: var(--luna-moss);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 950;
+  box-shadow: 0 18px 42px rgba(45, 34, 27, 0.18);
+  cursor: pointer;
+}
+
+.luna-language-fab__button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.luna-language-fab__menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  min-width: 150px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--luna-moss) 18%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--luna-paper) 94%, #ffffff);
+  color: var(--luna-ink);
+  box-shadow: 0 20px 52px rgba(45, 34, 27, 0.22);
+}
+
+.luna-language-fab__menu button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  padding: 8px 9px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.luna-language-fab__menu button.active,
+.luna-language-fab__menu button:hover {
+  background: color-mix(in srgb, var(--luna-button-bg-paint) 16%, transparent);
+}
+
+.luna-language-fab__menu span {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--luna-button-bg-paint);
+  color: var(--luna-button-text);
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.luna-language-fab__menu strong {
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .luna-music-fab {
   position: fixed;
   right: 18px;
@@ -2962,6 +3168,16 @@ h2 {
   .luna-gallery {
     grid-template-columns: 1fr;
     grid-auto-rows: 300px;
+  }
+
+  .luna-language-fab {
+    left: 12px;
+    bottom: 12px;
+  }
+
+  .luna-language-fab__button {
+    min-height: 42px;
+    padding: 0 12px;
   }
 
   .luna-wall__grid--archive {

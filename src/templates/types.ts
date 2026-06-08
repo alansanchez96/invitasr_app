@@ -210,6 +210,28 @@ export type InvitationGiftOptionsConfig = {
   }
 }
 
+export type InvitationMultilangLanguageCode = 'es' | 'en'
+
+export type InvitationMultilangLanguage = {
+  code: InvitationMultilangLanguageCode
+  label: string
+  shortLabel: string
+  nativeLabel?: string
+}
+
+export type InvitationMultilangConfig = {
+  enabled?: boolean
+  languages?: InvitationMultilangLanguageCode[]
+  defaultLanguage?: InvitationMultilangLanguageCode
+  activeLanguage?: InvitationMultilangLanguageCode
+  copy?: Record<string, string>
+  features?: {
+    enabled?: boolean
+    multi_language_enabled?: boolean
+    multiLanguageEnabled?: boolean
+  }
+}
+
 export type InvitationBrandingConfig = {
   visible: boolean
   label: string
@@ -297,6 +319,7 @@ export type WeddingTemplateData = {
   wallPreview?: InvitationWallPreviewConfig
   djSongRequests?: InvitationDjSongRequestsConfig
   giftOptions?: InvitationGiftOptionsConfig
+  multilang?: InvitationMultilangConfig
 }
 
 export type InvitationTemplateDataMap = {
@@ -307,6 +330,7 @@ export type InvitationTemplateRendererProps<TEventType extends InvitationTemplat
   templateId: number
   manifest: InvitationTemplateManifest
   data: InvitationTemplateDataMap[TEventType]
+  activeLanguage?: InvitationMultilangLanguageCode
 }
 
 export type InvitationTemplatePreviewDataContext = {

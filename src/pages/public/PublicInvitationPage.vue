@@ -2,7 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { getPublicInvitationByHost } from '@/services/publicInvitations'
 import { loadTemplateModuleByRendererKey } from '@/templates/registry'
-import type { InvitationTemplateModule, WeddingTemplateData } from '@/templates/types'
+import type {
+  InvitationMultilangLanguageCode,
+  InvitationTemplateModule,
+  WeddingTemplateData,
+} from '@/templates/types'
 import { resolveInvitationSubdomainFromHost } from '@/utils/host'
 
 const isLoading = ref(true)
@@ -13,6 +17,7 @@ const sectionVisibility = ref<Record<string, boolean>>({})
 const templateId = ref<number>(1)
 const invitationTitle = ref('')
 const typeEventName = ref('')
+const activeLanguage = ref<InvitationMultilangLanguageCode>('es')
 
 const invitationSubdomain = computed(() => resolveInvitationSubdomainFromHost())
 const appName = String(import.meta.env.VITE_APP_NAME ?? 'InvitaSR')
@@ -38,6 +43,7 @@ const withResolvedPublicFeatures = (content: WeddingTemplateData, settings: Reco
   const wallFeatures = settings.wall_features
   const djSongRequestFeatures = settings.dj_song_request_features
   const giftOptionsFeatures = settings.gift_options_features
+  const multilangFeatures = settings.multilang_features
   const popupConfirmationFeatures = settings.popup_confirmation_features
   const resolvedRsvpFeatures = rsvpFeatures && typeof rsvpFeatures === 'object'
     ? rsvpFeatures as WeddingTemplateData['rsvp']['features']
@@ -75,11 +81,22 @@ const withResolvedPublicFeatures = (content: WeddingTemplateData, settings: Reco
         ? giftOptionsFeatures as NonNullable<WeddingTemplateData['giftOptions']>['features']
         : content.giftOptions?.features,
     },
+    multilang: {
+      ...(content.multilang ?? {}),
+      features: multilangFeatures && typeof multilangFeatures === 'object'
+        ? multilangFeatures as NonNullable<WeddingTemplateData['multilang']>['features']
+        : content.multilang?.features,
+    },
   }
 }
 
-const loadInvitation = async () => {
-  isLoading.value = true
+const normalizeLanguageCode = (value: unknown): InvitationMultilangLanguageCode => {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return normalized === 'en' ? 'en' : 'es'
+}
+
+const loadInvitation = async (language = activeLanguage.value) => {
+  isLoading.value = !templateData.value
   loadError.value = null
 
   if (!invitationSubdomain.value) {
@@ -89,7 +106,7 @@ const loadInvitation = async () => {
   }
 
   try {
-    const payload = await getPublicInvitationByHost()
+    const payload = await getPublicInvitationByHost(language)
     const rendererKey = String(payload.template?.rendererKey ?? '').trim()
     if (!rendererKey) {
       loadError.value = 'No encontramos el diseño configurado para esta invitación.'
@@ -126,6 +143,11 @@ const loadInvitation = async () => {
     sectionVisibility.value = nextSectionVisibility
     invitationTitle.value = String(payload.invitation?.title ?? '').trim()
     typeEventName.value = String(payload.typeEvent?.name ?? '').trim()
+    activeLanguage.value = normalizeLanguageCode(
+      payload.settings?.active_language
+      ?? templateData.value?.multilang?.activeLanguage
+      ?? language,
+    )
     syncDocumentTitle(invitationTitle.value, typeEventName.value)
   } catch (error) {
     const source = error as { message?: string; status?: number; statusCode?: number }
@@ -136,6 +158,13 @@ const loadInvitation = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const handleLanguageChange = (language: InvitationMultilangLanguageCode) => {
+  const nextLanguage = normalizeLanguageCode(language)
+  if (nextLanguage === activeLanguage.value) return
+  activeLanguage.value = nextLanguage
+  void loadInvitation(nextLanguage)
 }
 
 onMounted(() => {
@@ -159,9 +188,11 @@ onMounted(() => {
       :template-id="templateId"
       :manifest="templateModule.manifest"
       :data="templateData"
+      :active-language="activeLanguage"
       :invitation-title="invitationTitle"
       :type-event-name="typeEventName"
-      :section-visibility="sectionVisibility" />
+      :section-visibility="sectionVisibility"
+      @language-change="handleLanguageChange" />
   </section>
 </template>
 

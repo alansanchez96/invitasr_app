@@ -194,8 +194,18 @@ const normalizePayload = (value: unknown): PublicInvitationPayload => {
   }
 }
 
-export const getPublicInvitationByHost = async (): Promise<PublicInvitationPayload> => {
-  const response = await request<PublicApiResponse<Record<string, unknown>>>('/invitations/resolve-by-host', {
+const buildPublicInvitationLanguageQuery = (language?: string): string => {
+  const normalized = String(language ?? '').trim().toLowerCase()
+  if (!normalized) return ''
+
+  const search = new URLSearchParams()
+  search.set('lang', normalized)
+
+  return `?${search.toString()}`
+}
+
+export const getPublicInvitationByHost = async (language?: string): Promise<PublicInvitationPayload> => {
+  const response = await request<PublicApiResponse<Record<string, unknown>>>(`/invitations/resolve-by-host${buildPublicInvitationLanguageQuery(language)}`, {
     token: '',
     credentials: 'omit',
   })

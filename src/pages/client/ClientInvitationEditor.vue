@@ -78,6 +78,15 @@ type CurrencyOption = {
   label: string
 }
 
+type MultilangLanguageCode = 'es' | 'en'
+
+type MultilangLanguageOption = {
+  code: MultilangLanguageCode
+  label: string
+  nativeLabel: string
+  shortLabel: string
+}
+
 type ThemeColorField = {
   key: string
   label: string
@@ -140,6 +149,11 @@ const PREVIEW_DEVICE_WIDTHS: Record<ResponsiveDevice, number> = {
   tablet: 860,
   desktop: 1366,
 }
+const MULTILANG_DEFAULT_LANGUAGE: MultilangLanguageCode = 'es'
+const multilangLanguageOptions: MultilangLanguageOption[] = [
+  { code: 'es', label: 'Español', nativeLabel: 'Español', shortLabel: 'ES' },
+  { code: 'en', label: 'English', nativeLabel: 'English', shortLabel: 'EN' },
+]
 
 const invitation = ref<TenantInvitationItem | null>(null)
 const template = ref<TenantTemplateSummary | null>(null)
@@ -229,6 +243,48 @@ const isProLikePlan = computed(() => {
 })
 const canUploadCustomMusic = computed(() => isProLikePlan.value)
 const maxLocationsPerInvitation = computed(() => (isProLikePlan.value ? 5 : 2))
+const normalizeMultilangLanguages = (value: unknown): MultilangLanguageCode[] => {
+  const rawItems = Array.isArray(value) ? value : []
+  const validCodes = new Set(multilangLanguageOptions.map((item) => item.code))
+  const normalized = rawItems
+    .map((item) => String(item).trim().toLowerCase())
+    .filter((item): item is MultilangLanguageCode => validCodes.has(item as MultilangLanguageCode))
+    .filter((item, index, list) => list.indexOf(item) === index)
+
+  return normalized.includes(MULTILANG_DEFAULT_LANGUAGE)
+    ? normalized
+    : [MULTILANG_DEFAULT_LANGUAGE, ...normalized]
+}
+const multilangEnabledDraft = computed({
+  get: () => isProLikePlan.value && Boolean(getByPath(contentDraft.value, 'multilang.enabled') ?? false),
+  set: (enabled: boolean) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'multilang.enabled', isProLikePlan.value && enabled)
+    setByPath(nextContent, 'multilang.defaultLanguage', MULTILANG_DEFAULT_LANGUAGE)
+    setByPath(
+      nextContent,
+      'multilang.languages',
+      normalizeMultilangLanguages(getByPath(nextContent, 'multilang.languages')),
+    )
+    contentDraft.value = nextContent
+  },
+})
+const multilangLanguagesDraft = computed<MultilangLanguageCode[]>({
+  get: () => normalizeMultilangLanguages(getByPath(contentDraft.value, 'multilang.languages')),
+  set: (value) => {
+    const nextContent = cloneRecord(contentDraft.value)
+    setByPath(nextContent, 'multilang.languages', normalizeMultilangLanguages(value))
+    setByPath(nextContent, 'multilang.defaultLanguage', MULTILANG_DEFAULT_LANGUAGE)
+    contentDraft.value = nextContent
+  },
+})
+const updateMultilangLanguage = (code: MultilangLanguageCode, enabled: boolean) => {
+  if (code === MULTILANG_DEFAULT_LANGUAGE) return
+  const current = multilangLanguagesDraft.value
+  multilangLanguagesDraft.value = enabled
+    ? [...current, code]
+    : current.filter((item) => item !== code)
+}
 const previewStageWidth = ref(0)
 const previewFrameHeight = ref(0)
 const previewBaseWidth = computed(() => PREVIEW_DEVICE_WIDTHS[effectivePreviewDevice.value])
@@ -1136,6 +1192,16 @@ const ensureDefaultFeatureData = () => {
   if (!Array.isArray(getByPath(nextContent, 'giftOptions.items'))) {
     setByPath(nextContent, 'giftOptions.items', [])
   }
+
+  if (typeof getByPath(nextContent, 'multilang.enabled') !== 'boolean') {
+    setByPath(nextContent, 'multilang.enabled', false)
+  }
+  setByPath(nextContent, 'multilang.defaultLanguage', MULTILANG_DEFAULT_LANGUAGE)
+  setByPath(
+    nextContent,
+    'multilang.languages',
+    normalizeMultilangLanguages(getByPath(nextContent, 'multilang.languages')),
+  )
 
   const countdownTarget = asText(getByPath(nextContent, 'countdown.targetDateIso'))
   if (!countdownTarget) {
@@ -2363,6 +2429,11 @@ const previewData = computed<WeddingTemplateData>(() => {
         gift_options_enabled: isProLikePlan.value,
       },
     },
+    multilang: {
+      enabled: multilangEnabledDraft.value,
+      languages: multilangLanguagesDraft.value,
+      defaultLanguage: MULTILANG_DEFAULT_LANGUAGE,
+    },
     branding: {
       visible: false,
       label: asText(getByPath(contentDraft.value, 'branding.label'), 'Creado con InvitaSR'),
@@ -3374,6 +3445,32 @@ onBeforeRouteLeave((to) => {
                       <small class="field-hint field-hint--subdomain">{{ subdomainChangeHelp }}</small>
                       <small class="field-alert" :class="slugAvailabilityClass">{{ slugAvailabilityMessage }}</small>
                     </label>
+
+                    <div v-if="isProLikePlan" class="config-feature-card">
+                      <div class="config-feature-card__head">
+                        <div>
+                          <strong>Selector de idiomas</strong>
+                          <small>Permite que tus invitados elijan el idioma de la invitación.</small>
+                        </div>
+                        <label class="switch">
+                          <input v-model="multilangEnabledDraft" type="checkbox" />
+                          <span class="switch-track"></span>
+                        </label>
+                      </div>
+
+                      <div v-if="multilangEnabledDraft" class="language-checklist">
+                        <label v-for="option in multilangLanguageOptions" :key="option.code"
+                          class="language-checklist__item">
+                          <input type="checkbox" :checked="multilangLanguagesDraft.includes(option.code)"
+                            :disabled="option.code === MULTILANG_DEFAULT_LANGUAGE"
+                            @change="updateMultilangLanguage(option.code, ($event.target as HTMLInputElement).checked)" />
+                          <span>
+                            <strong>{{ option.label }}</strong>
+                            <small>{{ option.code === MULTILANG_DEFAULT_LANGUAGE ? 'Idioma base' : option.nativeLabel }}</small>
+                          </span>
+                        </label>
+                      </div>
+                    </div>
                   </section>
 
                   <section v-else-if="activeConfigTarget === 'config-style'" id="config-style"
@@ -5018,6 +5115,68 @@ onBeforeRouteLeave((to) => {
 
 .field-alert--error {
   color: #b91c1c;
+}
+
+.config-feature-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(219, 203, 255, 0.76);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(240, 106, 166, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 247, 255, 0.86));
+  box-shadow:
+    0 12px 24px rgba(45, 24, 84, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.config-feature-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.config-feature-card__head strong,
+.language-checklist__item strong {
+  display: block;
+  color: #2b1a44;
+  font-size: 0.83rem;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.config-feature-card__head small,
+.language-checklist__item small {
+  display: block;
+  margin-top: 2px;
+  color: #806c98;
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.language-checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.language-checklist__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(155, 107, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.language-checklist__item input {
+  width: 18px;
+  height: 18px;
+  accent-color: #7a4fd9;
 }
 
 .option-group {
